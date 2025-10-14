@@ -1,7 +1,7 @@
 from django.conf import settings
 from django.db import models
 from django.core.validators import MinValueValidator, MaxValueValidator
-
+import uuid
 
 class ConstructionType(models.TextChoices):
     EARTHWORK = "EARTH", "토공사"
@@ -12,12 +12,15 @@ class ConstructionType(models.TextChoices):
 
 
 class WorkScheduleWeight(models.Model):
-    user = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
+
+    #프로젝트
+    project = models.ForeignKey(
+        'cpe_module.Project',
+        db_column='project',
         on_delete=models.CASCADE,
-        related_name="work_schedule_weights",
-        help_text="소유 사용자"
+        related_name='workscheduleweight_project',
     )
+
     type = models.CharField(
         max_length=16,
         choices=ConstructionType.choices,
@@ -49,23 +52,3 @@ class WorkScheduleWeight(models.Model):
     )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-
-    is_delete = models.BooleanField(default=False)
-
-    class Meta:
-        verbose_name = "공종별 주간 가중치"
-        verbose_name_plural = "공종별 주간 가중치"
-        constraints = [
-            # 동일 사용자+공종 1행만 허용
-            models.UniqueConstraint(fields=["user", "type"], name="uniq_user_type"),
-            # DB 레벨 유효성 체크(0~100)
-            models.CheckConstraint(check=models.Q(pct_7d__gte=0) & models.Q(pct_7d__lte=100), name="pct_7d_0_100"),
-            models.CheckConstraint(check=models.Q(pct_6d__gte=0) & models.Q(pct_6d__lte=100), name="pct_6d_0_100"),
-            models.CheckConstraint(check=models.Q(pct_5d__gte=0) & models.Q(pct_5d__lte=100), name="pct_5d_0_100"),
-        ]
-        indexes = [
-            models.Index(fields=["user", "type"], name="idx_user_type"),
-        ]
-
-    def __str__(self):
-        return f"{self.user} · {self.get_type_display()}"
