@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
 import DataTable from "../DataTable";
-import "./utils/scroll.css";
+import "../utils/scroll.css";
 import { PlusCircle, Trash2 } from "lucide-react";
 
 export default function FrameworkSection({ data, setData, onAutoSave }) {
@@ -8,9 +8,69 @@ export default function FrameworkSection({ data, setData, onAutoSave }) {
   const scrollRef = useRef(null);
   const scrollTimeout = useRef(null);
 
-  const handleChange = (key, val) => setData((p) => ({ ...p, [key]: val }));
+  // ✅ 최신 데이터 ref
+  const latestDataRef = useRef(data);
+  useEffect(() => {
+    latestDataRef.current = data;
+  }, [data]);
 
-  // 스크롤 감지 (스크롤 중에만 스크롤바 표시)
+  // ✅ 처음 불러올 때만 key 기준 오름차순 정렬
+  useEffect(() => {
+    const sortInitial = (field, key) => {
+      if (data?.[field]?.length) {
+        const sorted = [...data[field]].sort((a, b) => (a[key] || 0) - (b[key] || 0));
+        // 원본과 다를 때만 반영
+        if (JSON.stringify(sorted) !== JSON.stringify(data[field])) {
+          const newData = { ...data, [field]: sorted };
+          setData(newData);
+          latestDataRef.current = newData;
+        }
+      }
+    };
+
+    sortInitial("base_thickness_data", "thickness");
+    sortInitial("floor_height_data", "height");
+    sortInitial("transfer_height_data", "floors");
+  }, []); // ✅ 최초 1회만 실행
+
+  // 일반 필드 변경
+  const handleChange = (key, val) => {
+    setData((prev) => {
+      const updated = { ...prev, [key]: val };
+      latestDataRef.current = updated;
+      return updated;
+    });
+  };
+
+  // JSON 필드 변경 (입력 순서 유지)
+  const handleJsonChange = (field, index, key, value) => {
+    let updated = [...(latestDataRef.current[field] || [])];
+    updated[index][key] = Number(value);
+    const newData = { ...latestDataRef.current, [field]: updated };
+    setData(newData);
+    latestDataRef.current = newData;
+    onAutoSave(latestDataRef.current);
+  };
+
+  // 행 추가 / 삭제 (순서 그대로 유지)
+  const handleAddRow = (field, defaultRow) => {
+    const updated = [...(latestDataRef.current[field] || []), defaultRow];
+    const newData = { ...latestDataRef.current, [field]: updated };
+    setData(newData);
+    latestDataRef.current = newData;
+    onAutoSave(latestDataRef.current);
+  };
+
+  const handleRemoveRow = (field, index) => {
+    const updated = [...(latestDataRef.current[field] || [])];
+    updated.splice(index, 1);
+    const newData = { ...latestDataRef.current, [field]: updated };
+    setData(newData);
+    latestDataRef.current = newData;
+    onAutoSave(latestDataRef.current);
+  };
+
+  // 스크롤 감지 (스크롤바 표시 제어)
   const handleScroll = () => {
     setIsScrolling(true);
     clearTimeout(scrollTimeout.current);
@@ -24,43 +84,12 @@ export default function FrameworkSection({ data, setData, onAutoSave }) {
     return () => el.removeEventListener("scroll", handleScroll);
   }, []);
 
-  // JSON 데이터 변경 (중복 방지 + 정렬)
-  const handleJsonChange = (field, index, key, value) => {
-    let updated = [...(data[field] || [])];
-    updated[index][key] = Number(value);
-
-    // 중복 체크
-    const uniqueValues = new Set();
-    updated = updated.filter((row) => {
-      if (uniqueValues.has(row[key])) return false;
-      uniqueValues.add(row[key]);
-      return true;
-    });
-
-    // 정렬 (숫자 오름차순)
-    updated.sort((a, b) => (a[key] || 0) - (b[key] || 0));
-
-    setData((prev) => ({ ...prev, [field]: updated }));
-    onAutoSave({ ...data, [field]: updated });
-  };
-
-  // 행 추가 / 삭제
-  const handleAddRow = (field, defaultRow) => {
-    const updated = [...(data[field] || []), defaultRow];
-    setData((prev) => ({ ...prev, [field]: updated }));
-    onAutoSave({ ...data, [field]: updated });
-  };
-  const handleRemoveRow = (field, index) => {
-    const updated = [...(data[field] || [])];
-    updated.splice(index, 1);
-    setData((prev) => ({ ...prev, [field]: updated }));
-    onAutoSave({ ...data, [field]: updated });
-  };
-
   // 일반 테이블
   const renderTable = (title, headers, rows, keys) => (
     <section className="bg-[#2c2c3a] p-4 rounded-xl shadow space-y-2 min-w-[340px]">
-      <h3 className="text-md font-semibold border-b border-gray-600 pb-1">{title}</h3>
+      <h3 className="text-md font-semibold border-b border-gray-600 pb-1">
+        {title}
+      </h3>
       <DataTable
         columns={[
           { key: "label", label: headers[0] },
@@ -68,7 +97,7 @@ export default function FrameworkSection({ data, setData, onAutoSave }) {
         ]}
         rows={rows.map((r) => ({ label: r.label, value: r.value }))}
         onChange={(i, k, v) => handleChange(keys[i], v)}
-        onAutoSave={() => onAutoSave(data)}
+        onAutoSave={() => onAutoSave(latestDataRef.current)}
       />
     </section>
   );
@@ -97,14 +126,21 @@ export default function FrameworkSection({ data, setData, onAutoSave }) {
         </thead>
         <tbody>
           {(data[field] || []).map((row, idx) => (
-            <tr key={idx} className="border-t border-gray-700 hover:bg-[#3b3b4f] transition-colors">
+            <tr
+              key={idx}
+              className="border-t border-gray-700 hover:bg-[#3b3b4f] transition-colors"
+            >
               {keyMap.map((key) => (
                 <td key={key} className="py-2 px-3">
                   <input
                     type="number"
                     value={row[key] ?? ""}
-                    onChange={(e) => handleJsonChange(field, idx, key, e.target.value)}
-                    onKeyDown={(e) => e.key === "Enter" && onAutoSave(data)}
+                    onChange={(e) =>
+                      handleJsonChange(field, idx, key, e.target.value)
+                    }
+                    onKeyDown={(e) =>
+                      e.key === "Enter" && onAutoSave(latestDataRef.current)
+                    }
                     className="no-spin w-24 bg-[#1e1e2f] border border-gray-600 rounded px-2 py-1 text-gray-200 text-right focus:outline-none focus:ring-1 focus:ring-blue-500"
                   />
                 </td>
@@ -131,8 +167,20 @@ export default function FrameworkSection({ data, setData, onAutoSave }) {
         isScrolling ? "scrolling" : ""
       }`}
     >
-      {renderJsonTable("● 기초공사 (기초두께별 소요일)", "base_thickness_data", ["기초두께(m)", "소요일(일)"], ["thickness", "day"], { thickness: 0, day: 0 })}
-      {renderJsonTable("● 층고별 소요일", "floor_height_data", ["층고(m)", "소요일(일)"], ["height", "day"], { height: 0, day: 0 })}
+      {renderJsonTable(
+        "● 기초공사 (기초두께별 소요일)",
+        "base_thickness_data",
+        ["기초두께(m)", "소요일(일)"],
+        ["thickness", "day"],
+        { thickness: 0, day: 0 }
+      )}
+      {renderJsonTable(
+        "● 층고별 소요일",
+        "floor_height_data",
+        ["층고(m)", "소요일(일)"],
+        ["height", "day"],
+        { height: 0, day: 0 }
+      )}
       {renderTable(
         "● 층변화",
         ["구분", "소요일(일)"],
@@ -155,9 +203,28 @@ export default function FrameworkSection({ data, setData, onAutoSave }) {
           "change_cycle_time",
         ]
       )}
-      {renderJsonTable("● 층 수별 전이층 소요일", "transfer_height_data", ["층 수", "소요일(일)"], ["floors", "day"], { floors: 0, day: 0 })}
-      {renderTable("● 갱폼 인양방식", ["방식", "소요일(일)"], [{ label: "TC 인양식", value: data.form_tc }, { label: "유압 인양식", value: data.form_hydraulic }], ["form_tc", "form_hydraulic"])}
-      {renderTable("● 역타공법 지하층 소요일", ["구분", "소요일(일)"], [{ label: "적용", value: data.reverse_excavation }], ["reverse_excavation"])}
+      {renderJsonTable(
+        "● 층 수별 전이층 소요일",
+        "transfer_height_data",
+        ["층 수", "소요일(일)"],
+        ["floors", "day"],
+        { floors: 0, day: 0 }
+      )}
+      {renderTable(
+        "● 갱폼 인양방식",
+        ["방식", "소요일(일)"],
+        [
+          { label: "TC 인양식", value: data.form_tc },
+          { label: "유압 인양식", value: data.form_hydraulic },
+        ],
+        ["form_tc", "form_hydraulic"]
+      )}
+      {renderTable(
+        "● 역타공법 지하층 소요일",
+        ["구분", "소요일(일)"],
+        [{ label: "적용", value: data.reverse_excavation }],
+        ["reverse_excavation"]
+      )}
     </div>
   );
 }

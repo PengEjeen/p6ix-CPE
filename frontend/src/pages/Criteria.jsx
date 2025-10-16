@@ -49,11 +49,12 @@ export default function Criteria() {
   // 자동 저장 핸들러 (각 섹션에서 호출)
   const handleAutoSave = async (section, data) => {
     try {
-      if (section === "preparation") await updatePreparationWork(projectId, data);
-      if (section === "earthwork") await updateEarthwork(projectId, data);
-      if (section === "framework") await updateFramework(projectId, data);
+      if (section === "preparation") return await updatePreparationWork(projectId, data);
+      if (section === "earthwork") return await updateEarthwork(projectId, data);
+      if (section === "framework") return await updateFramework(projectId, data);
     } catch (err) {
       console.error(`${section} 저장 실패:`, err);
+      throw err;
     }
   };
 

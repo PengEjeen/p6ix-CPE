@@ -4,16 +4,17 @@ export default function DataTable({ columns, rows, onChange, onAutoSave }) {
   const typingTimeout = useRef(null);
   const [saveState, setSaveState] = useState("idle"); // "idle" | "saving" | "saved"
 
-  // 입력 후 0.8초 멈추면 자동 저장
+  // 입력 후 1초 멈추면 자동 저장
   const handleInputChange = (rowIdx, key, value) => {
     onChange(rowIdx, key, value);
 
     if (typingTimeout.current) clearTimeout(typingTimeout.current);
 
-    setSaveState("saving");
 
     typingTimeout.current = setTimeout(async () => {
+      
       if (onAutoSave) {
+        setSaveState("saving");
         try {
           await onAutoSave();
           setSaveState("saved");
@@ -22,7 +23,7 @@ export default function DataTable({ columns, rows, onChange, onAutoSave }) {
           setSaveState("idle");
         }
       }
-    }, 800); // 0.8초 대기 후 저장
+    }, 1000); // 1.0초 대기 후 저장
   };
 
   return (
