@@ -1,111 +1,137 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { Outlet, useNavigate } from "react-router-dom";
 import Header from "./Header";
+import Projects from "./tools/Projects";
 
 function Layout() {
   const navigate = useNavigate();
-  const [open, setOpen] = useState(false); // 드롭다운 상태
+  const [menuOpen, setMenuOpen] = useState(true);
+  const [userOpen, setUserOpen] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+  const user = JSON.parse(localStorage.getItem("user") || "{}");
+  const userRef = useRef(null);
 
   useEffect(() => {
     const access = localStorage.getItem("access");
-    const user = JSON.parse(localStorage.getItem("user") || "{}");
     if (!access || !user?.id) navigate("/login");
-  }, [navigate]);
+  }, [navigate, user]);
+
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth < 1024);
+    checkMobile();
+    window.addEventListener("resize", checkMobile);
+    return () => window.removeEventListener("resize", checkMobile);
+  }, []);
+
+  useEffect(() => {
+    if (isMobile) setMenuOpen(false);
+  }, [isMobile]);
+
+  const handleLogout = () => {
+    localStorage.clear();
+    navigate("/login");
+  };
 
   return (
-    <div className="min-h-screen flex flex-col bg-gray-50">
-      {/* 상단 헤더 */}
-      <Header />
+    <div className="h-screen w-full flex bg-[#1e1e2f] text-white overflow-hidden relative">
+      {/* 모바일용 오버레이 */}
+      {menuOpen && isMobile && (
+        <div
+          className="fixed inset-0 bg-black/40 backdrop-blur-sm z-10 transition-opacity duration-300"
+          onClick={() => setMenuOpen(false)}
+        ></div>
+      )}
 
-      {/* 아래 영역: 사이드 + 메인 */}
-      <div className="flex flex-1">
-        {/* 왼쪽 사이드바 */}
-        <aside className="w-56 bg-[#2c2c3a] text-white border-r border-gray-700 flex flex-col">
-          <nav className="flex-1 p-4 space-y-2">
+      {/* === 사이드바 === */}
+      <aside
+        className={`fixed top-0 left-0 h-full bg-[#2c2c3a] border-r border-gray-700 flex flex-col justify-between transition-all duration-300 ease-in-out z-20 ${
+          menuOpen ? "w-60" : "w-12"
+        }`}
+      >
+        <div className="flex-1 flex flex-col justify-start overflow-y-auto p-3">
+          {/* 홈버튼 */}
+          <div className="flex items-center justify-between mb-4">
+            {menuOpen ? (
+              <>
+                <button
+                  onClick={() => navigate("/")}
+                  className="flex items-center gap-2 px-2 py-2 rounded hover:bg-[#3b3b4f] transition"
+                >
+                  <div className="w-5 h-5 bg-gray-500 rounded-full"></div>
+                  <span className="font-semibold text-sm">P6ix</span>
+                </button>
 
-            {/* ▼ 드롭다운 메뉴 */}
-            <div className="relative">
+                <button
+                  onClick={() => setMenuOpen(false)}
+                  className="text-xs text-gray-300 border border-gray-600 px-2 py-1 rounded hover:bg-[#3b3b4f] transition"
+                >
+                  ←
+                </button>
+              </>
+            ) : (
               <button
-                onClick={() => setOpen(!open)}
-                className="w-full flex justify-between items-center px-3 py-2 rounded hover:bg-[#3b3b4f] transition"
+                onClick={() => setMenuOpen(true)}
+                className="text-lg text-gray-300 hover:text-white transition"
               >
-                <span>선택 ▼</span>
-                <span className={`transition-transform ${open ? "rotate-180" : ""}`}>
-                </span>
+                →
               </button>
+            )}
+          </div>
 
-              {open && (
-                <div className="absolute left-0 mt-1 w-full bg-[#3b3b4f] rounded shadow-lg z-10">
-                  <button
-                    onClick={() => {
-                      navigate("/");
-                      setOpen(false);
-                    }}
-                    className="block w-full text-left px-3 py-2 hover:bg-[#4a4a60] transition"
-                  >
-                    옵션 1
-                  </button>
-                  <button
-                    onClick={() => {
-                      navigate("/");
-                      setOpen(false);
-                    }}
-                    className="block w-full text-left px-3 py-2 hover:bg-[#4a4a60] transition"
-                  >
-                    옵션 2
-                  </button>
-                  <button
-                    onClick={() => {
-                      navigate("/");
-                      setOpen(false);
-                    }}
-                    className="block w-full text-left px-3 py-2 hover:bg-[#4a4a60] transition"
-                  >
-                    옵션 3
-                  </button>
-                </div>
-              )}
+          {/* 갑지목록 컴포넌트 삽입 */}
+          {menuOpen && <Projects />}
+        </div>
+
+        {/* ==== 하단 유저 정보 ==== */}
+        {menuOpen && (
+          <div className="border-t border-gray-700 p-3">
+            <button
+              onClick={() => setUserOpen(!userOpen)}
+              className="w-full flex justify-between items-center text-sm text-gray-300 hover:text-white"
+            >
+              <span>{user.username || "Guest"}</span>
+              <span
+                className={`transform transition-transform duration-300 ${
+                  userOpen ? "rotate-180" : ""
+                }`}
+              >
+                ▼
+              </span>
+            </button>
+
+            <div
+              ref={userRef}
+              className={`overflow-hidden transition-all duration-300 ${
+                userOpen ? "max-h-40 mt-3" : "max-h-0"
+              }`}
+            >
+              <div className="text-sm text-gray-400 space-y-2">
+                <p className="truncate">
+                  이메일: {user.email || "unknown@example.com"}
+                </p>
+                <button
+                  onClick={handleLogout}
+                  className="w-full border border-gray-600 rounded px-2 py-1 hover:bg-[#3b3b4f] transition"
+                >
+                  로그아웃
+                </button>
+              </div>
             </div>
+          </div>
+        )}
+      </aside>
 
-            {/* 일반 메뉴 */}
-            <button
-              onClick={() => navigate("/")}
-              className="block w-full text-left px-3 py-2 rounded hover:bg-[#3b3b4f] transition"
-            >
-              홈
-            </button>
-            <button
-              onClick={() => navigate("/")}
-              className="block w-full text-left px-3 py-2 rounded hover:bg-[#3b3b4f] transition"
-            >
-              공기산정
-            </button>
-            <button
-              onClick={() => navigate("/")}
-              className="block w-full text-left px-3 py-2 rounded hover:bg-[#3b3b4f] transition"
-            >
-              적용기준
-            </button>
-            <button
-              onClick={() => navigate("/")}
-              className="block w-full text-left px-3 py-2 rounded hover:bg-[#3b3b4f] transition"
-            >
-              가동률
-            </button>
-            <button
-              onClick={() => navigate("/")}
-              className="block w-full text-left px-3 py-2 rounded hover:bg-[#3b3b4f] transition"
-            >
-              기상청: 예시...
-            </button>
-          </nav>
-        </aside>
-
-        {/* 오른쪽 메인 영역 */}
-        <main className="flex-1 p-8 overflow-y-auto bg-white">
+      {/* === 메인 === */}
+      <main
+        className={`flex-1 flex flex-col bg-[#1e1e2f] transition-all duration-300 ${
+          menuOpen && !isMobile ? "ml-60" : "ml-12"
+        }`}
+      >
+        <Header />
+        <div className="flex-1 overflow-y-auto p-6 text-gray-200">
           <Outlet />
-        </main>
-      </div>
+        </div>
+      </main>
     </div>
   );
 }

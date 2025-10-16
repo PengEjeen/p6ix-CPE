@@ -1,0 +1,28 @@
+.scroll-container::-webkit-scrollbar {
+  width: 6px;
+}
+
+.scroll-container::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.scroll-container::-webkit-scrollbar-thumb {
+  background-color: transparent;
+  border-radius: 6px;
+  transition: background-color 0.3s ease;
+}
+
+/* 스크롤 중일 때만 보이게 */
+.scroll-container.scrolling::-webkit-scrollbar-thumb {
+  background-color: #4b5563; /* Tailwind gray-600 */
+}
+
+/* Firefox 대응 */
+.scroll-container {
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+}
+
+.scroll-container.scrolling {
+  scrollbar-color: #4b5563 transparent;
+}
