@@ -29,9 +29,6 @@ class PreparationWork(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
-    def __str__(self):
-        return f"{self.project.name} - 준비/정리공사"
-
 
 # 토공사
 class Earthwork(models.Model):
@@ -108,9 +105,6 @@ class Earthwork(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
-    def __str__(self):
-        return f"{self.project.name} - 토공사 기준"
-
 
 # 골조공사
 class FrameWork(models.Model):
@@ -159,6 +153,3 @@ class FrameWork(models.Model):
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-
-    def __str__(self):
-        return f"{self.project.name} - 골조공사 기준"

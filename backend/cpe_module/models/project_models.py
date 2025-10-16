@@ -20,6 +20,6 @@ class Project(models.Model):
     is_delete = models.BooleanField(default=False)
 
     def __str__(self):
-        return f"{self.name} ({self.user})"
+        return f"{self.title} ({self.user})"
     
     

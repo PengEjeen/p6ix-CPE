@@ -1,7 +1,6 @@
 from django.conf import settings
 from django.db import models
 from django.core.validators import MinValueValidator, MaxValueValidator
-import uuid
 
 class ConstructionType(models.TextChoices):
     EARTHWORK = "EARTH", "토공사"
@@ -12,7 +11,6 @@ class ConstructionType(models.TextChoices):
 
 
 class WorkScheduleWeight(models.Model):
-
     #프로젝트
     project = models.ForeignKey(
         'cpe_module.Project',

@@ -119,10 +119,6 @@ class WorkCondition(models.Model):
         verbose_name = "근무조건 및 가동률"
         verbose_name_plural = "근무조건 및 가동률 목록"
 
-    def __str__(self):
-        return f"{self.user.username} - {self.work_type} (가동률 {self.main_utilization_input}% / {self.sub_utilization_input}%)"
-
-
 #준비/정리 기간 및 추가공사기간
 ##준비기간
 ##정리기간
@@ -164,10 +160,6 @@ class PreparationPeriod(models.Model):
     class Meta:
         verbose_name = "준비/정리 기간 및 추가공사기간"
         verbose_name_plural = "준비/정리 기간 및 추가공사기간 목록"
-
-    def __str__(self):
-        return f"{self.user.username} - 준비 {self.preparation_fixed_days}일 / 정리 {self.cleanup_fixed_days}일"
-
 
 #토공사
 ##지하 굴착 공법(순타, 역타)
@@ -312,17 +304,12 @@ class EarthworkInput(models.Model):
         verbose_name = "토공사 입력"
         verbose_name_plural = "토공사 입력 목록"
 
-    def __str__(self):
-        return f"{self.user.username} - 토공사 입력 ({self.excavation_method})"
-
-
 #골조공사
 class FrameWorkInput(models.Model):
-    user = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
+    project = models.ForeignKey(
+        "cpe_module.Project",
         on_delete=models.CASCADE,
         related_name="framework_inputs",
-        help_text="골조공사 입력 사용자"
     )
 
     # ------------------------------------------------------------------
@@ -369,6 +356,3 @@ class FrameWorkInput(models.Model):
     class Meta:
         verbose_name = "골조공사 입력"
         verbose_name_plural = "골조공사 입력 목록"
-
-    def __str__(self):
-        return f"{self.user.username} - 골조공사 입력 ({self.base_thickness}m)"
