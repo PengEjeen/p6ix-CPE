@@ -76,7 +76,7 @@ api.interceptors.response.use(
     const code = error.response.data?.code;
     const url = (originalRequest && originalRequest.url) || "";
     const isAuthEndpoint =
-      url.includes("token/refresh") || url.includes("token/verify");
+      url.includes("users/token/refresh") || url.includes("token/verify");
 
     // 토큰 엔드포인트 자체는 루프 방지
     if (isAuthEndpoint) return Promise.reject(error);
@@ -112,9 +112,9 @@ api.interceptors.response.use(
           return Promise.reject(error);
         }
 
-        // ⚠️ 테스트서버에서 토큰이 이미 만료됐더라도, 리프레시 네트워크/서버에러 때문에 실패했다면
+        // 테스트서버에서 토큰이 이미 만료됐더라도, 리프레시 네트워크/서버에러 때문에 실패했다면
         // 세션을 유지(리다이렉트 X)하고 에러만 올려 UI가 재시도할 수 있게 둠.
-        const res = await refreshClient.post("token/refresh/", { refresh });
+        const res = await refreshClient.post("users/token/refresh/", { refresh });
         const newAccess = res.data?.access;
         if (!newAccess) {
           forceLogout();
