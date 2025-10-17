@@ -38,19 +38,25 @@ export default function EarthworkSection({ data, setData, onAutoSave }) {
 
   // 공용 테이블 렌더링 함수
   const renderTable = (title, headers, rows, keys) => (
-    <section className="bg-[#2c2c3a] p-4 rounded-xl shadow space-y-2 min-w-[340px]">
-      <h3 className="text-md font-semibold border-b border-gray-600 pb-1">
-        {title}
-      </h3>
-      <DataTable
-        columns={[
-          { key: "label", label: headers[0] },
-          { key: "value", label: headers[1], editable: true },
-        ]}
-        rows={rows.map((r) => ({ label: r.label, value: r.value }))}
-        onChange={(i, k, v) => handleChange(keys[i], v)}
-        onAutoSave={() => onAutoSave(latestDataRef.current)} // 최신 데이터 전달
-      />
+    <section className="rounded-xl overflow-hidden shadow-lg bg-[#2c2c3a] border border-gray-700">
+      {/* 카드 헤더 */}
+      <div className="bg-[#3a3a4a] px-4 py-2 border-b border-gray-600 flex items-center justify-between">
+        <h3 className="text-sm md:text-md font-semibold text-white">{title}</h3>
+        <span className="text-xs text-gray-400">{headers[1]}</span>
+      </div>
+
+      {/* 테이블 영역 */}
+      <div className="p-3">
+        <DataTable
+          columns={[
+            { key: "label", label: headers[0] },
+            { key: "value", label: headers[1], editable: true },
+          ]}
+          rows={rows.map((r) => ({ label: r.label, value: r.value }))}
+          onChange={(i, k, v) => handleChange(keys[i], v)}
+          onAutoSave={() => onAutoSave(latestDataRef.current)} // 최신 데이터 전달
+        />
+      </div>
     </section>
   );
 
@@ -61,13 +67,13 @@ export default function EarthworkSection({ data, setData, onAutoSave }) {
         isScrolling ? "scrolling" : ""
       }`}
     >
-      {renderTable("● 흙막이 지보공", ["공법", "소요일(일)"], [
+      {renderTable("흙막이 지보공", ["공법", "소요일(일)"], [
         { label: "어스앵커", value: data.support_earth_anchor },
         { label: "레이커", value: data.support_raker },
         { label: "스트럿", value: data.support_strut },
       ], ["support_earth_anchor", "support_raker", "support_strut"])}
 
-      {renderTable("● 흙막이공법별 생산량", ["공법", "생산량(㎡/일)"], [
+      {renderTable("흙막이공법별 생산량", ["공법", "생산량(㎡/일)"], [
         { label: "CIP", value: data.production_cip },
         { label: "Slurry Wall", value: data.production_slurry },
         { label: "Sheet Pile", value: data.production_sheet },
@@ -81,14 +87,14 @@ export default function EarthworkSection({ data, setData, onAutoSave }) {
         "production_hpile",
       ])}
 
-      {renderTable("● 토사별 CIP공법 생산량", ["토사유형", "생산량(m/일)"], [
+      {renderTable("토사별 CIP공법 생산량", ["토사유형", "생산량(m/일)"], [
         { label: "토사", value: data.cip_soil },
         { label: "풍화암", value: data.cip_weathered },
         { label: "연암", value: data.cip_soft_rock },
         { label: "경암", value: data.cip_hard_rock },
       ], ["cip_soil", "cip_weathered", "cip_soft_rock", "cip_hard_rock"])}
 
-      {renderTable("● 토사별 H-Pile+토류판 생산량", ["토사유형", "생산량(m/일)"], [
+      {renderTable("토사별 H-Pile+토류판 생산량", ["토사유형", "생산량(m/일)"], [
         { label: "토사", value: data.hpile_soil },
         { label: "풍화암", value: data.hpile_weathered },
         { label: "연암", value: data.hpile_soft_rock },
@@ -100,7 +106,7 @@ export default function EarthworkSection({ data, setData, onAutoSave }) {
         "hpile_hard_rock",
       ])}
 
-      {renderTable("● 토공사 할증", ["주변현황", "할증(%)"], [
+      {renderTable("토공사 할증", ["주변현황", "할증(%)"], [
         { label: "학교", value: data.surcharge_school },
         { label: "주거지", value: data.surcharge_residential },
         { label: "노후시설", value: data.surcharge_old_facility },
@@ -114,17 +120,17 @@ export default function EarthworkSection({ data, setData, onAutoSave }) {
         "surcharge_development",
       ])}
 
-      {renderTable("● 터파기", ["구분", "생산량(㎥/일)"], [
+      {renderTable("터파기", ["구분", "생산량(㎥/일)"], [
         { label: "토사", value: data.excavation_soil },
         { label: "풍화암", value: data.excavation_weathered },
       ], ["excavation_soil", "excavation_weathered"])}
 
-      {renderTable("● 토사 반출방법", ["방법", "계수"], [
+      {renderTable("토사 반출방법", ["방법", "계수"], [
         { label: "직상차", value: data.haul_direct },
         { label: "크람쉘", value: data.haul_cram },
       ], ["haul_direct", "haul_cram"])}
 
-      {renderTable("● 연암 발파공법별 반출량", ["공법", "생산량(㎥/일)"], [
+      {renderTable("연암 발파공법별 반출량", ["공법", "생산량(㎥/일)"], [
         { label: "미진동", value: data.blasting_soft_vibrationless },
         { label: "정밀제어", value: data.blasting_soft_precision },
         { label: "소규모", value: data.blasting_soft_small },
@@ -136,7 +142,7 @@ export default function EarthworkSection({ data, setData, onAutoSave }) {
         "blasting_soft_medium",
       ])}
 
-      {renderTable("● 경암 발파공법별 반출량", ["공법", "생산량(㎥/일)"], [
+      {renderTable("경암 발파공법별 반출량", ["공법", "생산량(㎥/일)"], [
         { label: "미진동", value: data.blasting_hard_vibrationless },
         { label: "정밀제어", value: data.blasting_hard_precision },
         { label: "소규모", value: data.blasting_hard_small },
@@ -148,7 +154,7 @@ export default function EarthworkSection({ data, setData, onAutoSave }) {
         "blasting_hard_medium",
       ])}
 
-      {renderTable("● RCD 직경에 따른 생산량", ["직경(mm)", "생산량(m/일)"], [
+      {renderTable("RCD 직경에 따른 생산량", ["직경(mm)", "생산량(m/일)"], [
         { label: "1500mm", value: data.rcd_1500 },
         { label: "1800mm", value: data.rcd_1800 },
         { label: "2000mm", value: data.rcd_2000 },
@@ -162,7 +168,7 @@ export default function EarthworkSection({ data, setData, onAutoSave }) {
         "rcd_3000",
       ])}
 
-      {renderTable("● PRD 직경에 따른 생산량", ["직경(mm)", "생산량(m/일)"], [
+      {renderTable("PRD 직경에 따른 생산량", ["직경(mm)", "생산량(m/일)"], [
         { label: "600mm", value: data.prd_600 },
         { label: "750mm", value: data.prd_750 },
         { label: "900mm", value: data.prd_900 },

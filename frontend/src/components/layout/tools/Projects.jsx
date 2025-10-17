@@ -55,12 +55,6 @@ function Projects() {
 
   return (
     <section className="mt-6 flex flex-col h-full relative">
-      {/* === 상단 헤더 영역 === */}
-      <div className="flex items-center justify-between mb-3">
-        <h2 className="text-xs uppercase text-gray-400 tracking-widest">
-          갑지목록
-        </h2>
-      </div>
 
       {/* === 검색창 + 새 갑지 버튼 === */}
       <div className="mb-3 space-y-2">
@@ -68,7 +62,7 @@ function Projects() {
           type="text"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="프로젝트 검색..."
+          placeholder="갑지 검색..."
           className="w-full text-sm px-2 py-1 rounded bg-[#1e1e2f] border border-gray-600 text-gray-300 placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-gray-500"
         />
 
@@ -81,6 +75,9 @@ function Projects() {
       </div>
 
       {/* === 목록 영역 === */}
+      <h2 className="text-xs uppercase text-gray-400 tracking-widest">
+        갑지목록
+      </h2>
       <div className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-gray-800 pr-1">
         {filteredProjects.length > 0 ? (
           <ul className="space-y-1">

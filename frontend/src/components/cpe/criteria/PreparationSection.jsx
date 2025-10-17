@@ -38,19 +38,25 @@ export default function PreparationSection({ data, setData, onAutoSave }) {
 
   // 테이블 렌더링
   const renderTable = (title, headers, rows, keys) => (
-    <section className="bg-[#2c2c3a] p-4 rounded-xl shadow space-y-2">
-      <h3 className="text-md font-semibold border-b border-gray-600 pb-1">
-        {title}
-      </h3>
-      <DataTable
-        columns={[
-          { key: "label", label: headers[0] },
-          { key: "value", label: headers[1], editable: true },
-        ]}
-        rows={rows.map((r) => ({ label: r.label, value: r.value }))}
-        onChange={(rowIdx, key, value) => handleChange(keys[rowIdx], value)}
-        onAutoSave={() => onAutoSave(latestDataRef.current)} // 항상 최신 데이터로 저장
-      />
+    <section className="rounded-xl overflow-hidden shadow-lg bg-[#2c2c3a] border border-gray-700">
+      {/* 카드 헤더 */}
+      <div className="bg-[#3a3a4a] px-4 py-2 border-b border-gray-600 flex items-center justify-between">
+        <h3 className="text-sm md:text-md font-semibold text-white">{title}</h3>
+        <span className="text-xs text-gray-400">{headers[1]}</span>
+      </div>
+
+      {/* 테이블 영역 */}
+      <div className="p-3">
+        <DataTable
+          columns={[
+            { key: "label", label: headers[0] },
+            { key: "value", label: headers[1], editable: true },
+          ]}
+          rows={rows.map((r) => ({ label: r.label, value: r.value }))}
+          onChange={(i, k, v) => handleChange(keys[i], v)}
+          onAutoSave={() => onAutoSave(latestDataRef.current)} // 최신 데이터 전달
+        />
+      </div>
     </section>
   );
 
@@ -63,7 +69,7 @@ export default function PreparationSection({ data, setData, onAutoSave }) {
       }`}
     >
       {renderTable(
-        "● 정리기간",
+        "정리기간",
         ["구분", "소요일(일)"],
         [
           { label: "주거시설", value: data.residential_days },
@@ -73,7 +79,7 @@ export default function PreparationSection({ data, setData, onAutoSave }) {
       )}
 
       {renderTable(
-        "● 세대수에 따른 추가 공사기간",
+        "세대수에 따른 추가 공사기간",
         ["세대수", "소요기간(개월)"],
         [
           { label: "2000세대 이하", value: data.units_under_2000 },
@@ -84,7 +90,7 @@ export default function PreparationSection({ data, setData, onAutoSave }) {
       )}
 
       {renderTable(
-        "● 마감공사기간",
+        "마감공사기간",
         ["층수", "소요기간(개월)"],
         [
           { label: "10F 이하", value: data.floors_under_10 },

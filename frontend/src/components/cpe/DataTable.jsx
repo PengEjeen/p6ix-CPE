@@ -1,29 +1,26 @@
-import React, { useCallback, useRef, useState } from "react";
+import React, { useRef, useState } from "react";
 
 export default function DataTable({ columns, rows, onChange, onAutoSave }) {
   const typingTimeout = useRef(null);
-  const [saveState, setSaveState] = useState("idle"); // "idle" | "saving" | "saved"
+  const [saveState, setSaveState] = useState("idle");
 
-  // 입력 후 1초 멈추면 자동 저장
   const handleInputChange = (rowIdx, key, value) => {
     onChange(rowIdx, key, value);
 
     if (typingTimeout.current) clearTimeout(typingTimeout.current);
 
-
     typingTimeout.current = setTimeout(async () => {
-      
       if (onAutoSave) {
         setSaveState("saving");
         try {
           await onAutoSave();
           setSaveState("saved");
-          setTimeout(() => setSaveState("idle"), 1500); // 1.5초 후 숨김
+          setTimeout(() => setSaveState("idle"), 1500);
         } catch {
           setSaveState("idle");
         }
       }
-    }, 1000); // 1.0초 대기 후 저장
+    }, 1000);
   };
 
   return (
@@ -35,45 +32,122 @@ export default function DataTable({ columns, rows, onChange, onAutoSave }) {
         </div>
       )}
 
-      <table className="w-full text-sm">
+      <table className="w-full text-sm border-collapse">
         <thead>
-          <tr className="text-left text-gray-400 border-b border-gray-600">
+          <tr className="text-gray-400 border-b border-gray-600">
             {columns.map((col) => (
-              <th key={col.key} className={`py-2 px-3 ${col.align || "text-left"}`}>
+              <th key={col.key} className="py-2 px-3 text-center">
                 {col.label}
               </th>
             ))}
           </tr>
         </thead>
+
         <tbody>
           {rows.map((row, rowIdx) => (
             <tr
-              key={row.id || rowIdx}
+              key={rowIdx}
               className="hover:bg-[#3b3b4f] transition-colors border-b border-gray-700"
             >
-              {columns.map((col) => (
-                <td key={col.key} className={`py-2 px-3 ${col.align || "text-left"}`}>
-                  {col.editable ? (
-                    <input
-                      type={col.type || "text"}
-                      value={row[col.key] ?? ""}
-                      onChange={(e) =>
-                        handleInputChange(rowIdx, col.key, e.target.value)
-                      }
-                      className="no-spin w-24 bg-[#1e1e2f] border border-gray-600 rounded px-2 py-1 text-gray-200 text-right focus:outline-none focus:ring-1 focus:ring-blue-500"
-                      {...col.inputProps}
-                    />
-                  ) : (
-                    row[col.key]
-                  )}
-                </td>
-              ))}
+              {columns.map((col) => {
+                const cellKey = col.key;
+                const manualFlags = row.manualFlags || {};
+                const manualKey = Object.keys(manualFlags).find((k) =>
+                  k.toLowerCase().includes(cellKey.toLowerCase())
+                );
+                const isManualActive = manualKey ? manualFlags[manualKey] : false;
+
+                return (
+                  <td key={col.key} className="py-2 px-3 text-center text-gray-200">
+                    {col.editable ? (
+                      row.type === "radio" ? (
+                        // Radio Buttons
+                        row.options.map((opt) => (
+                          <label key={opt.value} className="mx-2 inline-flex items-center">
+                            <input
+                              type="radio"
+                              name={`${col.key}_${rowIdx}`}
+                              value={opt.value}
+                              checked={row[col.key] === opt.value}
+                              onChange={(e) =>
+                                handleInputChange(rowIdx, col.key, Number(e.target.value))
+                              }
+                              className="accent-blue-500 mr-1"
+                            />
+                            <span>{opt.label}</span>
+                          </label>
+                        ))
+                      ) : row.type === "select" ? (
+                        // Select Box
+                        <select
+                          value={row[col.key] ?? ""}
+                          onChange={(e) =>
+                            handleInputChange(rowIdx, col.key, e.target.value)
+                          }
+                          className="bg-[#1e1e2f] border border-gray-600 rounded px-2 py-1 text-gray-200 text-sm w-32"
+                        >
+                          {(row.options || []).map((opt) => (
+                            <option key={opt} value={opt}>
+                              {opt}
+                            </option>
+                          ))}
+                        </select>
+                      ) : row.type === "readonly" ? (
+                        // Readonly
+                        <span className="text-yellow-400 font-semibold">
+                          {row[col.key] ?? "—"}
+                        </span>
+                      ) : row.type === "manual" ? (
+                        // Manual Input + Checkbox
+                        <div className="flex items-center justify-center gap-2">
+                          <input
+                            type="checkbox"
+                            checked={isManualActive}
+                            onChange={(e) =>
+                              handleInputChange(rowIdx, manualKey, e.target.checked)
+                            }
+                            className="accent-blue-500"
+                          />
+                          <input
+                            type="number"
+                            disabled={!isManualActive}
+                            value={row[col.key] ?? ""}
+                            onChange={(e) =>
+                              handleInputChange(rowIdx, col.key, e.target.value)
+                            }
+                            className={`no-spin w-24 bg-[#1e1e2f] border ${
+                              isManualActive ? "border-blue-500" : "border-gray-600"
+                            } rounded px-2 py-1 text-gray-200 text-right focus:outline-none focus:ring-1 focus:ring-blue-500`}
+                          />
+                        </div>
+                      ) : (
+                        // Default Input + Unit (추가됨)
+                        <div className="flex items-center justify-center gap-1">
+                          <input
+                            type={row.type || "text"}
+                            value={row[col.key] ?? ""}
+                            onChange={(e) =>
+                              handleInputChange(rowIdx, col.key, e.target.value)
+                            }
+                            className="no-spin w-24 bg-[#1e1e2f] border border-gray-600 rounded px-2 py-1 text-gray-200 text-right focus:outline-none focus:ring-1 focus:ring-blue-500"
+                          />
+                          {row.unit && (
+                            <span className="text-white text-xs">{row.unit}</span>
+                          )}
+                        </div>
+                      )
+                    ) : (
+                      row[col.key]
+                    )}
+                  </td>
+                );
+              })}
             </tr>
           ))}
         </tbody>
       </table>
 
-      {/* 스핀버튼 제거 */}
+      {/* 스핀 제거 */}
       <style>{`
         input.no-spin::-webkit-outer-spin-button,
         input.no-spin::-webkit-inner-spin-button {

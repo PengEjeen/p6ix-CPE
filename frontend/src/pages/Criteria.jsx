@@ -86,8 +86,8 @@ export default function Criteria() {
       {/* 공사별 영역: 가로 칸반 스타일 */}
       <div className="flex gap-6 overflow-x-auto pb-4">
         {/* 준비·정리·가설·마감공사 */}
-        <div className="min-w-[450px] flex-shrink-0">
-          <h2 className="text-lg font-semibold text-white text-center mb-2">
+        <div className="min-w-[450px] flex-shrink-0 bg-[#2c2c3a] rounded-xl border border-gray-700 shadow-lg p-4">
+          <h2 className="text-lg font-semibold text-white text-center mb-3 border-b border-gray-600 pb-1">
             준비·정리·가설·마감공사
           </h2>
           <PreparationSection
@@ -98,8 +98,8 @@ export default function Criteria() {
         </div>
 
         {/* 토공사 */}
-        <div className="min-w-[450px] flex-shrink-0">
-          <h2 className="text-lg font-semibold text-white text-center mb-2">
+        <div className="min-w-[450px] flex-shrink-0 bg-[#2c2c3a] rounded-xl border border-gray-700 shadow-lg p-4">
+          <h2 className="text-lg font-semibold text-white text-center mb-3 border-b border-gray-600 pb-1">
             토공사
           </h2>
           <EarthworkSection
@@ -110,8 +110,8 @@ export default function Criteria() {
         </div>
 
         {/* 골조공사 */}
-        <div className="min-w-[450px] flex-shrink-0">
-          <h2 className="text-lg font-semibold text-white text-center mb-2">
+        <div className="min-w-[450px] flex-shrink-0 bg-[#2c2c3a] rounded-xl border border-gray-700 shadow-lg p-4">
+          <h2 className="text-lg font-semibold text-white text-center mb-3 border-b border-gray-600 pb-1">
             골조공사
           </h2>
           <FrameworkSection
