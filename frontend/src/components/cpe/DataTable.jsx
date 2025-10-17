@@ -69,9 +69,16 @@ export default function DataTable({ columns, rows, onChange, onAutoSave }) {
                               name={`${col.key}_${rowIdx}`}
                               value={opt.value}
                               checked={row[col.key] === opt.value}
-                              onChange={(e) =>
-                                handleInputChange(rowIdx, col.key, Number(e.target.value))
-                              }
+                              onChange={(e) => {
+                                let val = e.target.value;
+
+                                // 문자열을 실제 타입으로 변환
+                                if (val === "true") val = true;
+                                else if (val === "false") val = false;
+                                else if (!isNaN(val) && val.trim() !== "") val = Number(val);
+
+                                handleInputChange(rowIdx, col.key, val);
+                              }}
                               className="accent-blue-500 mr-1"
                             />
                             <span>{opt.label}</span>

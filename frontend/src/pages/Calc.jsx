@@ -47,7 +47,7 @@ export default function Calc() {
               토공사
             </h2>
             <EarthworkInputSection
-              key={utilization.earthwork ?? "initial"} // 값이 바뀔 때만 리렌더
+              //key={utilization.earthwork ?? "initial"} // 값이 바뀔 때만 리렌더
               projectId={projectId}
               utilization={utilization.earthwork}
             />
