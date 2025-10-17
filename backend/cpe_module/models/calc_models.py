@@ -33,7 +33,7 @@ class ConstructionOverview(models.Model): #이거 프로젝트 아님
     ], default="턴키")
 
     # --- Site 정보 ---
-    location = models.CharField("위치", max_length=100, blank=True, null=True)
+    location = models.CharField("위치", max_length=100, blank=True, null=True) #추후에 기상테이블에 따른 위치정보 추가
     site_area = models.DecimalField("대지면적(㎡)", max_digits=10, decimal_places=2, null=True, blank=True)
 
     # 대지현황
@@ -96,12 +96,15 @@ class WorkCondition(models.Model):
         default=7,
     )
 
+    is_earthwork_input = models.BooleanField(default=False, help_text="토공사 가동률 직접입력 여부")
+    is_framework_input = models.BooleanField(default=False, help_text="골조공사 가동률 직접입력 여부")
+
     # --- 가동률 (직접 입력값) ---
     earthwork_utilization_input = models.DecimalField(
         "직접 입력 가동률(토공사, %)",
         max_digits=5,
         decimal_places=2,
-        default=0,
+        blank=True, null=True,
         help_text="직접 입력한 토공사 가동률(%)"
     )
     framework_utilization_input = models.DecimalField(
