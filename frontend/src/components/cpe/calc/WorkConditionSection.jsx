@@ -5,12 +5,14 @@ import {
   updateWorkCondition,
 } from "../../../api/cpe/calc";
 
-export default function WorkConditionSection({ projectId }) {
+export default function WorkConditionSection({ projectId, onUtilizationChange }) {
   const [data, setData] = useState({});
   const latestDataRef = useRef({});
   const [loading, setLoading] = useState(true);
 
-  // 데이터 로드
+  // 이전 전달값 기억용 ref
+  const prevUtilizationRef = useRef({ earthwork: null, framework: null });
+
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -35,7 +37,6 @@ export default function WorkConditionSection({ projectId }) {
     }
   };
 
-  // 값 변경 핸들러
   const handleChange = (key, value) => {
     const updated = { ...data, [key]: value };
     setData(updated);
@@ -43,16 +44,12 @@ export default function WorkConditionSection({ projectId }) {
     onAutoSave(updated);
   };
 
-  if (loading) return <div className="text-gray-400">로딩 중...</div>;
-
-  // 가동률 표시 로직
+  // 가동률 계산 함수
   const getUtilizationValue = (isManual, inputVal, typeVal, utilDict) => {
-    // 직접입력이 true일 경우 입력값 표시
     if (isManual && inputVal) return Number(inputVal).toFixed(2);
-    // 자동 계산 (dict에서 선택된 근무타입값 사용)
-    if (!utilDict || !typeVal) return "—";
+    if (!utilDict || !typeVal) return null;
     const val = utilDict[typeVal];
-    return val !== undefined ? Number(val).toFixed(2) : "—";
+    return val !== undefined ? Number(val).toFixed(2) : null;
   };
 
   const earthworkDisplay = getUtilizationValue(
@@ -69,14 +66,35 @@ export default function WorkConditionSection({ projectId }) {
     data.framework_utilization
   );
 
-  // 테이블 컬럼 정의
+  // ✅ 상위로 값 전달 (실제로 변경된 경우에만)
+  useEffect(() => {
+    if (!onUtilizationChange) return;
+
+    const current = {
+      earthwork: Number(earthworkDisplay) || 0,
+      framework: Number(frameworkDisplay) || 0,
+    };
+
+    const prev = prevUtilizationRef.current;
+
+    if (
+      current.earthwork !== prev.earthwork ||
+      current.framework !== prev.framework
+    ) {
+      onUtilizationChange(current);
+      prevUtilizationRef.current = current; // 최신값 갱신
+    }
+  }, [earthworkDisplay, frameworkDisplay, onUtilizationChange]);
+
+  if (loading) return <div className="text-gray-400">로딩 중...</div>;
+
+  // 테이블 구조
   const columns = [
     { key: "label", label: "구분" },
     { key: "earthwork", label: "토공사", editable: true },
     { key: "framework", label: "골조공사", editable: true },
   ];
 
-  // 테이블 행 정의
   const rows = [
     {
       label: "근무 조건",
@@ -92,8 +110,8 @@ export default function WorkConditionSection({ projectId }) {
     {
       label: "가동률(%)",
       type: "readonly",
-      earthwork: `${earthworkDisplay}%`,
-      framework: `${frameworkDisplay}%`,
+      earthwork: earthworkDisplay ? `${earthworkDisplay}%` : "—",
+      framework: frameworkDisplay ? `${frameworkDisplay}%` : "—",
     },
     {
       label: "직접입력(%)",
@@ -114,7 +132,6 @@ export default function WorkConditionSection({ projectId }) {
         <h3 className="text-sm md:text-md font-semibold text-white">
           근무조건 가동률
         </h3>
-        <span className="text-xs text-gray-400">아니야</span>
       </div>
 
       {/* 본문 */}
@@ -124,11 +141,9 @@ export default function WorkConditionSection({ projectId }) {
           rows={rows}
           onChange={(i, k, v) => {
             if (i === 0) {
-              // 근무 조건 변경
               if (k === "earthwork") handleChange("earthwork_type", v);
               else if (k === "framework") handleChange("framework_type", v);
             } else if (i === 2) {
-              // 직접입력 및 체크박스
               if (k === "is_earthwork_input") handleChange("is_earthwork_input", v);
               else if (k === "is_framework_input") handleChange("is_framework_input", v);
               else if (k === "earthwork") handleChange("earthwork_utilization_input", v);
