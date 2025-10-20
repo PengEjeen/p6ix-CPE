@@ -290,6 +290,7 @@ class EarthworkInput(models.Model):
     # 할증
     # ------------------------------------------------------------------
     is_surcharge = models.BooleanField(default=False)
+    surcharge_ratio = models.DecimalField("할증비율(직접입력 필드)", max_digits=5, decimal_places=2, default=0, blank=True, null=True)
 
     # ------------------------------------------------------------------
     # 병행률

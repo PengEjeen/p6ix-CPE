@@ -14,6 +14,10 @@ export default function Calc() {
     framework: null,
   });
 
+  const [constructionOverview, setconstructionOverview] = useState({
+    nearby_env: null
+  });
+  console.log(constructionOverview)
   return (
     <div className="p-6 overflow-x-auto">
       {/* 상단 페이지 제목 */}
@@ -27,7 +31,9 @@ export default function Calc() {
             <h2 className="text-lg font-semibold text-white text-center mb-3 border-b border-gray-600 pb-1">
               공사개요
             </h2>
-            <ConstructionOverviewSection projectId={projectId} />
+            <ConstructionOverviewSection 
+              projectId={projectId}
+              onOverviewChange={(vals) => setconstructionOverview(vals)} />
           </div>
 
           {/* --- 근무조건 및 가동률 --- */}
@@ -47,9 +53,9 @@ export default function Calc() {
               토공사
             </h2>
             <EarthworkInputSection
-              //key={utilization.earthwork ?? "initial"} // 값이 바뀔 때만 리렌더
               projectId={projectId}
               utilization={utilization.earthwork}
+              nearby_env={constructionOverview.nearby_env}
             />
           </div>
         </div>

@@ -5,7 +5,7 @@ import {
   updateConstructionOverview,
 } from "../../../api/cpe/calc";
 
-export default function ConstructionOverviewSection({ projectId }) {
+export default function ConstructionOverviewSection({ projectId, onOverviewChange }) {
   const [data, setData] = useState({});
   const latestDataRef = useRef({});
   const [loading, setLoading] = useState(true);
@@ -17,6 +17,11 @@ export default function ConstructionOverviewSection({ projectId }) {
         const res = await detailConstructionOverview(projectId);
         setData(res.data);
         latestDataRef.current = res.data;
+        if (onOverviewChange) {
+          onOverviewChange({
+            nearby_env: res.data.nearby_env,
+          });
+        }
       } catch (err) {
         console.error("공사개요 불러오기 실패:", err);
       } finally {
@@ -26,11 +31,20 @@ export default function ConstructionOverviewSection({ projectId }) {
     fetchData();
   }, [projectId]);
 
-  // 변경 핸들러
+  // 데이터 변경 핸들러
   const handleChange = (key, value) => {
     setData((prev) => {
       const updated = { ...prev, [key]: value };
       latestDataRef.current = updated;
+
+      // 상위로 변경값 전달
+      if (onOverviewChange) {
+        // 필요한 핵심 정보만 전달 (예: 주변현황만)
+        onOverviewChange({
+          nearby_env: updated.nearby_env,
+        });
+      }
+
       return updated;
     });
   };
@@ -49,13 +63,11 @@ export default function ConstructionOverviewSection({ projectId }) {
   // 공통 렌더 함수
   const renderTable = (title, headers, rows, keys) => (
     <section className="rounded-xl overflow-hidden shadow-lg bg-[#2c2c3a] border border-gray-700 mb-6">
-      {/* 헤더 */}
       <div className="bg-[#3a3a4a] px-4 py-2 border-b border-gray-600 flex items-center justify-between">
         <h3 className="text-sm md:text-md font-semibold text-white">{title}</h3>
         <span className="text-xs text-gray-400">{headers[1]}</span>
       </div>
 
-      {/* 내용 */}
       <div className="p-3">
         <DataTable
           columns={[
@@ -67,7 +79,7 @@ export default function ConstructionOverviewSection({ projectId }) {
             value: r.value,
             type: r.type,
             options: r.options,
-            unit: r.unit, // 단위 전달
+            unit: r.unit,
           }))}
           onChange={(i, k, v) => handleChange(keys[i], v)}
           onAutoSave={() => onAutoSave(latestDataRef.current)}
@@ -76,30 +88,15 @@ export default function ConstructionOverviewSection({ projectId }) {
     </section>
   );
 
-  // 섹션별 데이터 구성
+  // 섹션별 데이터
   const sections = [
     {
       title: "유형",
       headers: ["구분", "선택 / 입력 사항"],
       rows: [
-        {
-          label: "발주처",
-          value: data.client_type,
-          type: "select",
-          options: ["민간공사", "공공공사"],
-        },
-        {
-          label: "건물 용도",
-          value: data.building_use,
-          type: "select",
-          options: ["공동주택", "오피스텔", "상업시설", "기타"],
-        },
-        {
-          label: "공사 형식",
-          value: data.construction_type,
-          type: "select",
-          options: ["턴키", "CM", "시공", "기타"],
-        },
+        { label: "발주처", value: data.client_type, type: "select", options: ["민간공사", "공공공사"] },
+        { label: "건물 용도", value: data.building_use, type: "select", options: ["공동주택", "오피스텔", "상업시설", "기타"] },
+        { label: "공사 형식", value: data.construction_type, type: "select", options: ["턴키", "CM", "시공", "기타"] },
       ],
       keys: ["client_type", "building_use", "construction_type"],
     },
@@ -150,7 +147,6 @@ export default function ConstructionOverviewSection({ projectId }) {
     },
   ];
 
-  // 렌더링
   return (
     <div className="space-y-6">
       {sections.map((s, idx) => (

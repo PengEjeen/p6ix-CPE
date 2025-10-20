@@ -66,7 +66,7 @@ export default function WorkConditionSection({ projectId, onUtilizationChange })
     data.framework_utilization
   );
 
-  // ✅ 상위로 값 전달 (실제로 변경된 경우에만)
+  // 상위로 값 전달 (실제로 변경된 경우에만)
   useEffect(() => {
     if (!onUtilizationChange) return;
 

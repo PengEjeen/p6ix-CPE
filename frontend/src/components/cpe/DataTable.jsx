@@ -52,9 +52,13 @@ export default function DataTable({ columns, rows, onChange, onAutoSave }) {
               {columns.map((col) => {
                 const cellKey = col.key;
                 const manualFlags = row.manualFlags || {};
-                const manualKey = Object.keys(manualFlags).find((k) =>
-                  k.toLowerCase().includes(cellKey.toLowerCase())
+                const manualKeys = Object.keys(manualFlags);
+                const valueKeys = Object.keys(row).filter(
+                  (k) => !["manualFlags", "type", "label"].includes(k)
                 );
+
+                const valueIndex = valueKeys.indexOf(cellKey);
+                const manualKey = manualKeys[valueIndex] || manualKeys[0];
                 const isManualActive = manualKey ? manualFlags[manualKey] : false;
 
                 return (
