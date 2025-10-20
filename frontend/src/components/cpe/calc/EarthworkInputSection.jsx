@@ -1,18 +1,35 @@
 import React, { useEffect, useRef, useState } from "react";
 import DataTable from "../DataTable";
+import "../utils/scroll.css";
 import {
   detailEarthworkInput,
   updateEarthworkInput,
 } from "../../../api/cpe/calc";
-import {
-    detailEarthwork
-} from "../../../api/cpe/criteria";
+import { detailEarthwork } from "../../../api/cpe/criteria";
 
 export default function EarthworkInputSection({ projectId, utilization, nearby_env }) {
     const [data, setData] = useState({});
     const [utilData, setUtilData] = useState({});
     const [loading, setLoading] = useState(true);
     const latestDataRef = useRef({});
+
+    // 스크롤 관련 상태
+    const [isScrolling, setIsScrolling] = useState(false);
+    const scrollRef = useRef(null);
+    const scrollTimeout = useRef(null);
+
+    const handleScroll = () => {
+        setIsScrolling(true);
+        clearTimeout(scrollTimeout.current);
+        scrollTimeout.current = setTimeout(() => setIsScrolling(false), 1000);
+    };
+
+    useEffect(() => {
+        const el = scrollRef.current;
+        if (!el) return;
+        el.addEventListener("scroll", handleScroll);
+        return () => el.removeEventListener("scroll", handleScroll);
+    }, []);
 
     useEffect(() => {
         const fetchData = async () => {
@@ -22,9 +39,8 @@ export default function EarthworkInputSection({ projectId, utilization, nearby_e
             setData(res.data);
             latestDataRef.current = res.data;
 
-            const res1 = await detailEarthwork(projectId)
-            setUtilData(res1)
-
+            const res1 = await detailEarthwork(projectId);
+            setUtilData(res1);
         } catch (err) {
             console.error("토공사 입력 데이터 불러오기 실패:", err);
         } finally {
@@ -756,7 +772,12 @@ export default function EarthworkInputSection({ projectId, utilization, nearby_e
     ];
 
     return (
-        <div className="flex flex-col">
+        <div
+        ref={scrollRef}
+        className={`scroll-container space-y-4 h-[100vh] overflow-y-auto pr-2 transition-all duration-300 ${
+            isScrolling ? "scrolling" : ""
+        }`}
+        >
         {tableData.map((tbl) =>
             renderTable(tbl.title, tbl.headers, tbl.rows, tbl.keys)
         )}

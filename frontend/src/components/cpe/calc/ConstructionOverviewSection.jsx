@@ -20,6 +20,8 @@ export default function ConstructionOverviewSection({ projectId, onOverviewChang
         if (onOverviewChange) {
           onOverviewChange({
             nearby_env: res.data.nearby_env,
+            basement_floors: res.data.basement_floors,
+            ground_floors: res.data.ground_floors,
           });
         }
       } catch (err) {
@@ -42,6 +44,8 @@ export default function ConstructionOverviewSection({ projectId, onOverviewChang
         // 필요한 핵심 정보만 전달 (예: 주변현황만)
         onOverviewChange({
           nearby_env: updated.nearby_env,
+          basement_floors: updated.data.basement_floors,
+          ground_floors: updated.data.ground_floors,
         });
       }
 
