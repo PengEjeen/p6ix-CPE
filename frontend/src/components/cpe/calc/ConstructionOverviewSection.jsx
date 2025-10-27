@@ -44,8 +44,8 @@ export default function ConstructionOverviewSection({ projectId, onOverviewChang
         // 필요한 핵심 정보만 전달 (예: 주변현황만)
         onOverviewChange({
           nearby_env: updated.nearby_env,
-          basement_floors: updated.data.basement_floors,
-          ground_floors: updated.data.ground_floors,
+          basement_floors: updated.basement_floors,
+          ground_floors: updated.ground_floors,
         });
       }
 

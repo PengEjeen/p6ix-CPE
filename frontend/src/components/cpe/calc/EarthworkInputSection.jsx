@@ -7,7 +7,7 @@ import {
 } from "../../../api/cpe/calc";
 import { detailEarthwork } from "../../../api/cpe/criteria";
 
-export default function EarthworkInputSection({ projectId, utilization, nearby_env }) {
+export default function EarthworkInputSection({ projectId, utilization, nearby_env, onEarthWorkInputChange }) {
     const [data, setData] = useState({});
     const [utilData, setUtilData] = useState({});
     const [loading, setLoading] = useState(true);
@@ -17,6 +17,9 @@ export default function EarthworkInputSection({ projectId, utilization, nearby_e
     const [isScrolling, setIsScrolling] = useState(false);
     const scrollRef = useRef(null);
     const scrollTimeout = useRef(null);
+    // 상위 컴포넌트로 보낼 값
+    const totalWork = 0;
+    const totalCal = 0;
 
     const handleScroll = () => {
         setIsScrolling(true);
@@ -33,19 +36,25 @@ export default function EarthworkInputSection({ projectId, utilization, nearby_e
 
     useEffect(() => {
         const fetchData = async () => {
-        if (!projectId) return;
-        try {
-            const res = await detailEarthworkInput(projectId);
-            setData(res.data);
-            latestDataRef.current = res.data;
-
-            const res1 = await detailEarthwork(projectId);
-            setUtilData(res1);
-        } catch (err) {
-            console.error("토공사 입력 데이터 불러오기 실패:", err);
-        } finally {
-            setLoading(false);
-        }
+            if (!projectId) return;
+            try {
+                const res = await detailEarthworkInput(projectId);
+                setData(res.data);
+                latestDataRef.current = res.data;
+                if (onEarthWorkInputChange) {
+                    onEarthWorkInputChange({
+                        is_sunta: res.data.is_sunta,
+                        total_working_day: totalWork,
+                        total_calendar_day: totalCal,
+                    })
+                }
+                const res1 = await detailEarthwork(projectId);
+                setUtilData(res1);
+            } catch (err) {
+                console.error("토공사 입력 데이터 불러오기 실패:", err);
+            } finally {
+                setLoading(false);
+            }
         };
         fetchData();
     }, [projectId]);
@@ -62,6 +71,12 @@ export default function EarthworkInputSection({ projectId, utilization, nearby_e
         const updated = { ...data, [key]: value };
         setData(updated);
         latestDataRef.current = updated;
+    
+        if (onEarthWorkInputChange) {
+            onEarthWorkInputChange({
+                is_sunta: updated.is_sunta
+            })
+        }
         onAutoSave(updated);
     };
     //날짜계산 변수들
@@ -82,9 +97,9 @@ export default function EarthworkInputSection({ projectId, utilization, nearby_e
 
     //날짜계산 함수들
     useEffect(() => {
-        // -----------------------------
+
         // 흙막이 가시설 계산
-        // -----------------------------
+
         const method = data.earth_retention_method;
         const length = Number(data.retention_perimeter_length) || 0;
         const depth = Number(data.drilling_depth) || 0;
@@ -111,9 +126,9 @@ export default function EarthworkInputSection({ projectId, utilization, nearby_e
         setEarthRetentionWorkingDay(workingDay);
         setEarthRetentionCalendarDay(calendarDay);
 
-        // -----------------------------
+
         // 지보공 계산
-        // -----------------------------
+
         const supportMethod = data.support_method;
         if (supportMethod) {
             const supportDays = {
@@ -130,9 +145,9 @@ export default function EarthworkInputSection({ projectId, utilization, nearby_e
             setEarthSupportCalendarDay(null);
             setEarthSupportWorkingDay(null);
         }
-        // -----------------------------
+
         // 터파기 (토사) 계산
-        // -----------------------------
+
         const soilVolume = Number(data.total_earth_volume) * ((Number(data.soil_ratio) || 0) / 100) || 0; // 전체 토사량 × 비율
         const soilCrew = Math.max(Number(data.soil_crew_actual) || 1, 1); // 투입 조 (최소 1조)
         const directRatio = (Number(data.soil_direct_ratio) || 0) / 100; // 직상차 비율 (% → 소수)
@@ -158,9 +173,9 @@ export default function EarthworkInputSection({ projectId, utilization, nearby_e
         setSoilCalendarDay(calendarDay3);
 
 
-        // -----------------------------
+
         // 풍화암 계산
-        // -----------------------------
+
         const weatheredVolume = Number(data.total_earth_volume) * ((Number(data.weathered_ratio) || 0) / 100) || 0; // 전체 풍화암량
         const weatheredCrew = Math.max(Number(data.weathered_crew_actual) || 1, 1); // 투입 조
         const directRatioW = (Number(data.weathered_direct_ratio) || 0) / 100; // 직상차 비율
@@ -182,9 +197,9 @@ export default function EarthworkInputSection({ projectId, utilization, nearby_e
         setWeatheredCalendarDay(calendarDayWeathered);
 
 
-        // -----------------------------
+
         // 연암 (Soft Rock) 계산
-        // -----------------------------
+
         const soft_rockVolume =
         Number(data.total_earth_volume) * ((Number(data.soft_rock_ratio) || 0) / 100) || 0; // 전체 연암량 (㎥)
         const soft_rockCrew = Math.max(Number(data.softrock_crew_actual) || 1, 1); // 투입 조 (최소 1조)
@@ -222,9 +237,9 @@ export default function EarthworkInputSection({ projectId, utilization, nearby_e
         setSoftrockWorkingDay(workingDaySoftRock);
         setSoftrockCalendarDay(calendarDaySoftRock);
 
-        // -----------------------------
+
         // 경암 (Hard Rock) 계산
-        // -----------------------------
+
         const hard_rockVolume =
         Number(data.total_earth_volume) * ((Number(data.hard_rock_ratio) || 0) / 100) || 0; // 전체 연암량 (㎥)
         const hard_rockCrew = Math.max(Number(data.hardrock_crew_actual) || 1, 1); // 투입 조 (최소 1조)
@@ -262,9 +277,9 @@ export default function EarthworkInputSection({ projectId, utilization, nearby_e
         setHardrockWorkingDay(workingDayHardRock);
         setHardrockCalendarDay(calendarDayHardRock);
 
-        // -----------------------------
+
         // 지정공사 (Designated Work) 계산
-        // -----------------------------
+
         const designated_method = data.designated_method || ""; // 지정 공법
         const designated_work_unit = Number(data.designated_work_unit) || 0; // 공수
         const designated_drilling_depth = Number(data.designated_drilling_depth) || 0; // 천공 심도 (m)
@@ -290,9 +305,9 @@ export default function EarthworkInputSection({ projectId, utilization, nearby_e
         "1500": Number(utilData?.prd_1500) || 0,
         };
 
-        // -----------------------------
+
         // 계산 로직 (공법별 분기)
-        // -----------------------------
+
         let designated_working_day = 0;
 
         if (designated_method === "RCD") {
@@ -328,35 +343,94 @@ export default function EarthworkInputSection({ projectId, utilization, nearby_e
 
 
     useEffect(() => {
-    if (!nearby_env || !utilData) return;
+        if (!nearby_env || !utilData) return;
 
-    // 주변현황별 기본 할증률 매핑
-    const surchargeMap = {
-        학교: Number(utilData.surcharge_school) || 0,
-        주거지: Number(utilData.surcharge_residential) || 0,
-        노후시설: Number(utilData.surcharge_old_facility) || 0,
-        문화재: Number(utilData.surcharge_cultural) || 0,
-        택지개발: Number(utilData.surcharge_development) || 0,
-    };
-
-    // 현재 주변현황에 맞는 할증률
-    const autoSurcharge = surchargeMap[nearby_env] ?? 0;
-
-    // 수동입력이 비활성화된 경우에만 자동 적용
-    if (!data.is_surcharge) {
-        setData((prev) => ({
-        ...prev,
-        surcharge_ratio: autoSurcharge,
-        }));
-        latestDataRef.current = {
-        ...latestDataRef.current,
-        surcharge_ratio: autoSurcharge,
+        // 주변현황별 기본 할증률 매핑
+        const surchargeMap = {
+            학교: Number(utilData.surcharge_school) || 0,
+            주거지: Number(utilData.surcharge_residential) || 0,
+            노후시설: Number(utilData.surcharge_old_facility) || 0,
+            문화재: Number(utilData.surcharge_cultural) || 0,
+            택지개발: Number(utilData.surcharge_development) || 0,
         };
-    }
+
+        // 현재 주변현황에 맞는 할증률
+        const autoSurcharge = surchargeMap[nearby_env] ?? 0;
+
+        // 수동입력이 비활성화된 경우에만 자동 적용
+        if (!data.is_surcharge) {
+            setData((prev) => ({
+            ...prev,
+            surcharge_ratio: autoSurcharge,
+            }));
+            latestDataRef.current = {
+            ...latestDataRef.current,
+            surcharge_ratio: autoSurcharge,
+            };
+        }
     }, [nearby_env, data.is_surcharge, utilData]);
 
     //if (loading) return <p className="text-gray-400">불러오는 중...</p>;
-    if (!data) return null;
+
+    // totalWork / totalCal 상위 전달
+    useEffect(() => {
+        if (!onEarthWorkInputChange || !data) return;
+
+        const util = Number(utilization) || 100;
+        const surcharge = data.is_surcharge ? 1 + (Number(data.surcharge_ratio) || 0) / 100 : 1;
+
+        const retentionWork = Math.round(
+            (earthRetentionWorkingDay || 0) *
+            ((Number(data.parallel_retention) || 100) / 100) *
+            surcharge
+        );
+        const retentionCal = Math.round(retentionWork * (100 / util));
+
+        const supportWork = Math.round(
+            (earthsupportWorkingDay || 0) *
+            ((Number(data.parallel_support) || 100) / 100) *
+            surcharge
+        );
+        const supportCal = Math.round(supportWork * (100 / util));
+
+        const excavationWork = Math.round(
+            (earthsoilWorkingDay || 0) *
+            ((Number(data.parallel_excavation) || 100) / 100) *
+            surcharge
+        );
+        const excavationCal = Math.round(excavationWork * (100 / util));
+
+        const designatedWork = Math.round(
+            (desighnatedWorkingDay || 0) *
+            ((Number(data.parallel_designated) || 100) / 100) *
+            surcharge
+        );
+        const designatedCal = Math.round(designatedWork * (100 / util));
+
+        const totalWork =
+            retentionWork + supportWork + excavationWork + designatedWork;
+        const totalCal = retentionCal + supportCal + excavationCal + designatedCal;
+
+        onEarthWorkInputChange({
+            is_sunta: data.is_sunta,
+            total_working_day: totalWork,
+            total_calendar_day: totalCal,
+        });
+        }, [
+        data.is_sunta,
+        data.parallel_retention,
+        data.parallel_support,
+        data.parallel_excavation,
+        data.parallel_designated,
+        data.is_surcharge,
+        data.surcharge_ratio,
+        utilization,
+        earthRetentionWorkingDay,
+        earthsupportWorkingDay,
+        earthsoilWorkingDay,
+        desighnatedWorkingDay,
+    ]);
+
 
     // 공통 카드 렌더러
     const renderTable = (title, headers, rows, keys) => (

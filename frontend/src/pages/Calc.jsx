@@ -4,6 +4,7 @@ import ConstructionOverviewSection from "../components/cpe/calc/ConstructionOver
 import WorkConditionSection from "../components/cpe/calc/WorkConditionSection";
 import EarthworkInputSection from "../components/cpe/calc/EarthworkInputSection";
 import FrameworkInputSection from "../components/cpe/calc/FrameworkInputSection";
+import PreparationPeriodSection from "../components/cpe/calc/PreparationPeriodSection";
 import PageHeader from "../components/cpe/PageHeader";
 
 export default function Calc() {
@@ -21,6 +22,16 @@ export default function Calc() {
     ground_floors: null,
   });
 
+  const [earthWorkInput, setEarthWorkInput] = useState({
+    is_sunta: null,
+    total_working_day: null,
+    total_calendar_day: null
+  })
+
+  const [frameWorkInput, setFrameWorkInput] = useState({
+    total_working_day: null,
+    total_calendar_day: null
+  })
   return (
     <div className="p-6 overflow-x-auto">
       {/* 상단 페이지 제목 */}
@@ -30,11 +41,11 @@ export default function Calc() {
       />
 
       {/* 전체 레이아웃 */}
-      <div className="flex flex-col gap-6 min-w-[900px]">
-        <div className="flex flex-wrap gap-6 justify-start items-start">
-          {/* === 공사개요 영역 === */}
-          <div>
-            <div className="bg-[#2c2c3a] rounded-xl border border-gray-700 shadow-lg p-4 mb-6 inline-block align-top">
+      <div className="flex overflow-x-auto gap-6 pb-4 no-scrollbar">
+        <div className="flex flex-nowrap justify-start items-start">
+          {/* === 공사개요 === */}
+          <div className="min-w-[360px]">
+            <div className="bg-[#2c2c3a] rounded-xl border border-gray-700 shadow-lg p-4 mb-6">
               <h2 className="text-lg font-semibold text-white text-center mb-3 border-b border-gray-600 pb-1">
                 공사개요
               </h2>
@@ -45,9 +56,8 @@ export default function Calc() {
             </div>
           </div>
 
-          {/* === 근무조건 + 골조공사 영역 === */}
-          <div>
-            {/* 근무조건 */}
+          {/* === 근무조건 + 골조공사 === */}
+          <div className="min-w-[420px]">
             <div className="bg-[#2c2c3a] rounded-xl border border-gray-700 shadow-lg p-4 mb-6">
               <h2 className="text-lg font-semibold text-white text-center mb-3 border-b border-gray-600 pb-1">
                 근무조건 및 가동률
@@ -57,21 +67,23 @@ export default function Calc() {
                 onUtilizationChange={(vals) => setUtilization(vals)}
               />
             </div>
-          </div>
-
-          {/* === 토공사 영역 === */}
-          <div>
             <div className="bg-[#2c2c3a] rounded-xl border border-gray-700 shadow-lg p-4 mb-6">
               <h2 className="text-lg font-semibold text-white text-center mb-3 border-b border-gray-600 pb-1">
-                토공사
+                공사기간
               </h2>
-              <EarthworkInputSection
+              <PreparationPeriodSection
                 projectId={projectId}
-                utilization={utilization.earthwork}
-                nearby_env={constructionOverview.nearby_env}
+                ground_floor={constructionOverview.ground_floors}
+                earthwork_day={{
+                  total_calendar_day: earthWorkInput.total_calendar_day,
+                  total_working_day: earthWorkInput.total_working_day
+                }}
+                framework_day={{
+                  total_calendar_day: frameWorkInput.total_calendar_day,
+                  total_working_day: frameWorkInput.total_working_day
+                }}
               />
             </div>
-            {/* 골조공사 */}
             <div className="bg-[#2c2c3a] rounded-xl border border-gray-700 shadow-lg p-4">
               <h2 className="text-lg font-semibold text-white text-center mb-3 border-b border-gray-600 pb-1">
                 골조공사
@@ -80,11 +92,30 @@ export default function Calc() {
                 projectId={projectId}
                 basement_floors={constructionOverview.basement_floors}
                 ground_floors={constructionOverview.ground_floors}
+                utilization={utilization.framework}
+                is_sunta={earthWorkInput.is_sunta}
+                onFrameworkInputChange={(vals) => setFrameWorkInput(vals)}
+              />
+            </div>
+          </div>
+
+          {/* === 토공사 === */}
+          <div className="min-w-[420px]">
+            <div className="bg-[#2c2c3a] rounded-xl border border-gray-700 shadow-lg p-4 mb-6">
+              <h2 className="text-lg font-semibold text-white text-center mb-3 border-b border-gray-600 pb-1">
+                토공사
+              </h2>
+              <EarthworkInputSection
+                projectId={projectId}
+                utilization={utilization.earthwork}
+                nearby_env={constructionOverview.nearby_env}
+                onEarthWorkInputChange={(vals) => setEarthWorkInput(vals)}
               />
             </div>
           </div>
         </div>
       </div>
+
     </div>
   );
 }
