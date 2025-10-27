@@ -6,7 +6,7 @@ from ..models.calc_models import (
     EarthworkInput,
     FrameWorkInput,
 )
-
+from ..models.operating_rate_models import WorkScheduleWeight
 
 # 공사개요
 class ConstructionOverviewSerializer(serializers.ModelSerializer):
@@ -14,11 +14,6 @@ class ConstructionOverviewSerializer(serializers.ModelSerializer):
         model = ConstructionOverview
         fields = "__all__"
         read_only_fields = ["project"]
-
-
-from rest_framework import serializers
-from ..models.calc_models import WorkCondition
-from ..models.operating_rate_models import WorkScheduleWeight
 
 
 class WorkConditionSerializer(serializers.ModelSerializer):
@@ -87,50 +82,86 @@ class FrameWorkInputSerializer(serializers.ModelSerializer):
         floor_height_data 구조 검증
         {
             "basement": [{"floor": 10, "height": 3.5, "floor_sep": "전이층"}],
-            "ground": [{"floor": 1, "height": 3.2, "floor_sep": "세팅층"}]
+            "ground": [{"floor": 1, "height": 3.2, "floor_sep": "세팅층", "is_parallelism": false}]
         }
         """
         if not isinstance(value, dict):
             raise serializers.ValidationError("floor_height_data는 JSON 객체(dict) 형태여야 합니다.")
 
-        # 키 검증
         required_keys = {"basement", "ground"}
         if set(value.keys()) != required_keys:
             raise serializers.ValidationError(
                 f"floor_height_data는 {required_keys} 두 키를 모두 포함해야 합니다."
             )
 
-        # 층 리스트 검증
+        allowed_sep = [
+            "전이층", "세팅층", "피난층", "필로티", "포디움", "스카이라운지", "Cycle Time"
+        ]
+
         for section, floors in value.items():
             if not isinstance(floors, list):
                 raise serializers.ValidationError(f"{section}의 값은 리스트여야 합니다.")
+
             for i, floor_info in enumerate(floors):
                 if not isinstance(floor_info, dict):
                     raise serializers.ValidationError(f"{section}[{i}] 항목은 객체여야 합니다.")
-                if set(floor_info.keys()) != {"floor", "height", "floor_sep"}:
-                    raise serializers.ValidationError(
-                        f"{section}[{i}] 항목은 'floor', 'height', 'floor_sep' 3개의 필드만 가져야 합니다."
-                    )
 
-                # 각 필드 타입 검증
+                # 공통 필수 키
+                required_item_keys = {"floor", "height", "floor_sep"}
+
+                if section == "basement":
+                    # basement: 허용 키 = 공통 3개만
+                    allowed_item_keys = required_item_keys
+                    missing = required_item_keys - set(floor_info.keys())
+                    extra = set(floor_info.keys()) - allowed_item_keys
+                    if missing:
+                        raise serializers.ValidationError(
+                            f"{section}[{i}] 항목에 누락된 필드가 있습니다: {sorted(missing)}"
+                        )
+                    if extra:
+                        raise serializers.ValidationError(
+                            f"{section}[{i}] 항목에 허용되지 않은 필드가 있습니다: {sorted(extra)}"
+                        )
+                else:  # ground
+                    # ground: is_parallelism(선택) 허용
+                    allowed_item_keys = required_item_keys | {"is_parallelism"}
+                    missing = required_item_keys - set(floor_info.keys())
+                    extra = set(floor_info.keys()) - allowed_item_keys
+                    if missing:
+                        raise serializers.ValidationError(
+                            f"{section}[{i}] 항목에 누락된 필드가 있습니다: {sorted(missing)}"
+                        )
+                    if extra:
+                        raise serializers.ValidationError(
+                            f"{section}[{i}] 항목에 허용되지 않은 필드가 있습니다: {sorted(extra)}"
+                        )
+                    # 기본값 주입 및 타입 검증
+                    if "is_parallelism" not in floor_info:
+                        floor_info["is_parallelism"] = False
+                    else:
+                        if not isinstance(floor_info["is_parallelism"], bool):
+                            raise serializers.ValidationError(
+                                f"{section}[{i}].is_parallelism 은 boolean 이어야 합니다."
+                            )
+
+                # 필드 타입 검증
                 floor = floor_info["floor"]
                 height = floor_info["height"]
                 floor_sep = floor_info["floor_sep"]
 
                 if not isinstance(floor, (int, float)):
                     raise serializers.ValidationError(f"{section}[{i}].floor 은 숫자여야 합니다.")
-                if not isinstance(height, (int, float)):
-                    raise serializers.ValidationError(f"{section}[{i}].height 은 숫자여야 합니다.")
-                if not isinstance(floor_sep, str):
-                    raise serializers.ValidationError(f"{section}[{i}].floor_sep 은 문자열이어야 합니다.")
 
-                # 선택지 제한 (옵션)
-                allowed_sep = [
-                    "전이층", "세팅층", "피난층", "필로티", "포디움", "스카이라운지", "Cycle Time"
-                ]
-                if floor_sep not in allowed_sep:
-                    raise serializers.ValidationError(
-                        f"{section}[{i}].floor_sep 값은 {allowed_sep} 중 하나여야 합니다."
-                    )
+                if height is not None and not isinstance(height, (int, float)):
+                    raise serializers.ValidationError(f"{section}[{i}].height 은 숫자 또는 null 이어야 합니다.")
+
+                if floor_sep is not None:
+                    if not isinstance(floor_sep, str):
+                        raise serializers.ValidationError(f"{section}[{i}].floor_sep 은 문자열 또는 null 이어야 합니다.")
+                    if floor_sep not in allowed_sep:
+                        raise serializers.ValidationError(
+                            f"{section}[{i}].floor_sep 값은 {allowed_sep} 중 하나여야 합니다."
+                        )
 
         return value
+

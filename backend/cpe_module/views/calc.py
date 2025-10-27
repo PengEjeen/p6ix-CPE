@@ -108,6 +108,7 @@ def detail_framework_input(request, project_id):
 @api_view(["PUT"])
 @permission_classes([IsAuthenticated])
 def update_framework_input(request, project_id):
+    print(request.data)
     instance = get_object_or_404(FrameWorkInput, project_id=project_id)
     serializer = FrameWorkInputSerializer(instance, data=request.data, partial=True)
     if serializer.is_valid():

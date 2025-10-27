@@ -139,17 +139,33 @@ class PreparationPeriod(models.Model):
         default="0.5개월 고정"
     )
 
+    #is prepartion --> 준비기간 직접입력
+    is_preparation_input_days = models.BooleanField(default=False)
     preparation_input_days = models.PositiveIntegerField(
         "준비기간(직접 입력 일수)",
         null=True,
         blank=True,
         help_text="사용자 직접 입력 시 우선 적용"
     )
+    
+    #세대수(선택) 2000세대 이하, 2000~3000세대, 3000세대 이상
+    household = models.CharField(
+        "세대수 선택",
+        max_length=20,
+        choices=[
+            ("2000 이하", "2000세대 이하"),
+            ("2000~3000세대", "2000~3000세대"),
+            ("3000 이상", "3000세대 이상"),
+        ],
+        default = "2000~3000세대"
+    )
 
     # --- 정리기간 ---
     is_home = models.BooleanField(default=True) #주거 비주거 구분
 
     # 마감공사 --> 위 테이블에 합치도록 함.
+    #is floor_under months 마감공사 일수 직접입력??
+    is_floors_under_months = models.BooleanField(default=False)
     floors_under_months = models.PositiveIntegerField(
         "마감공사 (직접 입력 일수)",
         null=True,
@@ -290,7 +306,7 @@ class EarthworkInput(models.Model):
     # 할증
     # ------------------------------------------------------------------
     is_surcharge = models.BooleanField(default=False)
-    surcharge_ratio = models.DecimalField("할증비율(직접입력 필드)", max_digits=5, decimal_places=2, default=0, blank=True, null=True)
+    surcharge_ratio = models.DecimalField("할증비율(직접입력 필드)",  max_digits=5, decimal_places=2, default=0, blank=True, null=True)
 
     # ------------------------------------------------------------------
     # 병행률
@@ -347,8 +363,8 @@ class FrameWorkInput(models.Model):
             "  {'floor': 9, 'height': 3.3, 'floor_sep': '전이층, 세팅층, 피난층, 필로티, 포디움, 스카이라운지, Cycle Time 택1'}"
             "], "
             "'ground': ["
-            "  {'floor': 1F, 'height': 3.2, 'floor_sep': '전이층, 세팅층, 피난층, 필로티, 포디움, 스카이라운지, Cycle Time 택1'}, "
-            "  {'floor': 2F, 'height': 3.1, 'floor_sep': '전이층, 세팅층, 피난층, 필로티, 포디움, 스카이라운지, Cycle Time 택1'}"
+            "  {'floor': 1, 'height': 3.2, 'is_parallelism: Boolean' 'floor_sep': '전이층, 세팅층, 피난층, 필로티, 포디움, 스카이라운지, Cycle Time 택1'}, "
+            "  {'floor': 2, 'height': 3.1, 'floor_sep': '전이층, 세팅층, 피난층, 필로티, 포디움, 스카이라운지, Cycle Time 택1'}"
             "]}"
         )
     )
