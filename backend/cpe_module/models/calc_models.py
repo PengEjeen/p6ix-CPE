@@ -33,14 +33,14 @@ class ConstructionOverview(models.Model): #이거 프로젝트 아님
     ], default="턴키")
 
     # --- Site 정보 ---
-    location = models.CharField("위치", max_length=100, blank=True, null=True) #추후에 기상테이블에 따른 위치정보 추가
-    site_area = models.DecimalField("대지면적(㎡)", max_digits=10, decimal_places=2, null=True, blank=True)
+    location = models.CharField("위치", max_length=100, blank=True, null=True, default="서울") #추후에 기상테이블에 따른 위치정보 추가
+    site_area = models.DecimalField("대지면적(㎡)", max_digits=10, decimal_places=2, null=True, blank=True, default=12000)
 
     # 대지현황
-    adjacent_road = models.CharField("인접도로", max_length=100, blank=True, null=True)
-    adjacent_side_count = models.PositiveIntegerField("도로 접한 면 수", default=0)
-    elevation_max = models.DecimalField("최고 고저차(m)", max_digits=5, decimal_places=2, null=True, blank=True)
-    elevation_min = models.DecimalField("최저 고저차(m)", max_digits=5, decimal_places=2, null=True, blank=True)
+    adjacent_road = models.CharField("인접도로", max_length=100, blank=True, null=True, default="1.0 도로")
+    adjacent_side_count = models.PositiveIntegerField("도로 접한 면 수", default=2)
+    elevation_max = models.DecimalField("최고 고저차(m)", max_digits=5, decimal_places=2, null=True, blank=True, default=1.0)
+    elevation_min = models.DecimalField("최저 고저차(m)", max_digits=5, decimal_places=2, null=True, blank=True, default=0.1)
 
     nearby_env = models.CharField("주변현황", max_length=50, choices=[
         ("학교", "학교"),
@@ -48,14 +48,14 @@ class ConstructionOverview(models.Model): #이거 프로젝트 아님
         ("노후시설", "노후시설"),
         ("문화재", "문화재"),
         ("택지개발", "택지개발"),
-    ], blank=True, null=True)
+    ], blank=True, null=True, default="학교")
 
     # --- 건물 정보 ---
     basement_floors = models.PositiveIntegerField("지하층수", default=10)
     ground_floors = models.PositiveIntegerField("지상층수", default=10)
     total_units = models.PositiveIntegerField("세대수", default=0)
-    total_buildings = models.PositiveIntegerField("동수", default=0)
-    total_floor_area = models.DecimalField("연면적(㎡)", max_digits=12, decimal_places=2, default=0)
+    total_buildings = models.PositiveIntegerField("동수", default=4)
+    total_floor_area = models.DecimalField("연면적(㎡)", max_digits=12, decimal_places=2, default=10000)
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -105,6 +105,7 @@ class WorkCondition(models.Model):
         max_digits=5,
         decimal_places=2,
         blank=True, null=True,
+        default=70.91,
         help_text="직접 입력한 토공사 가동률(%)"
     )
     framework_utilization_input = models.DecimalField(
@@ -112,6 +113,7 @@ class WorkCondition(models.Model):
         max_digits=5,
         decimal_places=2,
         blank=True, null=True,
+        default=65.62,
         help_text="직접 입력한 골조공사 가동률(%)"
     )
 
@@ -145,6 +147,7 @@ class PreparationPeriod(models.Model):
         "준비기간(직접 입력 일수)",
         null=True,
         blank=True,
+        default=30,
         help_text="사용자 직접 입력 시 우선 적용"
     )
     
@@ -170,6 +173,7 @@ class PreparationPeriod(models.Model):
         "마감공사 (직접 입력 일수)",
         null=True,
         blank=True,
+        default=1.1,
         help_text="사용자 직접 입력 시 우선 적용"
     )
 
@@ -226,7 +230,7 @@ class EarthworkInput(models.Model):
     drilling_depth = models.DecimalField("천공 심도(m)", max_digits=5, decimal_places=1, default=10)
     crew_count = models.PositiveIntegerField("투입 조(장비)", default=2)
     is_special_retention = models.BooleanField(default=True)
-    special_retention_extra_days = models.PositiveIntegerField("특수 흙막이 추가 작업일수", null=True, blank=True)
+    special_retention_extra_days = models.PositiveIntegerField("특수 흙막이 추가 작업일수", null=True, blank=True, default=15)
     # ------------------------------------------------------------------
     # 지보공
     # ------------------------------------------------------------------
@@ -341,8 +345,6 @@ class FrameWorkInput(models.Model):
         decimal_places=2,
         default=1.2
     )
-    base_working_day = models.PositiveIntegerField("기초골조 Working Day", default=11)
-    base_calendar_day = models.PositiveIntegerField("기초골조 Calendar Day", default=17)
 
     # ------------------------------------------------------------------
     # 지하·지상 골조

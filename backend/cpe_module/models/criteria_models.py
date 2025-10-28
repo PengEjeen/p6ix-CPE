@@ -7,6 +7,7 @@ class PreparationWork(models.Model):
         "cpe_module.Project",
         on_delete=models.CASCADE,
         related_name="preparation_works",
+        null=True, blank=True,
     )
 
     # 정리기간
@@ -29,6 +30,7 @@ class PreparationWork(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
+    is_admin = models.BooleanField(default=False)
 
 # 토공사
 class Earthwork(models.Model):
@@ -36,6 +38,7 @@ class Earthwork(models.Model):
         "cpe_module.Project",
         on_delete=models.CASCADE,
         related_name="earthworks",
+        null=True, blank=True,
     )
 
     # 흙막이 지보공
@@ -105,6 +108,7 @@ class Earthwork(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
+    is_admin = models.BooleanField(default=False)
 
 # 골조공사
 class FrameWork(models.Model):
@@ -112,6 +116,7 @@ class FrameWork(models.Model):
         "cpe_module.Project",
         on_delete=models.CASCADE,
         related_name="frameworks",
+        null=True, blank=True,
     )
 
     # 기초공사 (복수입력 가능)
@@ -153,3 +158,5 @@ class FrameWork(models.Model):
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+    is_admin = models.BooleanField(default=False)

@@ -29,14 +29,14 @@ class ProjectSerializer(serializers.ModelSerializer):
         user = self.context["request"].user
         project = Project.objects.create(user=user, **validated_data)
 
-        # 공기산정 관련 (calc_models)
+        # ① 공기산정 관련 (calc_models)
         ConstructionOverview.objects.create(project=project)
         WorkCondition.objects.create(project=project)
         PreparationPeriod.objects.create(project=project)
         EarthworkInput.objects.create(project=project)
         FrameWorkInput.objects.create(project=project)
 
-        # 가동률 관련 (operating_rate_models)
+        # ② 가동률 관련 (operating_rate_models)
         WorkScheduleWeight.objects.bulk_create([
             WorkScheduleWeight(project=project, type="EARTH"),
             WorkScheduleWeight(project=project, type="FRAME"),
@@ -45,12 +45,49 @@ class ProjectSerializer(serializers.ModelSerializer):
             WorkScheduleWeight(project=project, type="POUR"),
         ])
 
-        # 적용기준 관련 (criteria_models)
-        PreparationWork.objects.create(project=project)
-        Earthwork.objects.create(project=project)
-        FrameWork.objects.create(project=project)
+        # ③ 적용기준 관련 (criteria_models)
+        # admin의 기준데이터(is_admin=True) 복제
+        prep_admin = PreparationWork.objects.filter(is_admin=True).last()
+        earth_admin = Earthwork.objects.filter(is_admin=True).last()
+        frame_admin = FrameWork.objects.filter(is_admin=True).last()
 
-        # 갑지 관련
+        if prep_admin:
+            PreparationWork.objects.create(
+                project=project,
+                **{
+                    f.name: getattr(prep_admin, f.name)
+                    for f in PreparationWork._meta.fields
+                    if f.name not in ["id", "project", "created_at", "updated_at", "is_admin"]
+                },
+            )
+        else:
+            PreparationWork.objects.create(project=project)
+
+        if earth_admin:
+            Earthwork.objects.create(
+                project=project,
+                **{
+                    f.name: getattr(earth_admin, f.name)
+                    for f in Earthwork._meta.fields
+                    if f.name not in ["id", "project", "created_at", "updated_at", "is_admin"]
+                },
+            )
+        else:
+            Earthwork.objects.create(project=project)
+
+        if frame_admin:
+            FrameWork.objects.create(
+                project=project,
+                **{
+                    f.name: getattr(frame_admin, f.name)
+                    for f in FrameWork._meta.fields
+                    if f.name not in ["id", "project", "created_at", "updated_at", "is_admin"]
+                },
+            )
+        else:
+            FrameWork.objects.create(project=project)
+
+        # ④ 갑지 관련
         Quotation.objects.create(project=project)
 
         return project
