@@ -5,6 +5,7 @@ from ..models.calc_models import *
 from ..models.criteria_models import *
 from ..models.estimate_models import *
 from ..models.operating_rate_models import *
+from ..models.quotation_models import Quotation
 
 
 class ProjectSerializer(serializers.ModelSerializer):
@@ -48,5 +49,8 @@ class ProjectSerializer(serializers.ModelSerializer):
         PreparationWork.objects.create(project=project)
         Earthwork.objects.create(project=project)
         FrameWork.objects.create(project=project)
+
+        # 갑지 관련
+        Quotation.objects.create(project=project)
 
         return project

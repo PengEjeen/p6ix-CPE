@@ -1,5 +1,5 @@
 from django.urls import path
-from .views import operating_rate, project, criteria, calc
+from .views import operating_rate, project, criteria, calc, quotation
 
 app_name = 'cpe_module'
 
@@ -50,4 +50,9 @@ urlpatterns = [
     #framework input
     path("calc/framework-input/<str:project_id>/", calc.detail_framework_input),
     path("calc/framework-input/<str:project_id>/update/", calc.update_framework_input),
+
+    #quotation
+    path("quotation/<str:project_id>/", quotation.detail_quotation),
+    path("quotation/<str:project_id>/update/", quotation.update_quotation),
+
     ]
