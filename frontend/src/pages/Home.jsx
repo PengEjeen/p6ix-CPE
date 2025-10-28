@@ -8,7 +8,7 @@ export default function Home() {
       {/* 로고 텍스트 */}
       <div>
         <h1 className="text-gray-400 text-6xl font-extrabold tracking-wider mb-2">P6IX</h1>
-        <p className="text-lg text-gray-400">smartconsulting 공기산정 툴</p>
+        <p className="text-lg text-gray-400">smart construction 공기산정 툴</p>
       </div>
 
       {/* 로그인 정보

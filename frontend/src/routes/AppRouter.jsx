@@ -7,6 +7,7 @@ import Estimate from "../pages/Estimate"
 import Calc from "../pages/Calc"
 import Criteria from "../pages/Criteria"
 import Operatingrate from "../pages/OperatingRate"
+import Quotation from "../pages/Quotation";
 
 export default function AppRouter() {
   return (
@@ -23,6 +24,7 @@ export default function AppRouter() {
         <Route path="/projects/:id/calc" element={<Calc />} />
         <Route path="/projects/:id/criteria" element={<Criteria />} />
         <Route path="/projects/:id/operating_rate" element={<Operatingrate />} />
+        <Route path="/projects/:id/" element={<Quotation />} />
       </Route>
     </Routes>
   );

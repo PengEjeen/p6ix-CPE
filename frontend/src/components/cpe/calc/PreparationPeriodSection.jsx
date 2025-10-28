@@ -4,6 +4,7 @@ import {
   detailPreparationPeriod,
   updatePreparationPeriod,
 } from "../../../api/cpe/calc";
+import { updateQuotation } from "../../../api/cpe/quotation";
 import { detailPreparationWork } from "../../../api/cpe/criteria";
 
 export default function PreparationPeriodSection({ projectId, ground_floor, earthwork_day, framework_day }) {
@@ -81,31 +82,48 @@ export default function PreparationPeriodSection({ projectId, ground_floor, eart
 
     // 공사기간 산정 (Calendar Day)
     const rowsPeriod = (() => {
-    // 안전한 숫자 변환
-    const prep = data.is_preparation_input_days
-        ? Number(data.preparation_input_days) || 0
-        : 15; // 기본 준비기간 15일
+        // 안전한 숫자 변환
+        const prep = data.is_preparation_input_days
+            ? Number(data.preparation_input_days) || 0
+            : 15; // 기본 준비기간 15일
 
-    const earthCal = Number(earthwork_day?.total_calendar_day) || 0;
-    const earthWork = Number(earthwork_day?.total_working_day) || 0;
-    const frameCal = Number(framework_day?.total_calendar_day) || 0;
-    const frameWork = Number(framework_day?.total_working_day) || 0;
+        const earthCal = Number(earthwork_day?.total_calendar_day) || 0;
+        const earthWork = Number(earthwork_day?.total_working_day) || 0;
+        const frameCal = Number(framework_day?.total_calendar_day) || 0;
+        const frameWork = Number(framework_day?.total_working_day) || 0;
 
-    const clean =
-        data.is_home && utilData
-        ? Number(utilData.residential_days) || 0
-        : Number(utilData.non_residential_days) || 0;
+        const clean =
+            data.is_home && utilData
+            ? Number(utilData.residential_days) || 0
+            : Number(utilData.non_residential_days) || 0;
 
-    const floorTerm =
-        (data.is_floors_under_months
-        ? Number(data.floors_under_months)
-        : Number(floorMonth) || 0) * 30.5;
+        const floorTerm =
+            (data.is_floors_under_months
+            ? Number(data.floors_under_months)
+            : Number(floorMonth) || 0) * 30.5;
 
-    // 합계 계산
-    const construction =
-        earthCal + earthWork + frameCal + frameWork + clean * 30.5 + floorTerm;
+        // 합계 계산
+        const construction =
+            earthCal + earthWork + frameCal + frameWork + clean * 30.5 + floorTerm;
 
-    const total = prep + construction + clean;
+        const total = prep + construction + clean;
+
+    // Quotation 동기화
+    if (!isNaN(prep) && !isNaN(floorTerm) && !isNaN(clean)) {
+        const unitMonth = getUnitMonth(data.household);
+        const additionalDays = unitMonth ? unitMonth * 30.5 : 0;
+
+        const payload = {
+        preparation_period: Math.round(prep),       // 준비기간
+        finishing_work: Math.round(floorTerm),      // 마감공사 (층수별)
+        additional_period: Math.round(additionalDays), // 추가기간 (세대 수)
+        cleanup_period: Math.round(clean),          // 정리기간
+        };
+
+        updateQuotation(projectId, payload)
+        .then(() => console.log("Quotation updated:", payload))
+        .catch((err) => console.error("Quotation update failed:", err));
+    }
 
     return [
         {
@@ -117,6 +135,7 @@ export default function PreparationPeriodSection({ projectId, ground_floor, eart
         },
     ];
     })();
+
 
 
   // 공종별 공사기간 산정

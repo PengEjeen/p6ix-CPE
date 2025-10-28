@@ -14,7 +14,7 @@ export default function OperatingRate() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
-  // ✅ 데이터 로드
+  // 데이터 로드
   useEffect(() => {
     const loadData = async () => {
       try {
@@ -31,14 +31,14 @@ export default function OperatingRate() {
     loadData();
   }, [projectId]);
 
-  // ✅ 값 변경 핸들러
+  // 값 변경 핸들러
   const handleChange = (index, field, value) => {
     const updated = [...weights];
     updated[index][field] = value;
     setWeights(updated);
   };
 
-  // ✅ 저장 함수
+  // 저장 함수
   const handleSave = useCallback(async () => {
     try {
       setSaving(true);
@@ -57,7 +57,7 @@ export default function OperatingRate() {
     return <p className="p-6 text-gray-400">불러오는 중...</p>;
   }
 
-  // ✅ 테이블 컬럼 정의
+  // 테이블 컬럼 정의
   const columns = [
     { key: "type_display", label: "공종(Type)" },
     {

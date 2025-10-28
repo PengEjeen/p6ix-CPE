@@ -1,9 +1,11 @@
 import React, { useEffect, useRef, useState } from "react";
 import DataTable from "../DataTable";
+import "../utils/scroll.css";
 import {
   detailFrameworkInput,
   updateFrameworkInput,
 } from "../../../api/cpe/calc";
+import { updateQuotation } from "../../../api/cpe/quotation";
 import { detailFramework } from "../../../api/cpe/criteria";
 
 // 층 테이블 섹션
@@ -161,6 +163,23 @@ export default function FrameworkInputSection({
   const latestDataRef = useRef({});
   const [utilData, setUtilData] = useState({});
   const [loading, setLoading] = useState(true);
+
+  // 스크롤 관련 상태
+  const [isScrolling, setIsScrolling] = useState(false);
+  const scrollRef = useRef(null);
+  const scrollTimeout = useRef(null);
+  const handleScroll = () => {
+      setIsScrolling(true);
+      clearTimeout(scrollTimeout.current);
+      scrollTimeout.current = setTimeout(() => setIsScrolling(false), 1000);
+  };
+  
+  useEffect(() => {
+      const el = scrollRef.current;
+      if (!el) return;
+        el.addEventListener("scroll", handleScroll);
+      return () => el.removeEventListener("scroll", handleScroll);
+  }, []);
 
   // 데이터 로드 (입력 데이터)
   useEffect(() => {
@@ -345,14 +364,17 @@ export default function FrameworkInputSection({
   const sum = (arr) => arr.reduce((a, b) => a + b, 0);
 
   // 모든 층(지하+지상) 합쳐서 총합 도출
+  // 1. 층 데이터 분리
   const basementFloorsArr = data.floor_height_data?.basement ?? [];
   const groundFloorsArr = data.floor_height_data?.ground ?? [];
 
+  // 2. 합쳐서 allFloors 생성 (기존 유지)
   const allFloors = [
     ...basementFloorsArr.map((f) => ({ ...f, _type: "basement" })),
     ...groundFloorsArr.map((f) => ({ ...f, _type: "ground" })),
   ];
 
+  // 3. 층별 Calendar Day 계산
   const allCalList = allFloors.map((f) => {
     const cd = calcCalDayForRow(
       f.floor_sep,
@@ -365,29 +387,73 @@ export default function FrameworkInputSection({
     return Number.isFinite(cd) ? cd : 0;
   });
 
+  // 4. 각 층의 CalendarDay를 그대로 합계로 쓰는 대신,
+  //    basement / ground 각각 따로 필터링해서 합산
+  const basementCalSum = sum(
+    allFloors
+      .filter((f) => f._type === "basement")
+      .map((f, idx) => allCalList[idx])
+  );
+
+  const groundCalSum = sum(
+    allFloors
+      .filter((f) => f._type === "ground")
+      .map((f, idx) => allCalList[idx])
+  );
+
+  // 5. 기존처럼 전체 합계도 필요하다면 유지 가능
+  const totalCalSum = basementCalSum + groundCalSum;
+
+  // 6. WorkingDay 계산도 동일하게 처리
   const allWorkList = allCalList.map((cd) =>
     Math.round(cd * ((Number(utilization) || 100) / 100))
   );
-
-  const totalCalSum = sum(allCalList);
   const totalWorkSum = sum(allWorkList);
 
   useEffect(() => {
-    if (!onFrameworkInputChange) return;
+    if (!utilData) return;
 
     const totalWorking = baseWorkingDay + totalWorkSum;
     const totalCalendar = baseCalendarDay + totalCalSum;
 
-    onFrameworkInputChange({
-      total_working_day: totalWorking,
-      total_calendar_day: totalCalendar,
-    });
+    // 프레임워크 입력 변경 콜백
+    if (onFrameworkInputChange) {
+      const latest = latestDataRef.current.framework_totals || {};
+      if (
+        latest.total_working_day !== totalWorking ||
+        latest.total_calendar_day !== totalCalendar
+      ) {
+        onFrameworkInputChange({
+          total_working_day: totalWorking,
+          total_calendar_day: totalCalendar,
+        });
+
+        latestDataRef.current.framework_totals = {
+          total_working_day: totalWorking,
+          total_calendar_day: totalCalendar,
+        };
+      }
+    }
+
+    // -------------------------
+    // Quotation 테이블 업데이트
+    // -------------------------
+    const payload = {
+      base_framework: baseCalendarDay,          // 기초골조
+      basement_framework: basementCalSum ?? 0,  // 지하골조 (아래 참고)
+      ground_framework: groundCalSum ?? 0,      // 지상골조 (아래 참고)
+    };
+
+    // 필요한 경우 지하/지상 분리 계산해서 넣기
+    updateQuotation(projectId, payload)
+      .then(() => console.log("Quotation updated:", payload))
+      .catch((err) => console.error("Quotation update failed:", err));
+
   }, [
     baseWorkingDay,
     baseCalendarDay,
     totalWorkSum,
     totalCalSum,
-    onFrameworkInputChange,
   ]);
 
   // 일반 섹션 (총합만 표시)
@@ -434,11 +500,16 @@ export default function FrameworkInputSection({
     "스카이라운지",
     "Cycle Time",
   ];
-  
+
   if (loading) return <div className="text-gray-400">로딩 중...</div>;
   // 렌더링
   return (
-    <div className="space-y-6">
+    <div
+      ref={scrollRef}
+      className={`scroll-container space-y-4 h-[100vh] overflow-y-auto pr-2 transition-all duration-300 ${
+          isScrolling ? "scrolling" : ""
+      }`}
+    >
       {/* 일반 섹션 */}
       {sections.map((section, idx) => (
         <section

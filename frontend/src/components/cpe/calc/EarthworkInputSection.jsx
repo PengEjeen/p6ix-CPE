@@ -5,6 +5,7 @@ import {
   detailEarthworkInput,
   updateEarthworkInput,
 } from "../../../api/cpe/calc";
+import { updateQuotation } from "../../../api/cpe/quotation";
 import { detailEarthwork } from "../../../api/cpe/criteria";
 
 export default function EarthworkInputSection({ projectId, utilization, nearby_env, onEarthWorkInputChange }) {
@@ -17,6 +18,7 @@ export default function EarthworkInputSection({ projectId, utilization, nearby_e
     const [isScrolling, setIsScrolling] = useState(false);
     const scrollRef = useRef(null);
     const scrollTimeout = useRef(null);
+    
     // 상위 컴포넌트로 보낼 값
     const totalWork = 0;
     const totalCal = 0;
@@ -77,7 +79,6 @@ export default function EarthworkInputSection({ projectId, utilization, nearby_e
                 is_sunta: updated.is_sunta
             })
         }
-        onAutoSave(updated);
     };
     //날짜계산 변수들
     const [earthRetentionWorkingDay, setEarthRetentionWorkingDay] = useState(null);
@@ -431,7 +432,32 @@ export default function EarthworkInputSection({ projectId, utilization, nearby_e
         desighnatedWorkingDay,
     ]);
 
+    // 갑지 모델에 날짜 update
+    useEffect(() => {
+    if (
+        earthRetentionCalendarDay === null ||
+        earthsupportCalendarDay === null ||
+        earthsoilCalendarDay === null ||
+        desighnatedCalendarDay === null
+    ) return;
 
+    const payload = {
+        earth_retention: earthRetentionCalendarDay,
+        support: earthsupportCalendarDay,
+        excavation: earthsoilCalendarDay,
+        designated_work: desighnatedCalendarDay,
+    };
+
+    updateQuotation(projectId, payload)
+        .then(() => console.log("Quotation updated:", payload))
+        .catch((err) => console.error("Quotation update failed:", err));
+
+    }, [
+    earthRetentionCalendarDay,
+    earthsupportCalendarDay,
+    earthsoilCalendarDay,
+    desighnatedCalendarDay,
+    ]);
     // 공통 카드 렌더러
     const renderTable = (title, headers, rows, keys) => (
     <section className="rounded-xl overflow-hidden shadow-lg bg-[#2c2c3a] border border-gray-700 mb-6">
