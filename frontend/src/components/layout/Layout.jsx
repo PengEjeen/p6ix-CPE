@@ -2,6 +2,11 @@ import { useEffect, useState, useRef } from "react";
 import { Outlet, useNavigate } from "react-router-dom";
 import Header from "./Header";
 import Projects from "./tools/Projects";
+import {
+  FiUser,
+  FiMail,
+  FiChevronLeft, FiChevronRight, FiChevronDown, FiChevronUp
+} from "react-icons/fi";
 
 function Layout() {
   const navigate = useNavigate();
@@ -58,22 +63,22 @@ function Layout() {
                   className="flex items-center gap-2 px-2 py-2 rounded hover:bg-[#3b3b4f] transition"
                 >
                   <div className="w-5 h-5 bg-gray-500 rounded-full"></div>
-                  <span className="font-semibold text-sm">P6ix</span>
+                  <span className="font-semibold text-lg">P6ix</span>
                 </button>
 
                 <button
                   onClick={() => setMenuOpen(false)}
-                  className="text-xs text-gray-300 border border-gray-600 px-2 py-1 rounded hover:bg-[#3b3b4f] transition"
+                  className="text-gray-300 border border-gray-600 p-1 rounded hover:bg-[#3b3b4f] transition"
                 >
-                  ←
+                  <FiChevronLeft size={18} />
                 </button>
               </>
             ) : (
               <button
                 onClick={() => setMenuOpen(true)}
-                className="text-lg text-gray-300 hover:text-white transition"
+                className="text-gray-300 hover:text-white transition"
               >
-                →
+                <FiChevronRight size={20} />
               </button>
             )}
           </div>
@@ -87,16 +92,22 @@ function Layout() {
           <div className="border-t border-gray-700 p-3">
             <button
               onClick={() => setUserOpen(!userOpen)}
-              className="w-full flex justify-between items-center text-sm text-gray-300 hover:text-white"
+              className="w-full flex justify-between items-center text-base text-gray-300 hover:text-white"
             >
-              <span>{user.username || "Guest"}</span>
-              <span
-                className={`transform transition-transform duration-300 ${
-                  userOpen ? "rotate-180" : ""
-                }`}
-              >
-                ▼
-              </span>
+              {/* 왼쪽 묶음 (아이콘 + 이름) */}
+              <div className="flex items-center gap-2">
+                <FiUser className="text-gray-400" />
+                <span className="text-white tracking-wide">
+                  {user.username || "Guest"}
+                </span>
+              </div>
+
+              {/* 오른쪽 화살표 */}
+              {userOpen ? (
+                <FiChevronDown className="transition-transform duration-300" size={18} />
+              ) : (
+                <FiChevronUp className="transition-transform duration-300" size={18} />
+              )}
             </button>
 
             <div
@@ -106,12 +117,21 @@ function Layout() {
               }`}
             >
               <div className="text-sm text-gray-400 space-y-2">
-                <p className="truncate">
-                  이메일: {user.email || "unknown@example.com"}
-                </p>
+                <div className="flex items-center gap-2">
+                  <FiMail className="text-gray-400" />
+                  <p className="truncate">
+                    이메일: {user.email || "unknown@example.com"}
+                  </p>
+                </div>
+                <button
+                  className="w-full border border-gray-600 rounded px-2 py-1 bg-[#3b3b4f] hover:bg-[#4b4b5f] transition"
+                  onClick={() => navigate("/profile")}
+                >
+                  내 정보
+                </button>
                 <button
                   onClick={handleLogout}
-                  className="w-full border border-gray-600 rounded px-2 py-1 hover:bg-[#3b3b4f] transition"
+                  className="w-full border border-gray-600 rounded px-2 py-1 bg-[#3b3b4f] hover:bg-[#4b4b5f] transition"
                 >
                   로그아웃
                 </button>

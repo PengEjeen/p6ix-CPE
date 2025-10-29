@@ -8,6 +8,7 @@ import Calc from "../pages/Calc"
 import Criteria from "../pages/Criteria"
 import Operatingrate from "../pages/OperatingRate"
 import Quotation from "../pages/Quotation";
+import UserProfile from "../pages/UserProfile";
 
 export default function AppRouter() {
   return (
@@ -18,6 +19,8 @@ export default function AppRouter() {
       {/* Layout 아래에 들어가는 페이지들 */}
       <Route element={<Layout />}>
         <Route path="/" element={<Home />} />
+
+        <Route path="/profile" element={<UserProfile />}></Route>
 
         {/* 프로젝트 상세 페이지 추가 */}
         <Route path="/projects/:id" element={<Estimate />} />

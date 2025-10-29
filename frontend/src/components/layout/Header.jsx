@@ -1,6 +1,9 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate, useLocation, useParams } from "react-router-dom";
 import { detailProject } from "../../api/cpe/project";
+import {
+FiChevronDown, FiChevronUp
+} from "react-icons/fi";
 
 function Header() {
   const navigate = useNavigate();
@@ -64,13 +67,11 @@ function Header() {
             {project?.title || "로딩 중..."}
           </span>
           <span className="font-medium text-lg">{activeMenu.name}</span>
-          <span
-            className={`transition-transform duration-200 ${
-              open ? "rotate-180" : ""
-            }`}
-          >
-            ▼
-          </span>
+              {open ? (
+                <FiChevronUp className="transition-transform duration-300" size={25} />
+              ) : (
+                <FiChevronDown className="transition-transform duration-300" size={25} />
+              )}
         </button>
 
         {/* 프로젝트 설명 */}

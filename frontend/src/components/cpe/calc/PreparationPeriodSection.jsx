@@ -88,9 +88,7 @@ export default function PreparationPeriodSection({ projectId, ground_floor, eart
             : 15; // 기본 준비기간 15일
 
         const earthCal = Number(earthwork_day?.total_calendar_day) || 0;
-        const earthWork = Number(earthwork_day?.total_working_day) || 0;
         const frameCal = Number(framework_day?.total_calendar_day) || 0;
-        const frameWork = Number(framework_day?.total_working_day) || 0;
 
         const clean =
             data.is_home && utilData
@@ -104,7 +102,7 @@ export default function PreparationPeriodSection({ projectId, ground_floor, eart
 
         // 합계 계산
         const construction =
-            earthCal + earthWork + frameCal + frameWork + clean * 30.5 + floorTerm;
+            earthCal + frameCal + floorTerm + (unitMonth*30.5); //세대 수 공사기간과 마감공사 기간
 
         const total = prep + construction + clean;
 

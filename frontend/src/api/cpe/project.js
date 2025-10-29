@@ -32,3 +32,25 @@ export const createProjects = async (data) => {
     throw error;
   }
 };
+
+// 프로젝트 삭제
+export const deleteProject = async (project_id) => {
+  try {
+    const res = await api.delete(`cpe/project/${project_id}/delete/`);
+    return res.data;
+  } catch (error) {
+    console.error("프로젝트 삭제 실패:", error);
+    throw error;
+  }
+};
+
+// 프로젝트 수정 (PATCH)
+export const updateProject = async (project_id, data) => {
+  try {
+    const res = await api.patch(`cpe/project/${project_id}/update/`, data);
+    return res.data;
+  } catch (error) {
+    console.error("프로젝트 수정 실패:", error);
+    throw error;
+  }
+};
