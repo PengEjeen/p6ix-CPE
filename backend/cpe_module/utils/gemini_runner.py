@@ -2,7 +2,11 @@ import yaml
 from google import genai
 from django.forms.models import model_to_dict
 from cpe_module.models.quotation_models import Quotation
+import environ 
 
+env = environ.Env()
+environ.Env.read_env()
+GEMINI_KEY = env("GEMINI_API_KEY")
 
 def extract_criteria_summary(prep, earth, frame):
     return {
@@ -149,8 +153,7 @@ def gemini_runner(
         prompt_filled = base_prompt.format(**merged_data)
 
         # Gemini API 호출
-        GEMINI_API_KEY = "AIzaSyCd5AYnBkb2RV2TCjakgtyoRmJ3e3XFDjI"
-        client = genai.Client(api_key=GEMINI_API_KEY)
+        client = genai.Client(api_key=GEMINI_KEY)
 
         response = client.models.generate_content(
             model="gemini-2.5-flash",
