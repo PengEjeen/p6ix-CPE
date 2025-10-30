@@ -102,7 +102,7 @@ function Layout() {
                 </span>
               </div>
 
-              {/* 오른쪽 화살표 */}
+              {/* 위아래 화살표 */}
               {userOpen ? (
                 <FiChevronDown className="transition-transform duration-300" size={18} />
               ) : (

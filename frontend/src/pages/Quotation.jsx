@@ -1,15 +1,23 @@
 import React, { useEffect, useState, useCallback, useRef } from "react";
+import ReactMarkdown from "react-markdown";
+import { RefreshCcw, Maximize2, X } from "lucide-react";
+import "../components/cpe/utils/scroll.css";
 import { useParams } from "react-router-dom";
 import PageHeader from "../components/cpe/PageHeader";
 import DataTable from "../components/cpe/DataTable";
-import { detailQuotation, updateQuotation } from "../api/cpe/quotation";
+import { detailQuotation, updateQuotation, updateQuotationAi } from "../api/cpe/quotation";
 
 export default function Quotation() {
   const { id: projectId } = useParams();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [aiLoading, setAiLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const saveTimeoutRef = useRef(null);
+  const [isScrolling, setIsScrolling] = useState(false);
+  const scrollRef = useRef(null);
+  const scrollTimeout = useRef(null);
+  const [showModal, setShowModal] = useState(false);
 
   // 데이터 로드
   useEffect(() => {
@@ -25,6 +33,49 @@ export default function Quotation() {
     };
     fetchData();
   }, [projectId]);
+    
+  const handleScroll = () => {
+    setIsScrolling(true);
+    clearTimeout(scrollTimeout.current);
+    scrollTimeout.current = setTimeout(() => setIsScrolling(false), 1000);
+  };
+  
+  useEffect(() => {
+      const el = scrollRef.current;
+      if (!el) return;
+      el.addEventListener("scroll", handleScroll);
+      return () => el.removeEventListener("scroll", handleScroll);
+  }, []);
+
+  // AI 분석 요청 + 폴링으로 결과 확인
+  const handleGenerateAi = async () => {
+    try {
+      setAiLoading(true);
+      // AI 분석 요청 (비동기 큐 등록)
+      await updateQuotationAi(projectId, {});
+      console.log("AI 분석 요청 완료. 결과 대기 중...");
+
+      // 폴링 (3초마다 결과 확인)
+      const interval = setInterval(async () => {
+        try {
+          const res = await detailQuotation(projectId);
+          if (res.data.ai_response) {
+            setData(res.data);
+            clearInterval(interval);
+            setAiLoading(false);
+            console.log("AI 분석 결과 수신 완료!");
+          }
+        } catch (err) {
+          console.error("AI 분석 결과 확인 실패:", err);
+        }
+      }, 3000); // 3초마다 확인
+
+    } catch (err) {
+      console.error("AI 분석 생성 실패:", err);
+      alert("AI 분석 생성 중 오류가 발생했습니다.");
+      setAiLoading(false);
+    }
+  };
 
   // remark 변경
   const handleRemarkChange = (section, index, value) => {
@@ -269,21 +320,107 @@ export default function Quotation() {
 
             {/* 오른쪽: AI 분석 결과 (위아래 꽉 차게) */}
             <section className="rounded-xl overflow-hidden shadow-lg bg-[#2c2c3a] border border-gray-700 flex flex-col h-full">
-                <div className="bg-[#3a3a4a] px-4 py-2 border-b border-gray-600">
+              {/* 상단 헤더: 제목 + 생성/전체보기 버튼 */}
+              <div className="bg-[#3a3a4a] px-4 py-3 border-b border-gray-600 flex justify-between items-center">
                 <h3 className="text-sm md:text-md font-semibold text-white">
-                    AI 분석 결과
+                  AI 분석 결과
                 </h3>
+
+                <div className="flex items-center gap-2">
+                  {/* 전체보기 버튼 */}
+                  <button
+                    onClick={() => setShowModal(true)}  // ⬅ 모달 열기
+                    className="flex items-center gap-1 text-xs px-2 py-1 rounded-md bg-gray-700 hover:bg-gray-600 text-white transition"
+                  >
+                    <Maximize2 size={13} />
+                    전체보기
+                  </button>
+
+                  {/* 생성 버튼 */}
+                  <button
+                    onClick={handleGenerateAi}
+                    disabled={aiLoading}
+                    className={`flex items-center gap-1 text-xs px-2 py-1 rounded-md transition
+                      ${
+                        aiLoading
+                          ? "bg-gray-600 text-gray-300 cursor-not-allowed"
+                          : "bg-indigo-600 hover:bg-indigo-500 text-white"
+                      }`}
+                  >
+                    <RefreshCcw
+                      size={14}
+                      className={aiLoading ? "animate-spin" : ""}
+                    />
+                    {aiLoading ? "생성 중..." : "생성"}
+                  </button>
                 </div>
-                <div className="p-4 text-gray-300 whitespace-pre-line leading-relaxed flex-1 overflow-y-auto">
+              </div>
+
+              {/* 내용 영역 (Markdown + 스크롤) */}
+              <div
+                ref={scrollRef}
+                className={`scroll-container space-y-4 h-[70vh] overflow-y-auto pr-2 transition-all duration-300 w-[100%] ${
+                  isScrolling ? "scrolling" : ""
+                }`}
+              >
                 {data.ai_response ? (
-                    data.ai_response
+                  <ReactMarkdown
+                    components={{
+                      h1: ({ node, ...props }) => <h1 {...props} className="text-xl font-bold text-white mb-2" />,
+                      h2: ({ node, ...props }) => <h2 {...props} className="text-lg font-semibold text-white mt-2 mb-1" />,
+                      h3: ({ node, ...props }) => <h3 {...props} className="text-md font-semibold text-white mt-2 mb-1" />,
+                      p: ({ node, ...props }) => <p {...props} className="my-1 text-gray-300" />,
+                      strong: ({ node, ...props }) => <strong {...props} className="text-blue-300" />,
+                      li: ({ node, ...props }) => <li {...props} className="ml-4 list-disc" />,
+                    }}
+                  >
+                    {data.ai_response}
+                  </ReactMarkdown>
                 ) : (
-                    <p className="text-gray-500 italic">AI 분석 결과가 없습니다.</p>
+                  <p className="text-gray-500 italic">AI 분석 결과가 없습니다.</p>
                 )}
-                </div>
+              </div>
             </section>
+
+            {/* 전체보기 모달 */}
+            {showModal && (
+              <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex justify-center items-center z-50">
+                <div className="bg-[#2c2c3a] w-[80vw] h-[80vh] rounded-xl shadow-2xl flex flex-col border border-gray-700">
+                  {/* 모달 헤더 */}
+                  <div className="flex justify-between items-center px-5 py-3 rounded-xl border-b border-gray-600 bg-[#3a3a4a]">
+                    <h2 className="text-white text-lg font-semibold">AI 분석 결과 전체보기</h2>
+                    <button
+                      onClick={() => setShowModal(false)}
+                      className="text-gray-300 hover:text-white transition"
+                    >
+                      <X size={18} />
+                    </button>
+                  </div>
+
+                  {/* 모달 내용 (스크롤 + Markdown) */}
+                  <div className="flex-1 overflow-y-auto p-6 text-gray-300 leading-relaxed scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-transparent">
+                    {data.ai_response ? (
+                      <ReactMarkdown
+                        components={{
+                          h1: ({ node, ...props }) => <h1 {...props} className="text-2xl font-bold text-white mb-3" />,
+                          h2: ({ node, ...props }) => <h2 {...props} className="text-xl font-semibold text-white mt-3 mb-2" />,
+                          h3: ({ node, ...props }) => <h3 {...props} className="text-lg font-semibold text-white mt-2 mb-1" />,
+                          p: ({ node, ...props }) => <p {...props} className="my-2 text-gray-300" />,
+                          strong: ({ node, ...props }) => <strong {...props} className="text-blue-300" />,
+                          li: ({ node, ...props }) => <li {...props} className="ml-6 list-disc" />,
+                        }}
+                      >
+                        {data.ai_response}
+                      </ReactMarkdown>
+                    ) : (
+                      <p className="text-gray-500 italic">AI 분석 결과가 없습니다.</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
             </div>
         </div>
     );
-
 }
