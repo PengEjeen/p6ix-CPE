@@ -1,0 +1,9 @@
+django
+django_json_widget
+google-genai
+djangorestframework
+djangorestframework-simplejwt
+django-environ
+django-cors-headers
+gunicorn
+PyYAML
