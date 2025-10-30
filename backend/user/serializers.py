@@ -8,6 +8,19 @@ class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         exclude = ['password']
+        read_only_fields = [
+            'id',
+            'username',      # 로그인 ID는 수정 불가
+            'email',         # 이메일 수정 막기
+            'role',          # 권한 수정 막기
+            'is_active',
+            'is_staff',
+            'is_superuser',
+            'last_login',
+            'date_joined',
+            'groups',
+            'user_permissions',
+        ]
 
 class RegisterSerializer(serializers.ModelSerializer):
     class Meta:

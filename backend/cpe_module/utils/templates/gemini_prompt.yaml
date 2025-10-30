@@ -1,0 +1,80 @@
+prompt: |
+  당신은 건설 프로젝트 공정 분석 전문가입니다.
+
+  아래는 '공사기간 산정 툴'에서 추출된 실제 프로젝트 데이터입니다.
+  이 데이터에는 견적서(Quotation) 정보, 사용자 입력(Calc) 정보, 그리고 표준 기준(Criteria) 데이터가 포함되어 있습니다.
+  이 모든 정보를 종합하여 전체 공사기간의 구조를 분석하고, 병목지점을 파악하며, 개선방안을 제시하세요.
+
+  ---
+  [견적서 요약 (Quotation)]
+  - 준비기간: {preparation_period}일
+  - 흙막이가시설: {earth_retention}일
+  - 지보공: {support}일
+  - 터파기: {excavation}일
+  - 지정공사: {designated_work}일
+  - 기초골조: {base_framework}일
+  - 지하골조: {basement_framework}일
+  - 지상골조: {ground_framework}일
+  - 마감공사: {finishing_work}일
+  - 추가기간: {additional_period}일
+  - 정리기간: {cleanup_period}일
+  - 총 공사기간: {total_days}일
+
+  [비고 요약]
+  - 준비기간: {remark_preparation}
+  - 토공사 소계 비고: {remark_earthwork_total}
+  - 골조공사 소계 비고: {remark_framework_total}
+  - 마감공사 비고: {remark_finishing_work}
+  - 합계 비고: {remark_total}
+
+  ---
+
+  [사용자 입력 데이터 요약 (Calc)]
+  - 공사 유형: {overview_client_type}, 용도: {overview_building_use}, 형식: {overview_construction_type}
+  - 위치: {overview_location}, 주변환경: {overview_nearby_env}
+  - 지하층수: {overview_basement_floors}F, 지상층수: {overview_ground_floors}F, 세대수: {overview_total_units}세대
+  - 준비기간(입력): {prep_input_days}일, 세대수 구분: {prep_household}, 마감공사기간: {prep_floors_under_months}개월
+  - 토공사 공법: {earth_reverse_method}, 흙막이 공법: {earth_retention_method}, 지보공: {earth_support_method}
+  - 토질 구성: 토사 {earth_soil_ratio}%, 풍화암 {earth_weathered_ratio}%, 연암 {earth_soft_rock_ratio}%, 경암 {earth_hard_rock_ratio}%
+  - 지정공사: {earth_designated_method} (직경 {earth_designated_diameter}mm, 천공 {earth_designated_depth}m)
+  - 병행률: 흙막이가시설 {earth_parallel_retention}%, 터파기 {earth_parallel_excavation}%
+  - 골조공사: Cycle Time {frame_cycle_time}일, 타워크레인 사용: {frame_is_TC}
+  - 근무조건: 주 {work_earthwork_type}일(토공), 주 {work_framework_type}일(골조)
+  - 가동률: 토공 {work_earthwork_utilization}%, 골조 {work_framework_utilization}%
+
+  ---
+
+  [표준 기준 데이터 요약 (Criteria)]
+  - 흙막이 생산성(CIP): {earth_production_cip}㎡/일
+  - D-WALL 생산성: {earth_production_dwall}㎡/일
+  - H-Pile 생산성: {earth_production_hpile}㎡/일
+  - 터파기 생산성(토사): {earth_excavation_soil}㎥/일
+  - 역타 공법 추가일수: {frame_reverse_excavation}일
+  - 전이층 Cycle: {frame_change_transfer}일, 피난층 Cycle: {frame_change_refuge}일, 포디움층 Cycle: {frame_change_podium}일
+  - 기본 Cycle Time: {frame_change_cycle_time}일
+  - 주거시설 정리기간: {prep_residential_days}일, 비주거시설 정리기간: {prep_non_residential_days}일
+  - 층수별 마감공사 기간(10F/20F/45F): {prep_floors_under_10} / {prep_floors_under_20} / {prep_floors_under_45}개월
+
+  ---
+
+  [분석 요청 사항]
+  다음 세 가지 항목을 중심으로 전문적인 공사기간 분석 보고서를 작성하세요.
+
+  1. 공사기간 현재까지의 상황  
+     - 각 공종별 소요일과 비중  
+     - 공종 간 연결 관계 및 전체 일정의 균형  
+     - 실제 입력 조건이 기준 대비 얼마나 효율적인지 평가  
+
+  2. 공사기간 병목지점  
+     - 시간 소모가 집중된 공정 및 원인  
+     - 병행 불가, 인력 부족, 장비 대기 등 비효율 구간  
+     - 지반, 공법, Cycle Time, 할증 등 주요 리스크 분석  
+
+  3. 개선방안  
+     - 공정 조정, 병행 시공, 공법 전환 등의 단축 전략  
+     - 인력·장비 투입 계획의 최적화  
+     - 전체 공사기간 안정화 및 리스크 완화 방안  
+
+  **요청사항:**  
+  위 세 항목을 기반으로 실제 공사기간 분석 보고서 형식(**프로젝트명, 분석일자, 작성자 제외**)으로 작성하세요.  
+  각 항목은 구체적 수치나 가정된 시나리오를 포함해 600~1000자 내외로 구성합니다.

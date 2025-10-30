@@ -39,7 +39,7 @@ def create_project(request):
 
 
 # 프로젝트 수정
-@api_view(["PUT"])
+@api_view(["PUT", "PATCH"])
 @permission_classes([IsAuthenticated])
 def update_project(request, project_id):
     project = get_object_or_404(Project, id=project_id, user=request.user, is_delete=False)

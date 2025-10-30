@@ -54,5 +54,6 @@ urlpatterns = [
     #quotation
     path("quotation/<str:project_id>/", quotation.detail_quotation),
     path("quotation/<str:project_id>/update/", quotation.update_quotation),
+    path("quotation/<str:project_id>/ai_update/", quotation.update_ai_quotation)
 
     ]

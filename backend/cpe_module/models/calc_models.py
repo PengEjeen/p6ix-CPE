@@ -194,9 +194,7 @@ class EarthworkInput(models.Model):
         related_name="earthwork_inputs",
     )
 
-    # ------------------------------------------------------------------
     # 굴착공법
-    # ------------------------------------------------------------------
     is_sunta = models.BooleanField(default=True)
     reverse_excavation_months = models.CharField(
         "역타 공법",
@@ -210,9 +208,7 @@ class EarthworkInput(models.Model):
         ],
         default = "Top-Down"
     )
-    # ------------------------------------------------------------------
     # 흙막이가시설
-    # ------------------------------------------------------------------
     earth_retention_method = models.CharField(
         "흙막이 공법",
         max_length=50,
@@ -231,9 +227,7 @@ class EarthworkInput(models.Model):
     crew_count = models.PositiveIntegerField("투입 조(장비)", default=2)
     is_special_retention = models.BooleanField(default=True)
     special_retention_extra_days = models.PositiveIntegerField("특수 흙막이 추가 작업일수", null=True, blank=True, default=15)
-    # ------------------------------------------------------------------
     # 지보공
-    # ------------------------------------------------------------------
     support_method = models.CharField(
         "지보공 공법",
         max_length=50,
@@ -245,9 +239,7 @@ class EarthworkInput(models.Model):
         default="어스앵커"
     )
 
-    # ------------------------------------------------------------------
     # 토질 성상 / 토공량 비율
-    # ------------------------------------------------------------------
     total_earth_volume = models.DecimalField("전체 토사량(㎥)", max_digits=10, decimal_places=1, default=10000)
 
     soil_ratio = models.DecimalField("토사 비율(%)", max_digits=5, decimal_places=2, default=50)
@@ -255,9 +247,7 @@ class EarthworkInput(models.Model):
     soft_rock_ratio = models.DecimalField("연암 비율(%)", max_digits=5, decimal_places=2, default=15)
     hard_rock_ratio = models.DecimalField("경암 비율(%)", max_digits=5, decimal_places=2, default=10)
 
-    # ------------------------------------------------------------------
     # 터파기 (토사 / 풍화암 / 연암 / 경암)
-    # ------------------------------------------------------------------
     # 토사
     soil_excavation_method = models.CharField("토사 반출방법", max_length=20, default="직상차")
     soil_direct_ratio = models.DecimalField("직상차 비율(%)", max_digits=5, decimal_places=2, default=100)
@@ -287,9 +277,7 @@ class EarthworkInput(models.Model):
     hardrock_cram_ratio = models.DecimalField("경암 반출방법 크람쉘(%)", max_digits=5, decimal_places=2, default=0)
     hardrock_crew_actual = models.PositiveIntegerField("경암 실제 투입조", default=1)
 
-    # ------------------------------------------------------------------
     # 지정공사
-    # ------------------------------------------------------------------
     designated_method = models.CharField(
         "지정 공법",
         max_length=50,
@@ -303,24 +291,23 @@ class EarthworkInput(models.Model):
     )
     designated_work_unit = models.PositiveIntegerField("공수", default=20)
     designated_drilling_depth = models.DecimalField("천공 심도(m)", max_digits=5, decimal_places=1, default=15.0)
-    designated_diameter = models.DecimalField("RCD/PRD 직경(mm)", max_digits=6, decimal_places=1, default=1000.0)
+    designated_diameter = models.CharField(
+        "RCD/PRD 직경(mm)",
+        max_length=5,
+        default="1000"
+    )
     designated_crew = models.PositiveIntegerField("투입 조(장비)", default=1)
 
-    # ------------------------------------------------------------------
     # 할증
-    # ------------------------------------------------------------------
     is_surcharge = models.BooleanField(default=False)
     surcharge_ratio = models.DecimalField("할증비율(직접입력 필드)",  max_digits=5, decimal_places=2, default=0, blank=True, null=True)
 
-    # ------------------------------------------------------------------
     # 병행률
-    # ------------------------------------------------------------------
     parallel_retention = models.DecimalField("병행률 - 흙막이가시설(%)", max_digits=5, decimal_places=2, default=100)
     parallel_support = models.DecimalField("병행률 - 지보공(%)", max_digits=5, decimal_places=2, default=100)
     parallel_excavation = models.DecimalField("병행률 - 터파기(%)", max_digits=5, decimal_places=2, default=100)
     parallel_designated = models.DecimalField("병행률 - 지정공사(%)", max_digits=5, decimal_places=2, default=100)
 
-    # ------------------------------------------------------------------
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -336,9 +323,7 @@ class FrameWorkInput(models.Model):
         related_name="framework_inputs",
     )
 
-    # ------------------------------------------------------------------
     # 기초 골조
-    # ------------------------------------------------------------------
     base_thickness = models.DecimalField(
         "기초 두께(m)",
         max_digits=4,
@@ -346,9 +331,7 @@ class FrameWorkInput(models.Model):
         default=1.2
     )
 
-    # ------------------------------------------------------------------
     # 지하·지상 골조
-    # ------------------------------------------------------------------
     is_TC = models.BooleanField(default=True)
 
     # Cycle Time
@@ -371,7 +354,6 @@ class FrameWorkInput(models.Model):
         )
     )
     
-    # ------------------------------------------------------------------
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
