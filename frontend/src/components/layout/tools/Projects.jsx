@@ -56,6 +56,7 @@ function Projects() {
       const res = await createProjects({ title, description });
       setProjects((prev) => [...prev, res]);
       setOpenModal(false);
+      navigate(`projects/${res.id}/calc`)
       setTitle("");
       setDescription("");
     } catch (error) {
@@ -69,6 +70,7 @@ function Projects() {
     try {
       await deleteProject(id);
       setProjects((prev) => prev.filter((p) => p.id !== id));
+      navigate(`/`)
     } catch (error) {
       console.error("삭제 실패:", error);
     }

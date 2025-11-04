@@ -29,14 +29,14 @@ class ProjectSerializer(serializers.ModelSerializer):
         user = self.context["request"].user
         project = Project.objects.create(user=user, **validated_data)
 
-        # ① 공기산정 관련 (calc_models)
+        # 공기산정 관련 (calc_models)
         ConstructionOverview.objects.create(project=project)
         WorkCondition.objects.create(project=project)
         PreparationPeriod.objects.create(project=project)
         EarthworkInput.objects.create(project=project)
         FrameWorkInput.objects.create(project=project)
 
-        # ② 가동률 관련 (operating_rate_models)
+        # 가동률 관련 (operating_rate_models)
         WorkScheduleWeight.objects.bulk_create([
             WorkScheduleWeight(project=project, type="EARTH"),
             WorkScheduleWeight(project=project, type="FRAME"),
@@ -45,7 +45,7 @@ class ProjectSerializer(serializers.ModelSerializer):
             WorkScheduleWeight(project=project, type="POUR"),
         ])
 
-        # ③ 적용기준 관련 (criteria_models)
+        # 적용기준 관련 (criteria_models)
         # admin의 기준데이터(is_admin=True) 복제
         prep_admin = PreparationWork.objects.filter(is_admin=True).last()
         earth_admin = Earthwork.objects.filter(is_admin=True).last()
