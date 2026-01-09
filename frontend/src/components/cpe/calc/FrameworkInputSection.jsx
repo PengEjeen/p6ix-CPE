@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import DataTable from "../DataTable";
 import "../utils/scroll.css";
+import AccordionSection from "../AccordionSection";
 import {
   detailFrameworkInput,
   updateFrameworkInput,
@@ -19,6 +20,7 @@ function FloorSection({
   is_sunta,
   utilData,
   utilization,
+  defaultOpen = false,
 }) {
   // 지상만 병행유무 편집 가능, 지하는 readonly
   const baseCols = [
@@ -138,15 +140,16 @@ function FloorSection({
   });
 
   return (
-    <div>
-      <h4 className="text-white font-semibold mb-2">{title}</h4>
-      <DataTable
-        columns={columns}
-        rows={rows}
-        onChange={(rowIdx, key, value) => onChange(type, rowIdx, key, value)}
-        onAutoSave={onAutoSave}
-      />
-    </div>
+    <AccordionSection title={title} defaultOpen={defaultOpen}>
+      <div className="p-3">
+        <DataTable
+          columns={columns}
+          rows={rows}
+          onChange={(rowIdx, key, value) => onChange(type, rowIdx, key, value)}
+          onAutoSave={onAutoSave}
+        />
+      </div>
+    </AccordionSection>
   );
 }
 
@@ -161,6 +164,7 @@ export default function FrameworkInputSection({
 }) {
   const [data, setData] = useState({});
   const latestDataRef = useRef({});
+  const lastQuotationPayloadRef = useRef(null);
   const [utilData, setUtilData] = useState({});
   const [loading, setLoading] = useState(true);
 
@@ -411,7 +415,8 @@ export default function FrameworkInputSection({
   const totalWorkSum = sum(allWorkList);
 
   useEffect(() => {
-    if (!utilData) return;
+    if (!utilData || Object.keys(utilData).length === 0) return;
+    if (loading || !projectId) return;
 
     const totalWorking = baseWorkingDay + totalWorkSum;
     const totalCalendar = baseCalendarDay + totalCalSum;
@@ -444,16 +449,22 @@ export default function FrameworkInputSection({
       ground_framework: groundCalSum ?? 0,      // 지상골조 (아래 참고)
     };
 
-    // 필요한 경우 지하/지상 분리 계산해서 넣기
-    updateQuotation(projectId, payload)
-      .then(() => console.log("Quotation updated:", payload))
-      .catch((err) => console.error("Quotation update failed:", err));
+    if (JSON.stringify(lastQuotationPayloadRef.current) !== JSON.stringify(payload)) {
+      lastQuotationPayloadRef.current = payload;
+      updateQuotation(projectId, payload)
+        .catch((err) => console.error("Quotation update failed:", err));
+    }
 
   }, [
+    loading,
+    projectId,
     baseWorkingDay,
     baseCalendarDay,
     totalWorkSum,
     totalCalSum,
+    basementCalSum,
+    groundCalSum,
+    utilData,
   ]);
 
   // 일반 섹션 (총합만 표시)
@@ -512,14 +523,11 @@ export default function FrameworkInputSection({
     >
       {/* 일반 섹션 */}
       {sections.map((section, idx) => (
-        <section
-          key={idx}
-          className="rounded-xl overflow-hidden shadow-lg bg-[#2c2c3a] border border-gray-700"
+        <AccordionSection
+          key={section.title}
+          title={section.title}
+          defaultOpen={idx === 0}
         >
-          <div className="bg-[#3a3a4a] px-4 py-2 border-b border-gray-600">
-            <h3 className="text-sm md:text-md font-semibold text-white">{section.title}</h3>
-          </div>
-
           <div className="p-4">
             <DataTable
               columns={[
@@ -540,15 +548,11 @@ export default function FrameworkInputSection({
               onAutoSave={() => onAutoSave(latestDataRef.current)}
             />
           </div>
-        </section>
+        </AccordionSection>
       ))}
 
       {/* 층고 입력 데이터 */}
-      <section className="rounded-xl overflow-hidden shadow-lg bg-[#2c2c3a] border border-gray-700">
-        <div className="bg-[#3a3a4a] px-4 py-2 border-b border-gray-600">
-          <h3 className="text-sm md:text-md font-semibold text-white">층고 입력 데이터</h3>
-        </div>
-
+      <AccordionSection title="층고 입력 데이터">
         <div className="p-4 space-y-6">
           <FloorSection
             title="지하층"
@@ -560,6 +564,7 @@ export default function FrameworkInputSection({
             is_sunta={is_sunta}
             utilData={utilData}
             utilization={utilization}
+            defaultOpen
           />
           <FloorSection
             title="지상층"
@@ -573,7 +578,7 @@ export default function FrameworkInputSection({
             utilization={utilization}
           />
         </div>
-      </section>
+      </AccordionSection>
     </div>
   );
 }

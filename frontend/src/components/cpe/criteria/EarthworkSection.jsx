@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import DataTable from "../DataTable";
 import "../utils/scroll.css";
+import AccordionSection from "../AccordionSection";
 
 export default function EarthworkSection({ data, setData, onAutoSave }) {
   const [isScrolling, setIsScrolling] = useState(false);
@@ -37,15 +38,8 @@ export default function EarthworkSection({ data, setData, onAutoSave }) {
   }, []);
 
   // 공용 테이블 렌더링 함수
-  const renderTable = (title, headers, rows, keys) => (
-    <section className="rounded-xl overflow-hidden shadow-lg bg-[#2c2c3a] border border-gray-700">
-      {/* 카드 헤더 */}
-      <div className="bg-[#3a3a4a] px-4 py-2 border-b border-gray-600 flex items-center justify-between">
-        <h3 className="text-sm md:text-md font-semibold text-white">{title}</h3>
-        <span className="text-xs text-gray-400">{headers[1]}</span>
-      </div>
-
-      {/* 테이블 영역 */}
+  const renderTable = (title, headers, rows, keys, defaultOpen = false) => (
+    <AccordionSection title={title} meta={headers[1]} defaultOpen={defaultOpen}>
       <div className="p-3">
         <DataTable
           columns={[
@@ -57,7 +51,7 @@ export default function EarthworkSection({ data, setData, onAutoSave }) {
           onAutoSave={() => onAutoSave(latestDataRef.current)} // 최신 데이터 전달
         />
       </div>
-    </section>
+    </AccordionSection>
   );
 
   return (
@@ -71,7 +65,7 @@ export default function EarthworkSection({ data, setData, onAutoSave }) {
         { label: "어스앵커", value: data.support_earth_anchor },
         { label: "레이커", value: data.support_raker },
         { label: "스트럿", value: data.support_strut },
-      ], ["support_earth_anchor", "support_raker", "support_strut"])}
+      ], ["support_earth_anchor", "support_raker", "support_strut"], true)}
 
       {renderTable("흙막이공법별 생산량", ["공법", "생산량(㎡/일)"], [
         { label: "CIP", value: data.production_cip },

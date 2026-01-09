@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import DataTable from "../DataTable";
 import "../utils/scroll.css";
+import AccordionSection from "../AccordionSection";
 import {
   detailEarthworkInput,
   updateEarthworkInput,
@@ -13,6 +14,7 @@ export default function EarthworkInputSection({ projectId, utilization, nearby_e
     const [utilData, setUtilData] = useState({});
     const [loading, setLoading] = useState(true);
     const latestDataRef = useRef({});
+    const lastQuotationPayloadRef = useRef(null);
 
     // 스크롤 관련 상태
     const [isScrolling, setIsScrolling] = useState(false);
@@ -98,6 +100,11 @@ export default function EarthworkInputSection({ projectId, utilization, nearby_e
 
     //날짜계산 함수들
     useEffect(() => {
+        const utilizationValue = Number(utilization);
+        const safeUtilization =
+            Number.isFinite(utilizationValue) && utilizationValue > 0
+                ? utilizationValue
+                : 100;
 
         // 흙막이 가시설 계산
 
@@ -122,7 +129,7 @@ export default function EarthworkInputSection({ projectId, utilization, nearby_e
         const productivity = productivities[method] || 30;
 
         const workingDay = Math.round(bm9 / (productivity * crew));
-        const calendarDay = Math.round(workingDay * ((100 / Number(utilization)) || 1));
+        const calendarDay = Math.round(workingDay * (100 / safeUtilization));
 
         setEarthRetentionWorkingDay(workingDay);
         setEarthRetentionCalendarDay(calendarDay);
@@ -138,7 +145,7 @@ export default function EarthworkInputSection({ projectId, utilization, nearby_e
             "스트럿": Number(utilData?.support_strut),
             };
             const calendarDay2 = supportDays[supportMethod] || 0;
-            const workingDay2 = Math.round(calendarDay2 * ((Number(utilization)/100) || 0));
+            const workingDay2 = Math.round(calendarDay2 * (safeUtilization / 100));
 
             setEarthSupportCalendarDay(calendarDay2);
             setEarthSupportWorkingDay(workingDay2);
@@ -167,8 +174,7 @@ export default function EarthworkInputSection({ projectId, utilization, nearby_e
         );
 
         // Calendar Day = Working Day × (100 / 가동률)
-        const utilizationRate = Number(utilization) || 100;
-        const calendarDay3 = Math.round(workingDay3 * (100 / utilizationRate));
+        const calendarDay3 = Math.round(workingDay3 * (100 / safeUtilization));
 
         setSoilWorkingDay(workingDay3);
         setSoilCalendarDay(calendarDay3);
@@ -192,7 +198,7 @@ export default function EarthworkInputSection({ projectId, utilization, nearby_e
         );
 
         // Calendar Day = Working Day × (100 / 가동률)
-        const calendarDayWeathered = Math.round(workingDayWeathered * (100 / utilizationRate));
+        const calendarDayWeathered = Math.round(workingDayWeathered * (100 / safeUtilization));
 
         setWeatheredWorkingDay(workingDayWeathered);
         setWeatheredCalendarDay(calendarDayWeathered);
@@ -231,7 +237,7 @@ export default function EarthworkInputSection({ projectId, utilization, nearby_e
         );
 
         const calendarDaySoftRock = Math.round(
-        workingDaySoftRock * (100 / utilizationRate)
+        workingDaySoftRock * (100 / safeUtilization)
         );
 
         // 상태 저장
@@ -271,7 +277,7 @@ export default function EarthworkInputSection({ projectId, utilization, nearby_e
         );
 
         const calendarDayHardRock = Math.round(
-        workingDaySoftRock * (100 / utilizationRate)
+        workingDayHardRock * (100 / safeUtilization)
         );
 
         // 상태 저장
@@ -331,7 +337,7 @@ export default function EarthworkInputSection({ projectId, utilization, nearby_e
 
         // Calendar Day = Working Day × (100 / 가동률)
         const designated_calendar_day = Math.round(
-        designated_working_day * (100 / utilizationRate)
+        designated_working_day * (100 / safeUtilization)
         );
 
         setDesignatedWorkingDay(Math.round(designated_working_day));
@@ -434,6 +440,7 @@ export default function EarthworkInputSection({ projectId, utilization, nearby_e
 
     // 갑지 모델에 날짜 update
     useEffect(() => {
+    if (loading || !projectId) return;
     if (
         earthRetentionCalendarDay === null ||
         earthsupportCalendarDay === null ||
@@ -448,24 +455,23 @@ export default function EarthworkInputSection({ projectId, utilization, nearby_e
         designated_work: desighnatedCalendarDay,
     };
 
-    updateQuotation(projectId, payload)
-        .then(() => console.log("Quotation updated:", payload))
-        .catch((err) => console.error("Quotation update failed:", err));
+    if (JSON.stringify(lastQuotationPayloadRef.current) !== JSON.stringify(payload)) {
+        lastQuotationPayloadRef.current = payload;
+        updateQuotation(projectId, payload)
+            .catch((err) => console.error("Quotation update failed:", err));
+    }
 
     }, [
+    loading,
+    projectId,
     earthRetentionCalendarDay,
     earthsupportCalendarDay,
     earthsoilCalendarDay,
     desighnatedCalendarDay,
     ]);
     // 공통 카드 렌더러
-    const renderTable = (title, headers, rows, keys) => (
-    <section className="rounded-xl overflow-hidden shadow-lg bg-[#2c2c3a] border border-gray-700 mb-6">
-        <div className="bg-[#3a3a4a] px-4 py-2 border-b border-gray-600 flex items-center justify-between">
-        <h3 className="text-sm md:text-md font-semibold text-white">{title}</h3>
-        <span className="text-xs text-gray-400">{headers[1]}</span>
-        </div>
-
+    const renderTable = (title, headers, rows, keys, defaultOpen = false) => (
+    <AccordionSection title={title} meta={headers[1]} defaultOpen={defaultOpen}>
         <div className="p-3">
         <DataTable
             columns={[
@@ -487,7 +493,7 @@ export default function EarthworkInputSection({ projectId, utilization, nearby_e
             onAutoSave={() => onAutoSave(latestDataRef.current)}
         />
         </div>
-    </section>
+    </AccordionSection>
     );
 
 
@@ -878,8 +884,8 @@ export default function EarthworkInputSection({ projectId, utilization, nearby_e
             isScrolling ? "scrolling" : ""
         }`}
         >
-        {tableData.map((tbl) =>
-            renderTable(tbl.title, tbl.headers, tbl.rows, tbl.keys)
+        {tableData.map((tbl, idx) =>
+            renderTable(tbl.title, tbl.headers, tbl.rows, tbl.keys, idx === 0)
         )}
         </div>
     );

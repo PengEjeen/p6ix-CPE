@@ -4,6 +4,7 @@ import {
   detailWorkCondition,
   updateWorkCondition,
 } from "../../../api/cpe/calc";
+import AccordionSection from "../AccordionSection";
 
 export default function WorkConditionSection({ projectId, onUtilizationChange }) {
   const [data, setData] = useState({});
@@ -126,15 +127,7 @@ export default function WorkConditionSection({ projectId, onUtilizationChange })
   ];
 
   return (
-    <section className="rounded-xl overflow-hidden shadow-lg bg-[#2c2c3a] border border-gray-700 mb-6">
-      {/* 카드 헤더 */}
-      <div className="bg-[#3a3a4a] px-4 py-2 border-b border-gray-600 flex items-center justify-between">
-        <h3 className="text-sm md:text-md font-semibold text-white">
-          근무조건 가동률
-        </h3>
-      </div>
-
-      {/* 본문 */}
+    <AccordionSection title="근무조건 가동률" defaultOpen>
       <div className="p-4">
         <DataTable
           columns={columns}
@@ -153,6 +146,6 @@ export default function WorkConditionSection({ projectId, onUtilizationChange })
           onAutoSave={() => onAutoSave(latestDataRef.current)}
         />
       </div>
-    </section>
+    </AccordionSection>
   );
 }

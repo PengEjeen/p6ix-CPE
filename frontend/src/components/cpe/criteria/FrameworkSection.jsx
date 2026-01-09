@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from "react";
 import DataTable from "../DataTable";
 import "../utils/scroll.css";
 import { PlusCircle, Trash2 } from "lucide-react";
+import AccordionSection from "../AccordionSection";
 
 export default function FrameworkSection({ data, setData, onAutoSave }) {
   const [isScrolling, setIsScrolling] = useState(false);
@@ -85,15 +86,8 @@ export default function FrameworkSection({ data, setData, onAutoSave }) {
   }, []);
 
   // 일반 테이블
-  const renderTable = (title, headers, rows, keys) => (
-    <section className="rounded-xl overflow-hidden shadow-lg bg-[#2c2c3a] border border-gray-700">
-      {/* 카드 헤더 */}
-      <div className="bg-[#3a3a4a] px-4 py-2 border-b border-gray-600 flex items-center justify-between">
-        <h3 className="text-sm md:text-md font-semibold text-white">{title}</h3>
-        <span className="text-xs text-gray-400">{headers[1]}</span>
-      </div>
-
-      {/* 테이블 영역 */}
+  const renderTable = (title, headers, rows, keys, defaultOpen = false) => (
+    <AccordionSection title={title} meta={headers[1]} defaultOpen={defaultOpen}>
       <div className="p-3">
         <DataTable
           columns={[
@@ -105,24 +99,31 @@ export default function FrameworkSection({ data, setData, onAutoSave }) {
           onAutoSave={() => onAutoSave(latestDataRef.current)} // 최신 데이터 전달
         />
       </div>
-    </section>
+    </AccordionSection>
   );
 
   // JSON 테이블 (카드형 스타일)
-  const renderJsonTable = (title, field, headers, keyMap, defaultRow) => (
-    <section className="rounded-xl overflow-hidden shadow-lg bg-[#2c2c3a] border border-gray-700">
-      {/* 카드 헤더 */}
-      <div className="bg-[#3a3a4a] px-4 py-2 border-b border-gray-600 flex justify-between items-center">
-        <h3 className="text-sm md:text-md font-semibold text-white">{title}</h3>
+  const renderJsonTable = (
+    title,
+    field,
+    headers,
+    keyMap,
+    defaultRow,
+    defaultOpen = false
+  ) => (
+    <AccordionSection
+      title={title}
+      meta={headers[1]}
+      defaultOpen={defaultOpen}
+      action={
         <button
           onClick={() => handleAddRow(field, defaultRow)}
           className="text-blue-400 hover:text-blue-300 flex items-center gap-1 text-xs md:text-sm transition"
         >
           <PlusCircle size={16} /> 행 추가
         </button>
-      </div>
-
-      {/* 테이블 본문 */}
+      }
+    >
       <div className="overflow-x-auto p-3">
         <table className="w-full text-sm border-t border-gray-700">
           <thead>
@@ -170,7 +171,7 @@ export default function FrameworkSection({ data, setData, onAutoSave }) {
           </tbody>
         </table>
       </div>
-    </section>
+    </AccordionSection>
   );
 
   return (
@@ -185,7 +186,8 @@ export default function FrameworkSection({ data, setData, onAutoSave }) {
         "base_thickness_data",
         ["기초두께(m)", "소요일(일)"],
         ["thickness", "day"],
-        { thickness: 0, day: 0 }
+        { thickness: 0, day: 0 },
+        true
       )}
       {renderJsonTable(
         "층고별 소요일",

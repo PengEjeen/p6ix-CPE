@@ -4,6 +4,7 @@ import {
   detailConstructionOverview,
   updateConstructionOverview,
 } from "../../../api/cpe/calc";
+import AccordionSection from "../AccordionSection";
 
 export default function ConstructionOverviewSection({ projectId, onOverviewChange }) {
   const [data, setData] = useState({});
@@ -65,13 +66,8 @@ export default function ConstructionOverviewSection({ projectId, onOverviewChang
   if (loading) return <div className="text-gray-400">로딩 중...</div>;
 
   // 공통 렌더 함수
-  const renderTable = (title, headers, rows, keys) => (
-    <section className="rounded-xl overflow-hidden shadow-lg bg-[#2c2c3a] border border-gray-700 mb-6">
-      <div className="bg-[#3a3a4a] px-4 py-2 border-b border-gray-600 flex items-center justify-between">
-        <h3 className="text-sm md:text-md font-semibold text-white">{title}</h3>
-        <span className="text-xs text-gray-400">{headers[1]}</span>
-      </div>
-
+  const renderTable = (title, headers, rows, keys, defaultOpen = false) => (
+    <AccordionSection title={title} meta={headers[1]} defaultOpen={defaultOpen}>
       <div className="p-3">
         <DataTable
           columns={[
@@ -89,7 +85,7 @@ export default function ConstructionOverviewSection({ projectId, onOverviewChang
           onAutoSave={() => onAutoSave(latestDataRef.current)}
         />
       </div>
-    </section>
+    </AccordionSection>
   );
 
   // 섹션별 데이터
@@ -154,7 +150,9 @@ export default function ConstructionOverviewSection({ projectId, onOverviewChang
   return (
     <div className="space-y-6">
       {sections.map((s, idx) => (
-        <div key={idx}>{renderTable(s.title, s.headers, s.rows, s.keys)}</div>
+        <div key={idx}>
+          {renderTable(s.title, s.headers, s.rows, s.keys, idx === 0)}
+        </div>
       ))}
     </div>
   );

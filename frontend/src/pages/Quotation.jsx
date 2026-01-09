@@ -18,6 +18,9 @@ export default function Quotation() {
   const scrollRef = useRef(null);
   const scrollTimeout = useRef(null);
   const [showModal, setShowModal] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+  const hasInitialSyncRef = useRef(false);
+  const syncTimerRef = useRef(null);
 
   // 데이터 로드
   useEffect(() => {
@@ -33,6 +36,68 @@ export default function Quotation() {
     };
     fetchData();
   }, [projectId]);
+
+  const getQuotationSignature = (payload) => {
+    if (!payload) return "";
+    const fields = [
+      "preparation_period",
+      "earth_retention",
+      "support",
+      "excavation",
+      "designated_work",
+      "base_framework",
+      "basement_framework",
+      "ground_framework",
+      "finishing_work",
+      "additional_period",
+      "cleanup_period",
+    ];
+    return fields.map((key) => Number(payload[key]) || 0).join("|");
+  };
+
+  const startSync = useCallback(() => {
+    if (!projectId || !data) return;
+    if (syncTimerRef.current) clearTimeout(syncTimerRef.current);
+
+    let attempt = 0;
+    const maxAttempts = 6;
+    const baseSignature = getQuotationSignature(data);
+
+    setSyncing(true);
+
+    const poll = async () => {
+      attempt += 1;
+      try {
+        const res = await detailQuotation(projectId);
+        const nextSignature = getQuotationSignature(res.data);
+        if (nextSignature !== baseSignature) {
+          setData(res.data);
+          setSyncing(false);
+          return;
+        }
+      } catch (err) {
+        console.error("Quotation 동기화 실패:", err);
+      }
+
+      if (attempt >= maxAttempts) {
+        setSyncing(false);
+        return;
+      }
+
+      syncTimerRef.current = setTimeout(poll, 1500);
+    };
+
+    syncTimerRef.current = setTimeout(poll, 1500);
+  }, [projectId, data]);
+
+  useEffect(() => {
+    if (loading || !data || hasInitialSyncRef.current) return;
+    hasInitialSyncRef.current = true;
+    startSync();
+    return () => {
+      if (syncTimerRef.current) clearTimeout(syncTimerRef.current);
+    };
+  }, [loading, data, startSync]);
     
   const handleScroll = () => {
     setIsScrolling(true);
@@ -140,74 +205,80 @@ export default function Quotation() {
     { key: "remark", label: "비고", editable: true, type: "text" },
   ];
 
+  const toNumber = (value) => {
+    if (typeof value === "number") return value;
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : 0;
+  };
+
+  const formatDays = (value) => `${toNumber(value)}일`;
+
+  const earthRetention = toNumber(data.earth_retention);
+  const support = toNumber(data.support);
+  const excavation = toNumber(data.excavation);
+  const designatedWork = toNumber(data.designated_work);
+  const baseFramework = toNumber(data.base_framework);
+  const basementFramework = toNumber(data.basement_framework);
+  const groundFramework = toNumber(data.ground_framework);
+  const preparationPeriod = toNumber(data.preparation_period);
+  const finishingWork = toNumber(data.finishing_work);
+  const additionalPeriod = toNumber(data.additional_period);
+  const cleanupPeriod = toNumber(data.cleanup_period);
+
+  const earthworkTotal =
+    earthRetention + support + excavation + designatedWork;
+  const frameworkTotal = baseFramework + basementFramework + groundFramework;
+  const etcTotal =
+    preparationPeriod + finishingWork + additionalPeriod + cleanupPeriod;
+
   // 데이터 테이블
   const rowsEarthwork = [
-    { label: "흙막이가시설", calendar: data.earth_retention+"일", remark: data.remark_earth_retention },
-    { label: "지보공", calendar: data.support+"일", remark: data.remark_support },
-    { label: "터파기", calendar: data.excavation+"일", remark: data.remark_excavation },
-    { label: "지정공사", calendar: data.designated_work+"일", remark: data.remark_designated_work },
+    { label: "흙막이가시설", calendar: formatDays(earthRetention), remark: data.remark_earth_retention },
+    { label: "지보공", calendar: formatDays(support), remark: data.remark_support },
+    { label: "터파기", calendar: formatDays(excavation), remark: data.remark_excavation },
+    { label: "지정공사", calendar: formatDays(designatedWork), remark: data.remark_designated_work },
     {
       label:
          <span className="text-blue-400 font-semibold text-base bg-[#2f2f45] rounded-md px-2 py-1 inline-block">소계</span>,
       calendar:
         <span className="text-blue-400 font-semibold text-base bg-[#2f2f45] rounded-md px-2 py-1 inline-block">
-        {data.earth_retention +
-            data.support +
-            data.excavation +
-            data.designated_work}
-        일
+        {formatDays(earthworkTotal)}
         </span>,
       remark: data.remark_earthwork_total,
     },
   ];
 
   const rowsFramework = [
-    { label: "기초골조", calendar: data.base_framework+"일", remark: data.remark_base_framework },
-    { label: "지하골조", calendar: data.basement_framework+"일", remark: data.remark_basement_framework },
-    { label: "지상골조", calendar: data.ground_framework+"일", remark: data.remark_ground_framework },
+    { label: "기초골조", calendar: formatDays(baseFramework), remark: data.remark_base_framework },
+    { label: "지하골조", calendar: formatDays(basementFramework), remark: data.remark_basement_framework },
+    { label: "지상골조", calendar: formatDays(groundFramework), remark: data.remark_ground_framework },
     {
       label: <span className="text-blue-400 font-semibold text-base bg-[#2f2f45] rounded-md px-2 py-1 inline-block">소계</span>,
       calendar:
         <span className="text-blue-400 font-semibold text-base bg-[#2f2f45] rounded-md px-2 py-1 inline-block">
-        {data.base_framework +
-            data.basement_framework +
-            data.ground_framework+"일"}
+        {formatDays(frameworkTotal)}
         </span>,
       remark: data.remark_framework_total,
     },
   ];
 
   const rowsEtc = [
-    { label: "준비기간", calendar: data.preparation_period+"일", remark: data.remark_preparation },
-    { label: "마감공사", calendar: data.finishing_work+"일", remark: data.remark_finishing_work },
-    { label: "추가기간", calendar: data.additional_period+"일", remark: data.remark_additional_period },
-    { label: "정리기간", calendar: data.cleanup_period+"일", remark: data.remark_cleanup_period },
+    { label: "준비기간", calendar: formatDays(preparationPeriod), remark: data.remark_preparation },
+    { label: "마감공사", calendar: formatDays(finishingWork), remark: data.remark_finishing_work },
+    { label: "추가기간", calendar: formatDays(additionalPeriod), remark: data.remark_additional_period },
+    { label: "정리기간", calendar: formatDays(cleanupPeriod), remark: data.remark_cleanup_period },
     {
         label: <span className="text-blue-400 font-semibold text-base bg-[#2f2f45] rounded-md px-2 py-1 inline-block">소계</span>,
         calendar:
         <span className="text-blue-400 font-semibold text-base bg-[#2f2f45] rounded-md px-2 py-1 inline-block">
-            {data.preparation_period +
-            data.finishing_work +
-            data.additional_period+
-            data.cleanup_period+"일"}
+            {formatDays(etcTotal)}
         </span>,
-      remark: data.remark_framework_total,
+      remark: data.remark_total,
     },
 ];
 
   // 총합 계산
-  const totalDays =
-    data.preparation_period +
-    data.earth_retention +
-    data.support +
-    data.excavation +
-    data.designated_work +
-    data.base_framework +
-    data.basement_framework +
-    data.ground_framework +
-    data.finishing_work +
-    data.additional_period +
-    data.cleanup_period;
+  const totalDays = earthworkTotal + frameworkTotal + etcTotal;
 
   const totalMonths = Math.round(totalDays / 30.5);
 
@@ -217,6 +288,24 @@ export default function Quotation() {
             title="공사기간 견적서"
             description="공종별 공사기간 요약 및 AI 분석 결과"
             />
+            <div className="mt-2 flex items-center gap-3">
+              {syncing ? (
+                <span className="text-xs text-blue-300">계산 반영 중...</span>
+              ) : (
+                <span className="text-xs text-gray-400">최신 계산값을 확인하세요.</span>
+              )}
+              <button
+                onClick={startSync}
+                disabled={syncing}
+                className={`text-xs px-2 py-1 rounded-md border transition ${
+                  syncing
+                    ? "border-gray-600 text-gray-500 cursor-not-allowed"
+                    : "border-gray-600 text-gray-300 hover:bg-gray-700"
+                }`}
+              >
+                최신화
+              </button>
+            </div>
 
             {/* 전체 그리드: 왼쪽(본문) + 오른쪽(AI 결과) */}
             <div className="grid grid-cols-1 xl:grid-cols-[3.6fr_1fr] gap-6 mt-6 items-start">

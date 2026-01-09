@@ -1,5 +1,6 @@
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState, useRef, useMemo } from "react";
 import DataTable from "../DataTable";
+import AccordionSection from "../AccordionSection";
 import {
   detailPreparationPeriod,
   updatePreparationPeriod,
@@ -10,6 +11,7 @@ import { detailPreparationWork } from "../../../api/cpe/criteria";
 export default function PreparationPeriodSection({ projectId, ground_floor, earthwork_day, framework_day }) {
     const [data, setData] = useState({});
     const latestDataRef = useRef({});
+    const lastQuotationPayloadRef = useRef(null);
     const [loading, setLoading] = useState(true);
     const [utilData, setUtilData] = useState({});
 
@@ -31,8 +33,6 @@ export default function PreparationPeriodSection({ projectId, ground_floor, eart
         };
         fetchData();
     }, [projectId]);
-
-    if (loading) return <div className="text-gray-400">로딩 중...</div>;
 
     // 값 변경 핸들러
     const handleChange = (key, value) => {
@@ -72,6 +72,12 @@ export default function PreparationPeriodSection({ projectId, ground_floor, eart
     const floorMonth = getFloorMonth(Number(ground_floor));
     const unitMonth = getUnitMonth(data.household);
 
+    const toNumber = (value) => {
+        if (typeof value === "number") return value;
+        const parsed = Number(value);
+        return Number.isFinite(parsed) ? parsed : 0;
+    };
+
     // 공사기간 산정 (Calendar Day)
     const columnsPeriod = [
         { key: "preparation", label: "준비기간" },
@@ -80,59 +86,80 @@ export default function PreparationPeriodSection({ projectId, ground_floor, eart
         { key: "total", label: "총 공사기간" },
     ];
 
-    // 공사기간 산정 (Calendar Day)
-    const rowsPeriod = (() => {
-        // 안전한 숫자 변환
+    const { prepDays, cleanDays, floorTermDays, additionalDays, constructionDays, totalDays } = useMemo(() => {
         const prep = data.is_preparation_input_days
-            ? Number(data.preparation_input_days) || 0
-            : 15; // 기본 준비기간 15일
+            ? toNumber(data.preparation_input_days)
+            : 15;
 
-        const earthCal = Number(earthwork_day?.total_calendar_day) || 0;
-        const frameCal = Number(framework_day?.total_calendar_day) || 0;
+        const earthCal = toNumber(earthwork_day?.total_calendar_day);
+        const frameCal = toNumber(framework_day?.total_calendar_day);
 
-        const clean =
-            data.is_home && utilData
-            ? Number(utilData.residential_days) || 0
-            : Number(utilData.non_residential_days) || 0;
+        const clean = data.is_home
+            ? toNumber(utilData?.residential_days)
+            : toNumber(utilData?.non_residential_days);
 
         const floorTerm =
             (data.is_floors_under_months
-            ? Number(data.floors_under_months)
-            : Number(floorMonth) || 0) * 30.5;
+                ? toNumber(data.floors_under_months)
+                : toNumber(floorMonth)) * 30.5;
 
-        // 합계 계산
-        const construction =
-            earthCal + frameCal + floorTerm + (unitMonth*30.5); //세대 수 공사기간과 마감공사 기간
-
+        const additional = (unitMonth ? unitMonth * 30.5 : 0);
+        const construction = earthCal + frameCal + floorTerm + additional;
         const total = prep + construction + clean;
 
-    // Quotation 동기화
-    if (!isNaN(prep) && !isNaN(floorTerm) && !isNaN(clean)) {
-        const unitMonth = getUnitMonth(data.household);
-        const additionalDays = unitMonth ? unitMonth * 30.5 : 0;
+        return {
+            prepDays: prep,
+            cleanDays: clean,
+            floorTermDays: floorTerm,
+            additionalDays: additional,
+            constructionDays: construction,
+            totalDays: total,
+        };
+    }, [
+        data.is_preparation_input_days,
+        data.preparation_input_days,
+        data.is_home,
+        data.is_floors_under_months,
+        data.floors_under_months,
+        earthwork_day?.total_calendar_day,
+        framework_day?.total_calendar_day,
+        floorMonth,
+        unitMonth,
+        utilData?.residential_days,
+        utilData?.non_residential_days,
+    ]);
+
+    useEffect(() => {
+        if (loading) return;
+        if (!projectId) return;
+        if (!Number.isFinite(prepDays) || !Number.isFinite(cleanDays) || !Number.isFinite(floorTermDays)) return;
 
         const payload = {
-        preparation_period: Math.round(prep),       // 준비기간
-        finishing_work: Math.round(floorTerm),      // 마감공사 (층수별)
-        additional_period: Math.round(additionalDays), // 추가기간 (세대 수)
-        cleanup_period: Math.round(clean),          // 정리기간
+            preparation_period: Math.round(prepDays),
+            finishing_work: Math.round(floorTermDays),
+            additional_period: Math.round(additionalDays),
+            cleanup_period: Math.round(cleanDays),
         };
 
-        updateQuotation(projectId, payload)
-        .then(() => console.log("Quotation updated:", payload))
-        .catch((err) => console.error("Quotation update failed:", err));
-    }
+        if (JSON.stringify(lastQuotationPayloadRef.current) === JSON.stringify(payload)) {
+            return;
+        }
 
-    return [
+        lastQuotationPayloadRef.current = payload;
+        updateQuotation(projectId, payload)
+            .catch((err) => console.error("Quotation update failed:", err))
+            .finally(() => {});
+    }, [loading, projectId, prepDays, cleanDays, floorTermDays, additionalDays]);
+
+    const rowsPeriod = [
         {
         label: "공사기간 합계",
-        preparation: `${prep.toFixed(0)}일`,
-        construction: `${Math.round(construction)}일`,
-        cleanup: `${clean.toFixed(0)}일`,
-        total: `${Math.round(total)}일 / ${Math.round(total / 30.5)}개월`,
+        preparation: `${prepDays.toFixed(0)}일`,
+        construction: `${Math.round(constructionDays)}일`,
+        cleanup: `${cleanDays.toFixed(0)}일`,
+        total: `${Math.round(totalDays)}일 / ${Math.round(totalDays / 30.5)}개월`,
         },
     ];
-    })();
 
 
 
@@ -143,11 +170,16 @@ export default function PreparationPeriodSection({ projectId, ground_floor, eart
     { key: "nonworking", label: "비작업일" },
   ];
 
+  const earthworkWorking = toNumber(earthwork_day?.total_working_day);
+  const earthworkCalendar = toNumber(earthwork_day?.total_calendar_day);
+  const frameworkWorking = toNumber(framework_day?.total_working_day);
+  const frameworkCalendar = toNumber(framework_day?.total_calendar_day);
+
   const rowsByType = [
-    { label: "토공사", working: earthwork_day.total_working_day, 
-        nonworking: earthwork_day.total_calendar_day - earthwork_day.total_working_day },
-    { label: "골조공사", working: Number(framework_day.total_working_day), 
-        nonworking: framework_day.total_calendar_day - Number(framework_day.total_working_day) },
+    { label: "토공사", working: earthworkWorking,
+        nonworking: earthworkCalendar - earthworkWorking },
+    { label: "골조공사", working: frameworkWorking,
+        nonworking: frameworkCalendar - frameworkWorking },
   ];
   // 공통 컬럼 정의
   const columns = [
@@ -207,93 +239,73 @@ export default function PreparationPeriodSection({ projectId, ground_floor, eart
     },
   ];
 
+  if (loading) return <div className="text-gray-400">로딩 중...</div>;
+
   // 렌더링
   return (
     <div className="space-y-6">
         {/* 공사기간 산정 */}
-        <section className="rounded-xl overflow-hidden shadow-lg bg-[#2c2c3a] border border-gray-700">
-            <div className="bg-[#3a3a4a] px-4 py-2 border-b border-gray-600 flex items-center justify-between">
-            <h3 className="text-sm md:text-md font-semibold text-white">
-                공사기간 산정 (Calendar Day)
-            </h3>
-            </div>
-            <div className="p-3">
+        <AccordionSection title="공사기간 산정 (Calendar Day)" defaultOpen>
+          <div className="p-3">
             <DataTable
-                columns={columnsPeriod}
-                rows={rowsPeriod}
-                onChange={() => {}}
+              columns={columnsPeriod}
+              rows={rowsPeriod}
+              onChange={() => {}}
             />
-            </div>
-        </section>
+          </div>
+        </AccordionSection>
 
         {/* 공종별 공사기간 산정 */}
-        <section className="rounded-xl overflow-hidden shadow-lg bg-[#2c2c3a] border border-gray-700">
-            <div className="bg-[#3a3a4a] px-4 py-2 border-b border-gray-600 flex items-center justify-between">
-            <h3 className="text-sm md:text-md font-semibold text-white">
-                공종별 공사기간 산정
-            </h3>
-            </div>
-            <div className="p-3">
+        <AccordionSection title="공종별 공사기간 산정">
+          <div className="p-3">
             <DataTable
-                columns={columnsByType}
-                rows={rowsByType}
-                onChange={() => {}}
+              columns={columnsByType}
+              rows={rowsByType}
+              onChange={() => {}}
             />
-            </div>
-        </section>
+          </div>
+        </AccordionSection>
         {/* 준비/정리 기간 및 추가공사기간 */}
-        <section className="rounded-xl overflow-hidden shadow-lg bg-[#2c2c3a] border border-gray-700">
-            <div className="bg-[#3a3a4a] px-4 py-2 border-b border-gray-600 flex items-center justify-between">
-            <h3 className="text-sm md:text-md font-semibold text-white">
-                준비/정리 기간 및 추가공사기간
-            </h3>
-            </div>
-
-            <div className="p-3">
+        <AccordionSection title="준비/정리 기간 및 추가공사기간">
+          <div className="p-3">
             <DataTable
-                columns={columns}
-                rows={rowsMain}
-                onChange={(i, k, v) => {
+              columns={columns}
+              rows={rowsMain}
+              onChange={(i, k, v) => {
                 if (i === 1) {
-                    if (k === "is_preparation_input_days")
+                  if (k === "is_preparation_input_days")
                     handleChange("is_preparation_input_days", v);
-                    else if (k === "value")
+                  else if (k === "value")
                     handleChange("preparation_input_days", v);
                 } else if (i === 2) {
-                    handleChange("is_home", v === "주거시설");
+                  handleChange("is_home", v === "주거시설");
                 } else if (i === 0)
-                    handleChange("preparation_fixed_months", v);
+                  handleChange("preparation_fixed_months", v);
                 else if (i === 3) handleChange("household", v);
-                }}
-                onAutoSave={() => onAutoSave(latestDataRef.current)}
+              }}
+              onAutoSave={() => onAutoSave(latestDataRef.current)}
             />
-            </div>
-        </section>
+          </div>
+        </AccordionSection>
 
         {/* 마감공사 (층수별 공기산정) */}
-        <section className="rounded-xl overflow-hidden shadow-lg bg-[#2c2c3a] border border-gray-700">
-            <div className="bg-[#3a3a4a] px-4 py-2 border-b border-gray-600 flex items-center justify-between">
-            <h3 className="text-sm md:text-md font-semibold text-white">
-                마감공사 (층수별 공기산정)
-            </h3>
-            </div>
-
-            <div className="p-3">
+        <AccordionSection title="마감공사 (층수별 공기산정)">
+          <div className="p-3">
             <DataTable
-                columns={columns}
-                rows={rowsFinishing}
-                onChange={(i, k, v) => {
+              columns={columns}
+              rows={rowsFinishing}
+              onChange={(i, k, v) => {
                 if (i === 1) {
-                    if (k === "is_floors_under_months")
+                  if (k === "is_floors_under_months")
                     handleChange("is_floors_under_months", v);
-                    else if (k === "value")
+                  else if (k === "value")
                     handleChange("floors_under_months", v);
                 }
-                }}
-                onAutoSave={() => onAutoSave(latestDataRef.current)}
+              }}
+              onAutoSave={() => onAutoSave(latestDataRef.current)}
             />
-            </div>
-        </section>
+          </div>
+        </AccordionSection>
     </div>
   );
 }
