@@ -18,6 +18,7 @@ class ProjectSerializer(serializers.ModelSerializer):
             "user",
             "title",
             "description",
+            "calc_type",
             "created_at",
             "updated_at",
             "is_delete",

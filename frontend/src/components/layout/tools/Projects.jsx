@@ -17,6 +17,7 @@ function Projects() {
   const [openModal, setOpenModal] = useState(false);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
+  const [calcType, setCalcType] = useState("APARTMENT");
   const [menuOpenId, setMenuOpenId] = useState(null);
   const [editingId, setEditingId] = useState(null);
   const [editingTitle, setEditingTitle] = useState("");
@@ -49,16 +50,22 @@ function Projects() {
     p.title?.toLowerCase().includes(search.toLowerCase())
   );
 
+  const calcTypeLabel = (type) => {
+    if (type === "TOTAL") return "전체 공기산정";
+    return "아파트 공기산정";
+  };
+
   // === 새 갑지 생성 ===
   const handleCreateProject = async () => {
     if (!title.trim()) return alert("프로젝트명을 입력해주세요.");
     try {
-      const res = await createProjects({ title, description });
+      const res = await createProjects({ title, description, calc_type: calcType });
       setProjects((prev) => [...prev, res]);
       setOpenModal(false);
       navigate(`projects/${res.id}/calc`)
       setTitle("");
       setDescription("");
+      setCalcType("APARTMENT");
     } catch (error) {
       console.error("프로젝트 생성 실패:", error);
     }
@@ -188,6 +195,9 @@ function Projects() {
                         <span className="text-gray-100">
                           {project.title}
                         </span>
+                        <span className="ml-2 text-xs text-gray-400 border border-gray-600 rounded-full px-2 py-0.5">
+                          {calcTypeLabel(project.calc_type)}
+                        </span>
                       </>
                     )}
                   </div>
@@ -278,6 +288,14 @@ function Projects() {
                 onChange={(e) => setTitle(e.target.value)}
                 className="w-full bg-[#1e1e2f] border border-gray-600 rounded-lg px-4 py-3 text-lg text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
+              <select
+                value={calcType}
+                onChange={(e) => setCalcType(e.target.value)}
+                className="w-full bg-[#1e1e2f] border border-gray-600 rounded-lg px-4 py-3 text-base text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="APARTMENT">아파트 공기산정</option>
+                <option value="TOTAL">전체 공기산정</option>
+              </select>
               <textarea
                 placeholder="설명 (선택)"
                 value={description}

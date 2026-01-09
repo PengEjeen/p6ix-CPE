@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import ConstructionOverviewSection from "../components/cpe/calc/ConstructionOverviewSection";
 import WorkConditionSection from "../components/cpe/calc/WorkConditionSection";
@@ -6,6 +6,7 @@ import EarthworkInputSection from "../components/cpe/calc/EarthworkInputSection"
 import FrameworkInputSection from "../components/cpe/calc/FrameworkInputSection";
 import PreparationPeriodSection from "../components/cpe/calc/PreparationPeriodSection";
 import PageHeader from "../components/cpe/PageHeader";
+import { detailProject } from "../api/cpe/project";
 
 export default function Calc() {
   const { id: projectId } = useParams();
@@ -31,7 +32,48 @@ export default function Calc() {
   const [frameWorkInput, setFrameWorkInput] = useState({
     total_working_day: null,
     total_calendar_day: null
-  })
+  });
+
+  const [calcType, setCalcType] = useState(null);
+  const [projectLoading, setProjectLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchProject = async () => {
+      if (!projectId) return;
+      try {
+        const res = await detailProject(projectId);
+        setCalcType(res.calc_type || "APARTMENT");
+      } catch (error) {
+        console.error("프로젝트 불러오기 실패:", error);
+      } finally {
+        setProjectLoading(false);
+      }
+    };
+    fetchProject();
+  }, [projectId]);
+  if (projectLoading) {
+    return (
+      <div className="p-6 overflow-x-auto">
+        <PageHeader
+          title="공기산정 입력"
+          description="전체 공사기간 산정 및 분석"
+        />
+        <div className="text-gray-400">로딩 중...</div>
+      </div>
+    );
+  }
+
+  if (calcType === "TOTAL") {
+    return (
+      <div className="p-6 overflow-x-auto">
+        <PageHeader
+          title="공기산정 입력"
+          description="전체 공사기간 산정 및 분석"
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="p-6 overflow-x-auto">
       {/* 상단 페이지 제목 */}
