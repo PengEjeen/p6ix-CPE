@@ -62,7 +62,11 @@ function Projects() {
       const res = await createProjects({ title, description, calc_type: calcType });
       setProjects((prev) => [...prev, res]);
       setOpenModal(false);
-      navigate(`projects/${res.id}/calc`)
+      if (res.calc_type === "TOTAL") {
+        navigate(`projects/${res.id}/total-calc`);
+      } else {
+        navigate(`projects/${res.id}/calc`);
+      }
       setTitle("");
       setDescription("");
       setCalcType("APARTMENT");
@@ -172,9 +176,15 @@ function Projects() {
             {filteredProjects.map((project) => (
               <li key={project.id} className="relative group overflow-visible">
                 <button
-                  onClick={() =>
-                    editingId !== project.id && navigate(`/projects/${project.id}/calc`)
-                  }
+                  onClick={() => {
+                    if (editingId !== project.id) {
+                      if (project.calc_type === "TOTAL") {
+                        navigate(`/projects/${project.id}/total-calc`);
+                      } else {
+                        navigate(`/projects/${project.id}/calc`);
+                      }
+                    }
+                  }}
                   className="w-full text-left text-base px-4 py-2 rounded-lg hover:bg-[#3b3b4f] transition flex items-center justify-between"
                 >
                   <div className="flex-1 truncate">

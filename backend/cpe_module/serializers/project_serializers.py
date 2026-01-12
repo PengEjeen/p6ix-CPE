@@ -30,65 +30,81 @@ class ProjectSerializer(serializers.ModelSerializer):
         user = self.context["request"].user
         project = Project.objects.create(user=user, **validated_data)
 
-        # 공기산정 관련 (calc_models)
-        ConstructionOverview.objects.create(project=project)
-        WorkCondition.objects.create(project=project)
-        PreparationPeriod.objects.create(project=project)
-        EarthworkInput.objects.create(project=project)
-        FrameWorkInput.objects.create(project=project)
+        if project.calc_type == "APARTMENT":
+            # 공기산정 관련 (calc_models)
+            ConstructionOverview.objects.create(project=project)
+            WorkCondition.objects.create(project=project)
+            PreparationPeriod.objects.create(project=project)
+            EarthworkInput.objects.create(project=project)
+            FrameWorkInput.objects.create(project=project)
 
-        # 가동률 관련 (operating_rate_models)
-        WorkScheduleWeight.objects.bulk_create([
-            WorkScheduleWeight(project=project, type="EARTH"),
-            WorkScheduleWeight(project=project, type="FRAME"),
-            WorkScheduleWeight(project=project, type="EXT_FIN"),
-            WorkScheduleWeight(project=project, type="INT_FIN"),
-            WorkScheduleWeight(project=project, type="POUR"),
-        ])
+            # 가동률 관련 (operating_rate_models)
+            WorkScheduleWeight.objects.bulk_create([
+                WorkScheduleWeight(project=project, type="EARTH"),
+                WorkScheduleWeight(project=project, type="FRAME"),
+                WorkScheduleWeight(project=project, type="EXT_FIN"),
+                WorkScheduleWeight(project=project, type="INT_FIN"),
+                WorkScheduleWeight(project=project, type="POUR"),
+            ])
 
-        # 적용기준 관련 (criteria_models)
-        # admin의 기준데이터(is_admin=True) 복제
-        prep_admin = PreparationWork.objects.filter(is_admin=True).last()
-        earth_admin = Earthwork.objects.filter(is_admin=True).last()
-        frame_admin = FrameWork.objects.filter(is_admin=True).last()
+            # 적용기준 관련 (criteria_models)
+            # admin의 기준데이터(is_admin=True) 복제
+            prep_admin = PreparationWork.objects.filter(is_admin=True).last()
+            earth_admin = Earthwork.objects.filter(is_admin=True).last()
+            frame_admin = FrameWork.objects.filter(is_admin=True).last()
 
-        if prep_admin:
-            PreparationWork.objects.create(
-                project=project,
-                **{
-                    f.name: getattr(prep_admin, f.name)
-                    for f in PreparationWork._meta.fields
-                    if f.name not in ["id", "project", "created_at", "updated_at", "is_admin"]
-                },
-            )
-        else:
-            PreparationWork.objects.create(project=project)
+            if prep_admin:
+                PreparationWork.objects.create(
+                    project=project,
+                    **{
+                        f.name: getattr(prep_admin, f.name)
+                        for f in PreparationWork._meta.fields
+                        if f.name not in ["id", "project", "created_at", "updated_at", "is_admin"]
+                    },
+                )
+            else:
+                PreparationWork.objects.create(project=project)
 
-        if earth_admin:
-            Earthwork.objects.create(
-                project=project,
-                **{
-                    f.name: getattr(earth_admin, f.name)
-                    for f in Earthwork._meta.fields
-                    if f.name not in ["id", "project", "created_at", "updated_at", "is_admin"]
-                },
-            )
-        else:
-            Earthwork.objects.create(project=project)
+            if earth_admin:
+                Earthwork.objects.create(
+                    project=project,
+                    **{
+                        f.name: getattr(earth_admin, f.name)
+                        for f in Earthwork._meta.fields
+                        if f.name not in ["id", "project", "created_at", "updated_at", "is_admin"]
+                    },
+                )
+            else:
+                Earthwork.objects.create(project=project)
 
-        if frame_admin:
-            FrameWork.objects.create(
-                project=project,
-                **{
-                    f.name: getattr(frame_admin, f.name)
-                    for f in FrameWork._meta.fields
-                    if f.name not in ["id", "project", "created_at", "updated_at", "is_admin"]
-                },
-            )
-        else:
-            FrameWork.objects.create(project=project)
+            if frame_admin:
+                FrameWork.objects.create(
+                    project=project,
+                    **{
+                        f.name: getattr(frame_admin, f.name)
+                        for f in FrameWork._meta.fields
+                        if f.name not in ["id", "project", "created_at", "updated_at", "is_admin"]
+                    },
+                )
+            else:
+                FrameWork.objects.create(project=project)
 
-        # ④ 갑지 관련
-        Quotation.objects.create(project=project)
+            # ④ 갑지 관련
+            Quotation.objects.create(project=project)
+
+        elif project.calc_type == "TOTAL":
+            # cpe_all_module 모델 초기화
+            from cpe_all_module.models.construction_productivity_models import ConstructionProductivity
+            
+            # 표준 생산성 데이터(project=None)를 복제하여 해당 프로젝트용으로 생성
+            standard_productivities = ConstructionProductivity.objects.filter(project__isnull=True).values()
+            new_objects = [
+                ConstructionProductivity(
+                    project=project, 
+                    **{k: v for k, v in item.items() if k != 'id' and k != 'project_id'}
+                )
+                for item in standard_productivities
+            ]
+            ConstructionProductivity.objects.bulk_create(new_objects)
 
         return project

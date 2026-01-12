@@ -8,4 +8,5 @@ urlpatterns = [
     path("admin/", admin.site.urls),
     path("api/users/", include("user.urls", namespace="user")), # user
     path("api/cpe/", include("cpe_module.urls", namespace="cpe_module")), # user
+    path("api/cpe-all/", include("cpe_all_module.urls")),
 ]

@@ -52,6 +52,7 @@ INSTALLED_APPS = [
     "user",
     "weather",
     "cpe_module",
+    "cpe_all_module",
 ]
 
 MIDDLEWARE = [

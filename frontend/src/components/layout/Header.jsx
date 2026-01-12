@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useNavigate, useLocation, useParams } from "react-router-dom";
 import { detailProject } from "../../api/cpe/project";
 import {
-FiChevronDown, FiChevronUp
+  FiChevronDown, FiChevronUp
 } from "react-icons/fi";
 
 function Header() {
@@ -26,7 +26,7 @@ function Header() {
     loadProject();
   }, [id]);
 
-  const menus = [
+  const apartmentMenus = [
     {
       name: "갑지",
       desc: "프로젝트 개요 및 기본정보 관리",
@@ -49,6 +49,16 @@ function Header() {
     },
   ];
 
+  const totalMenus = [
+    {
+      name: "표준품셈",
+      desc: "전체 프로젝트 공기 산정 및 관리",
+      path: `/projects/${id}/total-calc`,
+    },
+  ];
+
+  const menus = project?.calc_type === "TOTAL" ? totalMenus : apartmentMenus;
+
   const activeMenu =
     menus.find((m) => location.pathname === m.path) || menus[0];
 
@@ -67,11 +77,11 @@ function Header() {
             {project?.title || "로딩 중..."}
           </span>
           <span className="font-medium text-lg">{activeMenu.name}</span>
-              {open ? (
-                <FiChevronUp className="transition-transform duration-300" size={25} />
-              ) : (
-                <FiChevronDown className="transition-transform duration-300" size={25} />
-              )}
+          {open ? (
+            <FiChevronUp className="transition-transform duration-300" size={25} />
+          ) : (
+            <FiChevronDown className="transition-transform duration-300" size={25} />
+          )}
         </button>
 
         {/* 프로젝트 설명 */}
@@ -89,11 +99,10 @@ function Header() {
                   navigate(menu.path);
                   setOpen(false);
                 }}
-                className={`block w-full text-left px-4 py-3 transition ${
-                  location.pathname === menu.path
-                    ? "bg-[#3b3b4f] text-white"
-                    : "hover:bg-[#3b3b4f] text-gray-300"
-                }`}
+                className={`block w-full text-left px-4 py-3 transition ${location.pathname === menu.path
+                  ? "bg-[#3b3b4f] text-white"
+                  : "hover:bg-[#3b3b4f] text-gray-300"
+                  }`}
               >
                 <div className="font-medium text-base">{menu.name}</div>
                 <div className="text-xs text-gray-400 mt-0.5">{menu.desc}</div>

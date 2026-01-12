@@ -9,6 +9,7 @@ import Criteria from "./pages/Criteria";
 import Operatingrate from "./pages/OperatingRate";
 import Quotation from "./pages/Quotation";
 import UserProfile from "./pages/UserProfile";
+import TotalCalc from "./pages/TotalCalc";
 
 const router = createBrowserRouter(
   createRoutesFromElements(
@@ -22,6 +23,7 @@ const router = createBrowserRouter(
         <Route path="/projects/:id/criteria" element={<Criteria />} />
         <Route path="/projects/:id/operating_rate" element={<Operatingrate />} />
         <Route path="/projects/:id/" element={<Quotation />} />
+        <Route path="/projects/:id/total-calc" element={<TotalCalc />} />
       </Route>
     </>
   )

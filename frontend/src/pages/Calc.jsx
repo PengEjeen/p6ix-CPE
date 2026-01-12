@@ -126,7 +126,7 @@ export default function Calc() {
 
       {/* 전체 레이아웃 */}
       <div className="flex overflow-x-auto gap-6 pb-4 no-scrollbar">
-        <div className="flex flex-nowrap justify-start items-start">
+        <div className="flex flex-nowrap justify-start items-start gap-8">
           {/* === 공사개요 === */}
           <div className="min-w-[360px]">
             <div className="bg-[#2c2c3a] rounded-xl border border-gray-700 shadow-lg p-4 mb-6">

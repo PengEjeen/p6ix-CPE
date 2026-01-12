@@ -935,9 +935,7 @@ export default function EarthworkInputSection({ projectId, utilization, nearby_e
 
     return (
         <div
-            ref={scrollRef}
-            className={`scroll-container space-y-4 h-[100vh] overflow-y-auto pr-2 transition-all duration-300 ${isScrolling ? "scrolling" : ""
-                }`}
+            className="space-y-4 pr-2 transition-all duration-300"
         >
             {tableData.map((tbl, idx) =>
                 renderTable(tbl.title, tbl.headers, tbl.rows, tbl.keys, idx === 0)

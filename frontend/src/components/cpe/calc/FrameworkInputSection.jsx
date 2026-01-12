@@ -529,9 +529,7 @@ export default function FrameworkInputSection({
   // 렌더링
   return (
     <div
-      ref={scrollRef}
-      className={`scroll-container space-y-4 h-[100vh] overflow-y-auto pr-2 transition-all duration-300 ${isScrolling ? "scrolling" : ""
-        }`}
+      className="space-y-4 pr-2 transition-all duration-300"
     >
       {/* 일반 섹션 */}
       {sections.map((section, idx) => (

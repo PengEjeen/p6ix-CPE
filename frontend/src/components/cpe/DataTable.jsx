@@ -1,10 +1,11 @@
 import React, { useRef, useState } from "react";
 
-export default function DataTable({ columns, rows, onChange, onAutoSave }) {
+export default function DataTable({ columns, rows, onChange, onAutoSave, onDelete }) {
   const typingTimeout = useRef(null);
   const [saveState, setSaveState] = useState("idle");
 
   const handleInputChange = (rowIdx, key, value) => {
+    // ... (same as before) ...
     onChange(rowIdx, key, value);
 
     if (typingTimeout.current) clearTimeout(typingTimeout.current);
@@ -25,11 +26,11 @@ export default function DataTable({ columns, rows, onChange, onAutoSave }) {
 
   return (
     <div className="relative bg-[#20202a] border border-white/10 rounded-xl p-5 shadow-2xl backdrop-blur-sm">
-      {/* 저장 상태 표시 (Floating Badge) */}
+      {/* 바꿈 생략 */}
       <div className={`absolute -top-3 right-4 transition-all duration-300 transform ${saveState !== "idle" ? "translate-y-0 opacity-100" : "translate-y-2 opacity-0"}`}>
         <div className={`flex items-center gap-2 px-3 py-1 rounded-full text-xs font-medium shadow-lg border ${saveState === "saving"
-            ? "bg-blue-500/20 border-blue-500/30 text-blue-200"
-            : "bg-emerald-500/20 border-emerald-500/30 text-emerald-200"
+          ? "bg-blue-500/20 border-blue-500/30 text-blue-200"
+          : "bg-white/5 border-white/10 text-gray-400"
           }`}>
           {saveState === "saving" ? (
             <>
@@ -38,7 +39,7 @@ export default function DataTable({ columns, rows, onChange, onAutoSave }) {
             </>
           ) : (
             <>
-              <div className="w-2 h-2 rounded-full bg-emerald-400" />
+              <div className="w-2 h-2 rounded-full bg-gray-500" />
               <span>저장됨</span>
             </>
           )}
@@ -48,12 +49,13 @@ export default function DataTable({ columns, rows, onChange, onAutoSave }) {
       <div className="overflow-hidden rounded-lg border border-white/5">
         <table className="w-full text-sm border-collapse">
           <thead>
-            <tr className="bg-[#2a2a35] text-gray-300 uppercase text-xs tracking-wider border-b border-white/5">
+            <tr className="bg-[#2a2a35] text-gray-400 border-b border-white/5">
               {columns.map((col) => (
-                <th key={col.key} className="py-3 px-4 text-center font-semibold">
+                <th key={col.key} className="py-2 px-3 text-center">
                   {col.label}
                 </th>
               ))}
+              {onDelete && <th className="py-2 px-3 w-10"></th>}
             </tr>
           </thead>
 
@@ -65,6 +67,7 @@ export default function DataTable({ columns, rows, onChange, onAutoSave }) {
               >
                 {columns.map((col) => {
                   const cellKey = col.key;
+                  // ... (existing logic) ...
                   const cellType =
                     typeof row.type === "object"
                       ? row.type?.[cellKey] || "text"
@@ -80,9 +83,10 @@ export default function DataTable({ columns, rows, onChange, onAutoSave }) {
                   const isManualActive = manualKey ? manualFlags[manualKey] : false;
 
                   return (
-                    <td key={col.key} className="py-3 px-4 text-center text-gray-300">
+                    <td key={col.key} className="py-2 px-3 text-center text-gray-300">
                       {col.editable ? (
                         cellType === "radio" ? (
+                          // ... radio ...
                           <div className="flex justify-center flex-wrap gap-2">
                             {(row.options || []).map((opt) => (
                               <label key={opt.value || opt} className="inline-flex items-center cursor-pointer group/radio">
@@ -108,11 +112,12 @@ export default function DataTable({ columns, rows, onChange, onAutoSave }) {
                             ))}
                           </div>
                         ) : cellType === "select" ? (
+                          // ... select ...
                           <div className="relative inline-block w-32">
                             <select
                               value={row[col.key] ?? ""}
                               onChange={(e) => handleInputChange(rowIdx, col.key, e.target.value)}
-                              className="w-full bg-[#181825] border border-gray-700 hover:border-gray-500 rounded-md px-3 py-1.5 text-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50 appearance-none transition-all cursor-pointer"
+                              className="w-full bg-[#181825] border border-gray-700 hover:border-gray-500 rounded-md px-2 py-1 text-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50 appearance-none transition-all cursor-pointer"
                             >
                               <option value="">—</option>
                               {(row.options || []).map((opt) => (
@@ -121,23 +126,25 @@ export default function DataTable({ columns, rows, onChange, onAutoSave }) {
                                 </option>
                               ))}
                             </select>
-                            {/* Custom Arrow */}
                             <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-400">
                               <svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z" /></svg>
                             </div>
                           </div>
                         ) : cellType === "checkbox" ? (
+                          // ... checkbox ...
                           <input
                             type="checkbox"
                             checked={Boolean(row[col.key])}
                             onChange={(e) => handleInputChange(rowIdx, col.key, e.target.checked)}
-                            className="w-5 h-5 rounded border-gray-600 bg-[#181825] checked:bg-blue-600 focus:ring-offset-0 focus:ring-2 focus:ring-blue-500/50 transition-all cursor-pointer accent-blue-600"
+                            className="w-4 h-4 rounded border-gray-600 bg-[#181825] checked:bg-blue-600 focus:ring-offset-0 focus:ring-2 focus:ring-blue-500/50 transition-all cursor-pointer accent-blue-600"
                           />
                         ) : cellType === "readonly" ? (
+                          // ... readonly ...
                           <span className="inline-block px-2 py-1 rounded bg-yellow-500/10 text-yellow-400 font-semibold border border-yellow-500/20">
                             {row[col.key] ?? "—"}
                           </span>
                         ) : cellType === "manual" ? (
+                          // ... manual ...
                           <div className="flex items-center justify-center gap-2 group/manual">
                             <input
                               type="checkbox"
@@ -154,15 +161,15 @@ export default function DataTable({ columns, rows, onChange, onAutoSave }) {
                               onChange={(e) =>
                                 handleInputChange(rowIdx, col.key, e.target.value)
                               }
-                              className={`no-spin w-28 bg-[#181825] border rounded-md px-3 py-1.5 text-right transition-all focus:outline-none focus:ring-2 ${isManualActive
-                                  ? "border-blue-500/50 text-white focus:ring-blue-500/50"
-                                  : "border-gray-700 text-gray-500 bg-gray-900/50 cursor-not-allowed"
+                              className={`no-spin w-24 bg-[#181825] border rounded-md px-2 py-1 text-right transition-all focus:outline-none focus:ring-2 ${isManualActive
+                                ? "border-blue-500/50 text-white focus:ring-blue-500/50"
+                                : "border-gray-700 text-gray-500 bg-gray-900/50 cursor-not-allowed"
                                 }`}
                               placeholder="0"
                             />
                           </div>
                         ) : (
-                          // 기본 Number/Text
+                          // ... text/number ...
                           <div className="flex items-center justify-center gap-2 relative group/input">
                             <input
                               type={cellType || "text"}
@@ -171,12 +178,9 @@ export default function DataTable({ columns, rows, onChange, onAutoSave }) {
                                 const val = cellType === "number" ? Number(e.target.value) : e.target.value;
                                 handleInputChange(rowIdx, col.key, val);
                               }}
-                              className="no-spin w-28 bg-[#181825] border border-gray-700 hover:border-gray-600 rounded-md px-3 py-1.5 text-gray-200 text-right focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 transition-all placeholder-gray-600"
+                              className={`no-spin ${col.width || "w-24"} bg-[#181825] border border-gray-700 hover:border-gray-600 rounded-md px-2 py-1 text-gray-200 text-right focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 transition-all placeholder-gray-600`}
                               placeholder="-"
                             />
-                            {row.unit && (
-                              <span className="text-gray-500 text-xs font-medium w-6 text-left">{row.unit}</span>
-                            )}
                           </div>
                         )
                       ) : (
@@ -185,6 +189,18 @@ export default function DataTable({ columns, rows, onChange, onAutoSave }) {
                     </td>
                   );
                 })}
+
+                {/* Delete Button Column */}
+                {onDelete && (
+                  <td className="py-2 px-3 text-center">
+                    <button
+                      onClick={() => onDelete(rowIdx)}
+                      className="text-gray-500 hover:text-red-400 transition-colors p-1 rounded hover:bg-white/5"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18" /><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" /><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" /></svg>
+                    </button>
+                  </td>
+                )}
               </tr>
             ))}
           </tbody>
