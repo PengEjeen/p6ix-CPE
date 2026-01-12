@@ -160,7 +160,8 @@ export default function FrameworkInputSection({
   ground_floors = 0,
   utilization,
   is_sunta,
-  onFrameworkInputChange
+  onFrameworkInputChange,
+  onSavingChange
 }) {
   const [data, setData] = useState({});
   const latestDataRef = useRef({});
@@ -173,16 +174,16 @@ export default function FrameworkInputSection({
   const scrollRef = useRef(null);
   const scrollTimeout = useRef(null);
   const handleScroll = () => {
-      setIsScrolling(true);
-      clearTimeout(scrollTimeout.current);
-      scrollTimeout.current = setTimeout(() => setIsScrolling(false), 1000);
+    setIsScrolling(true);
+    clearTimeout(scrollTimeout.current);
+    scrollTimeout.current = setTimeout(() => setIsScrolling(false), 1000);
   };
-  
+
   useEffect(() => {
-      const el = scrollRef.current;
-      if (!el) return;
-        el.addEventListener("scroll", handleScroll);
-      return () => el.removeEventListener("scroll", handleScroll);
+    const el = scrollRef.current;
+    if (!el) return;
+    el.addEventListener("scroll", handleScroll);
+    return () => el.removeEventListener("scroll", handleScroll);
   }, []);
 
   // 데이터 로드 (입력 데이터)
@@ -218,7 +219,7 @@ export default function FrameworkInputSection({
       }
     };
     fetchData();
-  }, [projectId, basement_floors, ground_floors, ]);
+  }, [projectId, basement_floors, ground_floors,]);
 
   // 기준/적용값(utilData) 로드
   useEffect(() => {
@@ -310,7 +311,7 @@ export default function FrameworkInputSection({
   };
 
   const { work: baseWorkingDay, cal: baseCalendarDay } = calcBaseDays();
-    // 합계 계산 (지하+지상 → 총합)
+  // 합계 계산 (지하+지상 → 총합)
 
   const calcCalDayForRow = (
     floor_sep,
@@ -450,9 +451,21 @@ export default function FrameworkInputSection({
     };
 
     if (JSON.stringify(lastQuotationPayloadRef.current) !== JSON.stringify(payload)) {
+      console.log('[골조공사] Quotation 업데이트:', payload);
       lastQuotationPayloadRef.current = payload;
-      updateQuotation(projectId, payload)
-        .catch((err) => console.error("Quotation update failed:", err));
+
+      if (onSavingChange) onSavingChange(true);
+
+      const timer = setTimeout(() => {
+        updateQuotation(projectId, payload)
+          .then(() => console.log('[골조공사] Quotation 저장 완료'))
+          .catch((err) => console.error('[골조공사] Quotation 저장 실패:', err))
+          .finally(() => {
+            if (onSavingChange) onSavingChange(false);
+          });
+      }, 1500);
+
+      return () => clearTimeout(timer);
     }
 
   }, [
@@ -517,9 +530,8 @@ export default function FrameworkInputSection({
   return (
     <div
       ref={scrollRef}
-      className={`scroll-container space-y-4 h-[100vh] overflow-y-auto pr-2 transition-all duration-300 ${
-          isScrolling ? "scrolling" : ""
-      }`}
+      className={`scroll-container space-y-4 h-[100vh] overflow-y-auto pr-2 transition-all duration-300 ${isScrolling ? "scrolling" : ""
+        }`}
     >
       {/* 일반 섹션 */}
       {sections.map((section, idx) => (

@@ -3,13 +3,13 @@ import DataTable from "../DataTable";
 import "../utils/scroll.css";
 import AccordionSection from "../AccordionSection";
 import {
-  detailEarthworkInput,
-  updateEarthworkInput,
+    detailEarthworkInput,
+    updateEarthworkInput,
 } from "../../../api/cpe/calc";
 import { updateQuotation } from "../../../api/cpe/quotation";
 import { detailEarthwork } from "../../../api/cpe/criteria";
 
-export default function EarthworkInputSection({ projectId, utilization, nearby_env, onEarthWorkInputChange }) {
+export default function EarthworkInputSection({ projectId, utilization, nearby_env, onEarthWorkInputChange, onSavingChange }) {
     const [data, setData] = useState({});
     const [utilData, setUtilData] = useState({});
     const [loading, setLoading] = useState(true);
@@ -20,7 +20,7 @@ export default function EarthworkInputSection({ projectId, utilization, nearby_e
     const [isScrolling, setIsScrolling] = useState(false);
     const scrollRef = useRef(null);
     const scrollTimeout = useRef(null);
-    
+
     // 상위 컴포넌트로 보낼 값
     const totalWork = 0;
     const totalCal = 0;
@@ -65,9 +65,9 @@ export default function EarthworkInputSection({ projectId, utilization, nearby_e
 
     const onAutoSave = async (latestData) => {
         try {
-        await updateEarthworkInput(projectId, latestData);
+            await updateEarthworkInput(projectId, latestData);
         } catch (err) {
-        console.error("자동 저장 실패:", err);
+            console.error("자동 저장 실패:", err);
         }
     };
 
@@ -75,7 +75,7 @@ export default function EarthworkInputSection({ projectId, utilization, nearby_e
         const updated = { ...data, [key]: value };
         setData(updated);
         latestDataRef.current = updated;
-    
+
         if (onEarthWorkInputChange) {
             onEarthWorkInputChange({
                 is_sunta: updated.is_sunta
@@ -140,9 +140,9 @@ export default function EarthworkInputSection({ projectId, utilization, nearby_e
         const supportMethod = data.support_method;
         if (supportMethod) {
             const supportDays = {
-            "어스앵커": Number(utilData?.support_earth_anchor),
-            "레이커": Number(utilData?.support_raker),
-            "스트럿": Number(utilData?.support_strut),
+                "어스앵커": Number(utilData?.support_earth_anchor),
+                "레이커": Number(utilData?.support_raker),
+                "스트럿": Number(utilData?.support_strut),
             };
             const calendarDay2 = supportDays[supportMethod] || 0;
             const workingDay2 = Math.round(calendarDay2 * (safeUtilization / 100));
@@ -169,8 +169,8 @@ export default function EarthworkInputSection({ projectId, utilization, nearby_e
 
         // Working Day = (전체토사량 / (투입조 × 생산성)) × (직상차비율×직상차계수 + 크람쉘비율×크람쉘계수)
         const workingDay3 = Math.round(
-        (soilVolume / (soilCrew * productivitySoil)) *
-        (directRatio * haulDirect + cramRatio * haulCram)
+            (soilVolume / (soilCrew * productivitySoil)) *
+            (directRatio * haulDirect + cramRatio * haulCram)
         );
 
         // Calendar Day = Working Day × (100 / 가동률)
@@ -193,8 +193,8 @@ export default function EarthworkInputSection({ projectId, utilization, nearby_e
 
         // Working Day = (전체풍화암량 / (조수 × 생산성)) × (직상차비율×직상차계수 + 크람쉘비율×크람쉘계수)
         const workingDayWeathered = Math.round(
-        (weatheredVolume / (weatheredCrew * productivityWeathered)) *
-        (directRatioW * haulDirect + cramRatioW * haulCram)
+            (weatheredVolume / (weatheredCrew * productivityWeathered)) *
+            (directRatioW * haulDirect + cramRatioW * haulCram)
         );
 
         // Calendar Day = Working Day × (100 / 가동률)
@@ -208,7 +208,7 @@ export default function EarthworkInputSection({ projectId, utilization, nearby_e
         // 연암 (Soft Rock) 계산
 
         const soft_rockVolume =
-        Number(data.total_earth_volume) * ((Number(data.soft_rock_ratio) || 0) / 100) || 0; // 전체 연암량 (㎥)
+            Number(data.total_earth_volume) * ((Number(data.soft_rock_ratio) || 0) / 100) || 0; // 전체 연암량 (㎥)
         const soft_rockCrew = Math.max(Number(data.softrock_crew_actual) || 1, 1); // 투입 조 (최소 1조)
 
         // 발파공법 비율 (% → 소수)
@@ -225,19 +225,19 @@ export default function EarthworkInputSection({ projectId, utilization, nearby_e
 
         // 가중평균 생산성
         const soft_weightedProd =
-        soft_vibRatio * soft_prodVib +
-        soft_preRatio * soft_prodPre +
-        soft_smallRatio * soft_prodSmall +
-        soft_medRatio * soft_prodMed;
+            soft_vibRatio * soft_prodVib +
+            soft_preRatio * soft_prodPre +
+            soft_smallRatio * soft_prodSmall +
+            soft_medRatio * soft_prodMed;
 
         // 계산
         const workingDaySoftRock = Math.round(
-        (soft_rockVolume / (soft_rockCrew * soft_weightedProd)) *
-        (directRatio * haulDirect + cramRatio * haulCram)
+            (soft_rockVolume / (soft_rockCrew * soft_weightedProd)) *
+            (directRatio * haulDirect + cramRatio * haulCram)
         );
 
         const calendarDaySoftRock = Math.round(
-        workingDaySoftRock * (100 / safeUtilization)
+            workingDaySoftRock * (100 / safeUtilization)
         );
 
         // 상태 저장
@@ -248,7 +248,7 @@ export default function EarthworkInputSection({ projectId, utilization, nearby_e
         // 경암 (Hard Rock) 계산
 
         const hard_rockVolume =
-        Number(data.total_earth_volume) * ((Number(data.hard_rock_ratio) || 0) / 100) || 0; // 전체 연암량 (㎥)
+            Number(data.total_earth_volume) * ((Number(data.hard_rock_ratio) || 0) / 100) || 0; // 전체 연암량 (㎥)
         const hard_rockCrew = Math.max(Number(data.hardrock_crew_actual) || 1, 1); // 투입 조 (최소 1조)
 
         // 발파공법 비율 (% → 소수)
@@ -265,19 +265,19 @@ export default function EarthworkInputSection({ projectId, utilization, nearby_e
 
         // 가중평균 생산성
         const hard_weightedProd =
-        hard_vibRatio * hard_prodVib +
-        hard_preRatio * hard_prodPre +
-        hard_smallRatio * hard_prodSmall +
-        hard_medRatio * hard_prodMed;
+            hard_vibRatio * hard_prodVib +
+            hard_preRatio * hard_prodPre +
+            hard_smallRatio * hard_prodSmall +
+            hard_medRatio * hard_prodMed;
 
         // 계산
         const workingDayHardRock = Math.round(
-        (hard_rockVolume / (hard_rockCrew * hard_weightedProd)) *
-        (directRatio * haulDirect + cramRatio * haulCram)
+            (hard_rockVolume / (hard_rockCrew * hard_weightedProd)) *
+            (directRatio * haulDirect + cramRatio * haulCram)
         );
 
         const calendarDayHardRock = Math.round(
-        workingDayHardRock * (100 / safeUtilization)
+            workingDayHardRock * (100 / safeUtilization)
         );
 
         // 상태 저장
@@ -291,25 +291,25 @@ export default function EarthworkInputSection({ projectId, utilization, nearby_e
         const designated_work_unit = Number(data.designated_work_unit) || 0; // 공수
         const designated_drilling_depth = Number(data.designated_drilling_depth) || 0; // 천공 심도 (m)
         const designated_diameter = String(
-        parseInt(data.designated_diameter) || ""
+            parseInt(data.designated_diameter) || ""
         );
         const designated_crew = Math.max(Number(data.designated_crew) || 1, 1); // 투입 조 (최소 1조)
 
         // 직경별 생산성 (utilData)
         const designated_rcd_prod = {
-        "1500": Number(utilData?.rcd_1500) || 0,
-        "1800": Number(utilData?.rcd_1800) || 0,
-        "2000": Number(utilData?.rcd_2000) || 0,
-        "2500": Number(utilData?.rcd_2500) || 0,
-        "3000": Number(utilData?.rcd_3000) || 0,
+            "1500": Number(utilData?.rcd_1500) || 0,
+            "1800": Number(utilData?.rcd_1800) || 0,
+            "2000": Number(utilData?.rcd_2000) || 0,
+            "2500": Number(utilData?.rcd_2500) || 0,
+            "3000": Number(utilData?.rcd_3000) || 0,
         };
 
         const designated_prd_prod = {
-        "600": Number(utilData?.prd_600) || 0,
-        "750": Number(utilData?.prd_750) || 0,
-        "900": Number(utilData?.prd_900) || 0,
-        "1000": Number(utilData?.prd_1000) || 0,
-        "1500": Number(utilData?.prd_1500) || 0,
+            "600": Number(utilData?.prd_600) || 0,
+            "750": Number(utilData?.prd_750) || 0,
+            "900": Number(utilData?.prd_900) || 0,
+            "1000": Number(utilData?.prd_1000) || 0,
+            "1500": Number(utilData?.prd_1500) || 0,
         };
 
 
@@ -318,26 +318,26 @@ export default function EarthworkInputSection({ projectId, utilization, nearby_e
         let designated_working_day = 0;
 
         if (designated_method === "RCD") {
-        const prod = designated_rcd_prod[designated_diameter] || 1;
-        designated_working_day =
-            (designated_work_unit * designated_drilling_depth) /
-            (designated_crew * prod);
+            const prod = designated_rcd_prod[designated_diameter] || 1;
+            designated_working_day =
+                (designated_work_unit * designated_drilling_depth) /
+                (designated_crew * prod);
         } else if (designated_method === "PRD") {
-        const prod = designated_prd_prod[designated_diameter] || 1;
-        designated_working_day =
-            (designated_work_unit * designated_drilling_depth) /
-            (designated_crew * prod);
+            const prod = designated_prd_prod[designated_diameter] || 1;
+            designated_working_day =
+                (designated_work_unit * designated_drilling_depth) /
+                (designated_crew * prod);
         } else if (
-        ["PHC-Pile", "지내력 기초"].includes(designated_method)
+            ["PHC-Pile", "지내력 기초"].includes(designated_method)
         ) {
-        designated_working_day = 30; // 기타 공법 고정 30일
+            designated_working_day = 30; // 기타 공법 고정 30일
         } else {
-        designated_working_day = 0;
+            designated_working_day = 0;
         }
 
         // Calendar Day = Working Day × (100 / 가동률)
         const designated_calendar_day = Math.round(
-        designated_working_day * (100 / safeUtilization)
+            designated_working_day * (100 / safeUtilization)
         );
 
         setDesignatedWorkingDay(Math.round(designated_working_day));
@@ -367,12 +367,12 @@ export default function EarthworkInputSection({ projectId, utilization, nearby_e
         // 수동입력이 비활성화된 경우에만 자동 적용
         if (!data.is_surcharge) {
             setData((prev) => ({
-            ...prev,
-            surcharge_ratio: autoSurcharge,
+                ...prev,
+                surcharge_ratio: autoSurcharge,
             }));
             latestDataRef.current = {
-            ...latestDataRef.current,
-            surcharge_ratio: autoSurcharge,
+                ...latestDataRef.current,
+                surcharge_ratio: autoSurcharge,
             };
         }
     }, [nearby_env, data.is_surcharge, utilData]);
@@ -423,7 +423,7 @@ export default function EarthworkInputSection({ projectId, utilization, nearby_e
             total_working_day: totalWork,
             total_calendar_day: totalCal,
         });
-        }, [
+    }, [
         data.is_sunta,
         data.parallel_retention,
         data.parallel_support,
@@ -438,455 +438,510 @@ export default function EarthworkInputSection({ projectId, utilization, nearby_e
         desighnatedWorkingDay,
     ]);
 
-    // 갑지 모델에 날짜 update
+    // 갑지 모델에 날짜 update (병행률/할증률 적용 값)
     useEffect(() => {
-    if (loading || !projectId) return;
-    if (
-        earthRetentionCalendarDay === null ||
-        earthsupportCalendarDay === null ||
-        earthsoilCalendarDay === null ||
-        desighnatedCalendarDay === null
-    ) return;
+        if (loading || !projectId) return;
+        if (!data) return;
 
-    const payload = {
-        earth_retention: earthRetentionCalendarDay,
-        support: earthsupportCalendarDay,
-        excavation: earthsoilCalendarDay,
-        designated_work: desighnatedCalendarDay,
-    };
+        const util = Number(utilization) || 100;
+        const surcharge = data.is_surcharge ? 1 + (Number(data.surcharge_ratio) || 0) / 100 : 1;
 
-    if (JSON.stringify(lastQuotationPayloadRef.current) !== JSON.stringify(payload)) {
-        lastQuotationPayloadRef.current = payload;
-        updateQuotation(projectId, payload)
-            .catch((err) => console.error("Quotation update failed:", err));
-    }
+        // 병행률과 할증률을 적용한 Calendar Day 계산
+        const retentionWork = Math.round(
+            (earthRetentionWorkingDay || 0) *
+            ((Number(data.parallel_retention) || 100) / 100) *
+            surcharge
+        );
+        const retentionCal = Math.round(retentionWork * (100 / util));
 
+        const supportWork = Math.round(
+            (earthsupportWorkingDay || 0) *
+            ((Number(data.parallel_support) || 100) / 100) *
+            surcharge
+        );
+        const supportCal = Math.round(supportWork * (100 / util));
+
+        const excavationWork = Math.round(
+            (earthsoilWorkingDay || 0) *
+            ((Number(data.parallel_excavation) || 100) / 100) *
+            surcharge
+        );
+        const excavationCal = Math.round(excavationWork * (100 / util));
+
+        const designatedWork = Math.round(
+            (desighnatedWorkingDay || 0) *
+            ((Number(data.parallel_designated) || 100) / 100) *
+            surcharge
+        );
+        const designatedCal = Math.round(designatedWork * (100 / util));
+
+        const payload = {
+            earth_retention: retentionCal ?? 0,
+            support: supportCal ?? 0,
+            excavation: excavationCal ?? 0,
+            designated_work: designatedCal ?? 0,
+        };
+
+        if (JSON.stringify(lastQuotationPayloadRef.current) !== JSON.stringify(payload)) {
+            console.log('[토공사] Quotation 업데이트 (병행률/할증률 적용):', payload);
+            lastQuotationPayloadRef.current = payload;
+
+            if (onSavingChange) onSavingChange(true);
+
+            // Debounce 처리
+            const timer = setTimeout(() => {
+                updateQuotation(projectId, payload)
+                    .then(() => console.log('[토공사] Quotation 저장 완료'))
+                    .catch((err) => console.error('[토공사] Quotation 저장 실패:', err))
+                    .finally(() => {
+                        if (onSavingChange) onSavingChange(false);
+                    });
+            }, 1500); // 1.5초 디바운스
+
+            return () => clearTimeout(timer);
+        }
     }, [
-    loading,
-    projectId,
-    earthRetentionCalendarDay,
-    earthsupportCalendarDay,
-    earthsoilCalendarDay,
-    desighnatedCalendarDay,
+        loading,
+        projectId,
+        utilization,
+        data.parallel_retention,
+        data.parallel_support,
+        data.parallel_excavation,
+        data.parallel_designated,
+        data.is_surcharge,
+        data.surcharge_ratio,
+        earthRetentionWorkingDay,
+        earthsupportWorkingDay,
+        earthsoilWorkingDay,
+        desighnatedWorkingDay,
     ]);
     // 공통 카드 렌더러
     const renderTable = (title, headers, rows, keys, defaultOpen = false) => (
-    <AccordionSection title={title} meta={headers[1]} defaultOpen={defaultOpen}>
-        <div className="p-3">
-        <DataTable
-            columns={[
-            { key: "label", label: headers[0] },
-            { key: "value", label: headers[1], editable: true },
-            ]}
-            rows={rows}
-            onChange={(i, k, v) => {
-            const row = rows[i];
+        <AccordionSection title={title} meta={headers[1]} defaultOpen={defaultOpen}>
+            <div className="p-3">
+                <DataTable
+                    columns={[
+                        { key: "label", label: headers[0] },
+                        { key: "value", label: headers[1], editable: true },
+                    ]}
+                    rows={rows}
+                    onChange={(i, k, v) => {
+                        const row = rows[i];
 
-            // manual 타입일 때 key 매핑 다르게 처리
-            if (row.type === "manual") {
-                const targetKey = k === "value" ? keys[1] : keys[0];
-                handleChange(targetKey, v);
-            } else {
-                handleChange(keys[i], v);
-            }
-            }}
-            onAutoSave={() => onAutoSave(latestDataRef.current)}
-        />
-        </div>
-    </AccordionSection>
+                        // manual 타입일 때 key 매핑 다르게 처리
+                        if (row.type === "manual") {
+                            const targetKey = k === "value" ? keys[1] : keys[0];
+                            handleChange(targetKey, v);
+                        } else {
+                            handleChange(keys[i], v);
+                        }
+                    }}
+                    onAutoSave={() => onAutoSave(latestDataRef.current)}
+                />
+            </div>
+        </AccordionSection>
     );
 
 
     // 모든 분류별 데이터 구성
     const tableData = [
         {
-        title: "굴착공법",
-        headers: ["항목", "입력값"],
-        keys: ["is_sunta", "reverse_excavation_months"],
-        rows: [
-            {
-            label: "순타 여부",
-            value: data.is_sunta,
-            type: "radio",
-            options: [
-                { label: "순타", value: true },
-                { label: "역타", value: false },
-            ],
-            },
-            {
-            label: "역타 공법",
-            value: data.is_sunta ? "역타 선택 시 활성화" : data.reverse_excavation_months,
-            type: data.is_sunta ? "readonly" : "select",
-            options: ["Down-Up", "Up-Up", "Semi Top Down", "D-WALL", "Top-Down"],
-            
-            },
-        ],
-        },
-        {
-        title: "흙막이가시설",
-        headers: ["항목", "입력값"],
-        keys: [
-            "earth_retention_method",
-            "retention_perimeter_length",
-            "drilling_depth",
-            "crew_count",
-            "special_retention_extra_days",
-        ],
-        rows: [
-            {
-            label: "흙막이 공법",
-            value: data.earth_retention_method,
-            type: "select",
-            options: ["CIP", "Slurry Wall", "Sheet Pile", "D-WALL", "H-PILE+토류판"],
-            },
-            { label: "외곽 길이", value: data.retention_perimeter_length, unit: "m" },
-            { label: "천공 심도", value: data.drilling_depth, unit: "m" },
-            { label: "투입 조(장비)", value: data.crew_count, unit: "조" },
-            {
-            label: "특수 흙막이 추가 작업일수",
-            value: data.special_retention_extra_days,
-            unit: "일",
-            },
+            title: "굴착공법",
+            headers: ["항목", "입력값"],
+            keys: ["is_sunta", "reverse_excavation_months"],
+            rows: [
+                {
+                    label: "순타 여부",
+                    value: data.is_sunta,
+                    type: "radio",
+                    options: [
+                        { label: "순타", value: true },
+                        { label: "역타", value: false },
+                    ],
+                },
+                {
+                    label: "역타 공법",
+                    value: data.is_sunta ? "역타 선택 시 활성화" : data.reverse_excavation_months,
+                    type: data.is_sunta ? "readonly" : "select",
+                    options: ["Down-Up", "Up-Up", "Semi Top Down", "D-WALL", "Top-Down"],
 
-            {
-            label: "WORKING DAY",
-            value: earthRetentionWorkingDay ?? "—",
-            type: "readonly", 
-            unit: "일",
-            },
-            {
-            label: "CALENDAR DAY",
-            value: earthRetentionCalendarDay ?? "—",
-            type: "readonly",
-            unit: "일",
-            },
-        ],
+                },
+            ],
         },
         {
-        title: "지보공",
-        headers: ["항목", "입력값"],
-        keys: ["support_method"],
-        rows: [
-            {
-            label: "지보공 공법",
-            value: data.is_sunta ? data.support_method : "순타 시 활성화",
-            type: data.is_sunta ? "select" : "readonly",
-            options: ["레이커", "어스앵커", "스트럿"],
-            },
-            {
-            label: "WORKING DAY",
-            value: data.is_sunta ? earthsupportWorkingDay ?? "—" : "순타 시 활성화",
-            type: "readonly", 
-            unit: "일",
-            },
-            {
-            label: "CALENDAR DAY",
-            value: data.is_sunta ? earthsupportCalendarDay ?? "—" : "순타 시 활성화",
-            type: "readonly",
-            unit: "일",
-            },
-        ],
+            title: "흙막이가시설",
+            headers: ["항목", "입력값"],
+            keys: [
+                "earth_retention_method",
+                "retention_perimeter_length",
+                "drilling_depth",
+                "crew_count",
+                "special_retention_extra_days",
+            ],
+            rows: [
+                {
+                    label: "흙막이 공법",
+                    value: data.earth_retention_method,
+                    type: "select",
+                    options: ["CIP", "Slurry Wall", "Sheet Pile", "D-WALL", "H-PILE+토류판"],
+                },
+                { label: "외곽 길이", value: data.retention_perimeter_length, unit: "m" },
+                { label: "천공 심도", value: data.drilling_depth, unit: "m" },
+                { label: "투입 조(장비)", value: data.crew_count, unit: "조" },
+                {
+                    label: "특수 흙막이 추가 작업일수",
+                    value: data.special_retention_extra_days,
+                    unit: "일",
+                },
+
+                {
+                    label: "WORKING DAY",
+                    value: earthRetentionWorkingDay ?? "—",
+                    type: "readonly",
+                    unit: "일",
+                },
+                {
+                    label: "CALENDAR DAY",
+                    value: earthRetentionCalendarDay ?? "—",
+                    type: "readonly",
+                    unit: "일",
+                },
+            ],
         },
         {
-        title: "토질 성상",
-        headers: ["항목", "입력값"],
-        keys: [
-            "total_earth_volume",
-            "soil_ratio",
-            "weathered_ratio",
-            "soft_rock_ratio",
-            "hard_rock_ratio",
-        ],
-        rows: [
-            { label: "전체 토사량", value: data.total_earth_volume, unit: "㎥" },
-            { label: "토사 비율", value: data.soil_ratio, unit: `% → ${data.total_earth_volume * (data.soil_ratio/100)}㎥` },
-            { label: "풍화암 비율", value: data.weathered_ratio, unit: `% → ${data.total_earth_volume * (data.weathered_ratio/100)}㎥`  },
-            { label: "연암 비율", value: data.soft_rock_ratio, unit: `% → ${data.total_earth_volume * (data.soft_rock_ratio/100)}㎥`  },
-            { label: "경암 비율", value: data.hard_rock_ratio, unit: `% → ${data.total_earth_volume * (data.hard_rock_ratio/100)}㎥`  },
-        ],
+            title: "지보공",
+            headers: ["항목", "입력값"],
+            keys: ["support_method"],
+            rows: [
+                {
+                    label: "지보공 공법",
+                    value: data.is_sunta ? data.support_method : "순타 시 활성화",
+                    type: data.is_sunta ? "select" : "readonly",
+                    options: ["레이커", "어스앵커", "스트럿"],
+                },
+                {
+                    label: "WORKING DAY",
+                    value: data.is_sunta ? earthsupportWorkingDay ?? "—" : "순타 시 활성화",
+                    type: "readonly",
+                    unit: "일",
+                },
+                {
+                    label: "CALENDAR DAY",
+                    value: data.is_sunta ? earthsupportCalendarDay ?? "—" : "순타 시 활성화",
+                    type: "readonly",
+                    unit: "일",
+                },
+            ],
+        },
+        {
+            title: "토질 성상",
+            headers: ["항목", "입력값"],
+            keys: [
+                "total_earth_volume",
+                "soil_ratio",
+                "weathered_ratio",
+                "soft_rock_ratio",
+                "hard_rock_ratio",
+            ],
+            rows: [
+                { label: "전체 토사량", value: data.total_earth_volume, unit: "㎥" },
+                { label: "토사 비율", value: data.soil_ratio, unit: `% → ${data.total_earth_volume * (data.soil_ratio / 100)}㎥` },
+                { label: "풍화암 비율", value: data.weathered_ratio, unit: `% → ${data.total_earth_volume * (data.weathered_ratio / 100)}㎥` },
+                { label: "연암 비율", value: data.soft_rock_ratio, unit: `% → ${data.total_earth_volume * (data.soft_rock_ratio / 100)}㎥` },
+                { label: "경암 비율", value: data.hard_rock_ratio, unit: `% → ${data.total_earth_volume * (data.hard_rock_ratio / 100)}㎥` },
+            ],
         },
         // 터파기 - 토사
         {
-        title: "터파기 (토사)",
-        headers: ["항목", "입력값"],
-        keys: ["soil_direct_ratio", "soil_cram_ratio", "soil_crew_actual"],
-        rows: [
-            { label: "직상차 비율", value: data.soil_direct_ratio, unit: "%" },
-            { label: "크람쉘 비율", value: data.soil_cram_ratio, unit: "%" },
-            { label: "실제 투입조", value: data.soil_crew_actual, unit: "조" },
-            { label: "WORKING DAY",
-                value: earthsoilWorkingDay ?? "-",
-                type: "readonly", 
-                unit: "일",
-            },//earthsoilWorkingDay
-            { label: "CALENDAR DAY",
-                value: earthsoilCalendarDay ?? "-",
-                type: "readonly", 
-                unit: "일",
-            },//earthsoilWorkingDay
-        ],
+            title: "터파기 (토사)",
+            headers: ["항목", "입력값"],
+            keys: ["soil_direct_ratio", "soil_cram_ratio", "soil_crew_actual"],
+            rows: [
+                { label: "직상차 비율", value: data.soil_direct_ratio, unit: "%" },
+                { label: "크람쉘 비율", value: data.soil_cram_ratio, unit: "%" },
+                { label: "실제 투입조", value: data.soil_crew_actual, unit: "조" },
+                {
+                    label: "WORKING DAY",
+                    value: earthsoilWorkingDay ?? "-",
+                    type: "readonly",
+                    unit: "일",
+                },//earthsoilWorkingDay
+                {
+                    label: "CALENDAR DAY",
+                    value: earthsoilCalendarDay ?? "-",
+                    type: "readonly",
+                    unit: "일",
+                },//earthsoilWorkingDay
+            ],
         },
         // 터파기 - 풍화암
         {
-        title: "터파기 (풍화암)",
-        headers: ["항목", "입력값"],
-        keys: [
-            "weathered_direct_ratio",
-            "weathered_cram_ratio",
-            "weathered_crew_actual",
-        ],
-        rows: [
-            { label: "직상차 비율", value: data.weathered_direct_ratio, unit: "%" },
-            { label: "크람쉘 비율", value: data.weathered_cram_ratio, unit: "%" },
-            { label: "실제 투입조", value: data.weathered_crew_actual, unit: "조" },
-            { label: "WORKING DAY",
-                value: weatheredWorkingDay ?? "-",
-                type: "readonly", 
-                unit: "일",
-            },
-            { label: "CALENDAR DAY",
-                value: weatheredCalendarDay ?? "-",
-                type: "readonly", 
-                unit: "일",
-            },
-        ],
+            title: "터파기 (풍화암)",
+            headers: ["항목", "입력값"],
+            keys: [
+                "weathered_direct_ratio",
+                "weathered_cram_ratio",
+                "weathered_crew_actual",
+            ],
+            rows: [
+                { label: "직상차 비율", value: data.weathered_direct_ratio, unit: "%" },
+                { label: "크람쉘 비율", value: data.weathered_cram_ratio, unit: "%" },
+                { label: "실제 투입조", value: data.weathered_crew_actual, unit: "조" },
+                {
+                    label: "WORKING DAY",
+                    value: weatheredWorkingDay ?? "-",
+                    type: "readonly",
+                    unit: "일",
+                },
+                {
+                    label: "CALENDAR DAY",
+                    value: weatheredCalendarDay ?? "-",
+                    type: "readonly",
+                    unit: "일",
+                },
+            ],
         },
         // 터파기 - 연암
         {
-        title: "터파기 (연암)",
-        headers: ["항목", "입력값"],
-        keys: [
-            "softrock_vibration_ratio",
-            "softrock_precision_ratio",
-            "softrock_small_ratio",
-            "softrock_medium_ratio",
-            "softrock_direct_ratio",
-            "softrock_cram_ratio",
-            "softrock_crew_actual",
-        ],
-        rows: [
-            { label: "미진동 비율", value: data.softrock_vibration_ratio, unit: "%" },
-            { label: "정밀제어 비율", value: data.softrock_precision_ratio, unit: "%" },
-            { label: "소규모 비율", value: data.softrock_small_ratio, unit: "%" },
-            { label: "중규모 비율", value: data.softrock_medium_ratio, unit: "%" },
-            { label: "직상차 비율", value: data.softrock_direct_ratio, unit: "%" },
-            { label: "크람쉘 비율", value: data.softrock_cram_ratio, unit: "%" },
-            { label: "실제 투입조", value: data.softrock_crew_actual, unit: "조" },
-            { label: "WORKING DAY",
-                value: softrockWorkingDay ?? "-",
-                type: "readonly", 
-                unit: "일",
-            },
-            { label: "CALENDAR DAY",
-                value: softrockCalendarDay ?? "-",
-                type: "readonly", 
-                unit: "일",
-            },
-        ],
+            title: "터파기 (연암)",
+            headers: ["항목", "입력값"],
+            keys: [
+                "softrock_vibration_ratio",
+                "softrock_precision_ratio",
+                "softrock_small_ratio",
+                "softrock_medium_ratio",
+                "softrock_direct_ratio",
+                "softrock_cram_ratio",
+                "softrock_crew_actual",
+            ],
+            rows: [
+                { label: "미진동 비율", value: data.softrock_vibration_ratio, unit: "%" },
+                { label: "정밀제어 비율", value: data.softrock_precision_ratio, unit: "%" },
+                { label: "소규모 비율", value: data.softrock_small_ratio, unit: "%" },
+                { label: "중규모 비율", value: data.softrock_medium_ratio, unit: "%" },
+                { label: "직상차 비율", value: data.softrock_direct_ratio, unit: "%" },
+                { label: "크람쉘 비율", value: data.softrock_cram_ratio, unit: "%" },
+                { label: "실제 투입조", value: data.softrock_crew_actual, unit: "조" },
+                {
+                    label: "WORKING DAY",
+                    value: softrockWorkingDay ?? "-",
+                    type: "readonly",
+                    unit: "일",
+                },
+                {
+                    label: "CALENDAR DAY",
+                    value: softrockCalendarDay ?? "-",
+                    type: "readonly",
+                    unit: "일",
+                },
+            ],
         },
         // 터파기 - 경암
         {
-        title: "터파기 (경암)",
-        headers: ["항목", "입력값"],
-        keys: [
-            "hardrock_vibration_ratio",
-            "hardrock_precision_ratio",
-            "hardrock_small_ratio",
-            "hardrock_medium_ratio",
-            "hardrock_direct_ratio",
-            "hardrock_cram_ratio",
-            "hardrock_crew_actual",
-        ],
-        rows: [
-            { label: "미진동 비율", value: data.hardrock_vibration_ratio, unit: "%" },
-            { label: "정밀제어 비율", value: data.hardrock_precision_ratio, unit: "%" },
-            { label: "소규모 비율", value: data.hardrock_small_ratio, unit: "%" },
-            { label: "중규모 비율", value: data.hardrock_medium_ratio, unit: "%" },
-            { label: "직상차 비율", value: data.hardrock_direct_ratio, unit: "%" },
-            { label: "크람쉘 비율", value: data.hardrock_cram_ratio, unit: "%" },
-            { label: "실제 투입조", value: data.hardrock_crew_actual, unit: "조" },
-            { label: "WORKING DAY",
-                value: hardrockWorkingDay ?? "-",
-                type: "readonly", 
-                unit: "일",
-            },
-            { label: "CALENDAR DAY",
-                value: hardrockCalendarDay ?? "-",
-                type: "readonly", 
-                unit: "일",
-            },
-        ],
+            title: "터파기 (경암)",
+            headers: ["항목", "입력값"],
+            keys: [
+                "hardrock_vibration_ratio",
+                "hardrock_precision_ratio",
+                "hardrock_small_ratio",
+                "hardrock_medium_ratio",
+                "hardrock_direct_ratio",
+                "hardrock_cram_ratio",
+                "hardrock_crew_actual",
+            ],
+            rows: [
+                { label: "미진동 비율", value: data.hardrock_vibration_ratio, unit: "%" },
+                { label: "정밀제어 비율", value: data.hardrock_precision_ratio, unit: "%" },
+                { label: "소규모 비율", value: data.hardrock_small_ratio, unit: "%" },
+                { label: "중규모 비율", value: data.hardrock_medium_ratio, unit: "%" },
+                { label: "직상차 비율", value: data.hardrock_direct_ratio, unit: "%" },
+                { label: "크람쉘 비율", value: data.hardrock_cram_ratio, unit: "%" },
+                { label: "실제 투입조", value: data.hardrock_crew_actual, unit: "조" },
+                {
+                    label: "WORKING DAY",
+                    value: hardrockWorkingDay ?? "-",
+                    type: "readonly",
+                    unit: "일",
+                },
+                {
+                    label: "CALENDAR DAY",
+                    value: hardrockCalendarDay ?? "-",
+                    type: "readonly",
+                    unit: "일",
+                },
+            ],
         },
         // 지정공사
         {
-        title: "지정공사",
-        headers: ["항목", "입력값"],
-        keys: [
-            "designated_method",
-            "designated_work_unit",
-            "designated_drilling_depth",
-            "designated_diameter",
-            "designated_crew",
-        ],
-        rows: [
-            {
-            label: "지정 공법",
-            value: data.designated_method,
-            type: "select",
-            options: ["RCD", "PRD", "PHC-Pile", "지내력 기초"],
-            },
-            { label: "공수", value: data.designated_work_unit, unit: "공" },
-            { label: "천공 심도", value: data.designated_drilling_depth, unit: "m" },
-            {
-            label: "직경",
-            value: data.designated_diameter,
-            type:
-                data.designated_method === "RCD"
-                ? "select"
-                : data.designated_method === "PRD"
-                ? "select"
-                : "readonly",
-            options:
-                data.designated_method === "RCD"
-                ? ["1500", "1800", "2000", "2500", "3000"]
-                : data.designated_method === "PRD"
-                ? ["600", "750", "900", "1000", "1500"]
-                : [],
-            unit: data.designated_method === "RCD" || data.designated_method === "PRD" ? "mm" : undefined,
-            },
-            { label: "투입 조(장비)", value: data.designated_crew, unit: "조" },
-            { label: "WORKING DAY",
-                value: desighnatedWorkingDay ?? "-",
-                type: "readonly", 
-                unit: "일",
-            },
-            { label: "CALENDAR DAY",
-                value: desighnatedCalendarDay ?? "-",
-                type: "readonly", 
-                unit: "일",
-            },
-        ],
+            title: "지정공사",
+            headers: ["항목", "입력값"],
+            keys: [
+                "designated_method",
+                "designated_work_unit",
+                "designated_drilling_depth",
+                "designated_diameter",
+                "designated_crew",
+            ],
+            rows: [
+                {
+                    label: "지정 공법",
+                    value: data.designated_method,
+                    type: "select",
+                    options: ["RCD", "PRD", "PHC-Pile", "지내력 기초"],
+                },
+                { label: "공수", value: data.designated_work_unit, unit: "공" },
+                { label: "천공 심도", value: data.designated_drilling_depth, unit: "m" },
+                {
+                    label: "직경",
+                    value: data.designated_diameter,
+                    type:
+                        data.designated_method === "RCD"
+                            ? "select"
+                            : data.designated_method === "PRD"
+                                ? "select"
+                                : "readonly",
+                    options:
+                        data.designated_method === "RCD"
+                            ? ["1500", "1800", "2000", "2500", "3000"]
+                            : data.designated_method === "PRD"
+                                ? ["600", "750", "900", "1000", "1500"]
+                                : [],
+                    unit: data.designated_method === "RCD" || data.designated_method === "PRD" ? "mm" : undefined,
+                },
+                { label: "투입 조(장비)", value: data.designated_crew, unit: "조" },
+                {
+                    label: "WORKING DAY",
+                    value: desighnatedWorkingDay ?? "-",
+                    type: "readonly",
+                    unit: "일",
+                },
+                {
+                    label: "CALENDAR DAY",
+                    value: desighnatedCalendarDay ?? "-",
+                    type: "readonly",
+                    unit: "일",
+                },
+            ],
         },
-        
+
         // 할증
         {
-        title: "할증",
-        headers: ["항목", "입력값"],
-        keys: ["is_surcharge", "surcharge_ratio"],
-        rows: [
+            title: "할증",
+            headers: ["항목", "입력값"],
+            keys: ["is_surcharge", "surcharge_ratio"],
+            rows: [
                 {
-                label: "주변현황",
-                type: "readonly",
-                value: nearby_env
+                    label: "주변현황",
+                    type: "readonly",
+                    value: nearby_env
                 },
                 {
-                label: "할증 적용 여부(%)",
-                type: "manual",
-                value: data.surcharge_ratio,
-                manualFlags: {
-                    is_surcharge: data.is_surcharge,
-                },
+                    label: "할증 적용 여부(%)",
+                    type: "manual",
+                    value: data.surcharge_ratio,
+                    manualFlags: {
+                        is_surcharge: data.is_surcharge,
+                    },
                 }
-        ],
+            ],
         },
         // 병행률
         {
-        title: "병행률",
-        headers: ["항목", "입력값"],
-        keys: [
-            "parallel_retention",
-            "parallel_support",
-            "parallel_excavation",
-            "parallel_designated",
-        ],
-        rows: [
-        {
-            label: "흙막이가시설",
-            value: data.parallel_retention,
-            unit: `%  → WorkDay: ${Math.round(
-            earthRetentionWorkingDay *
-                ((Number(data.parallel_retention) || 100) / 100) *
-                (data.is_surcharge
-                ? 1 + (Number(data.surcharge_ratio) || 0) / 100
-                : 1)
-            )}일, CalDay: ${Math.round(
-            (earthRetentionWorkingDay *
-                ((Number(data.parallel_retention) || 100) / 100) *
-                (data.is_surcharge
-                ? 1 + (Number(data.surcharge_ratio) || 0) / 100
-                : 1)) *
-                (100 / (Number(utilization) || 100))
-            )}일`,
-        },
-        {
-            label: "지보공",
-            value: data.parallel_support,
-            unit: `% → WorkDay: ${Math.round(
-            earthsupportWorkingDay *
-                ((Number(data.parallel_support) || 100) / 100) *
-                (data.is_surcharge
-                ? 1 + (Number(data.surcharge_ratio) || 0) / 100
-                : 1)
-            )}일, CalDay: ${Math.round(
-            (earthsupportWorkingDay *
-                ((Number(data.parallel_support) || 100) / 100) *
-                (data.is_surcharge
-                ? 1 + (Number(data.surcharge_ratio) || 0) / 100
-                : 1)) *
-                (100 / (Number(utilization) || 100))
-            )}일`,
-        },
-        {
-            label: "터파기",
-            value: data.parallel_excavation,
-            unit: `% → WorkDay: ${Math.round(
-            earthsoilWorkingDay *
-                ((Number(data.parallel_excavation) || 100) / 100) *
-                (data.is_surcharge
-                ? 1 + (Number(data.surcharge_ratio) || 0) / 100
-                : 1)
-            )}일, CalDay: ${Math.round(
-            (earthsoilWorkingDay *
-                ((Number(data.parallel_excavation) || 100) / 100) *
-                (data.is_surcharge
-                ? 1 + (Number(data.surcharge_ratio) || 0) / 100
-                : 1)) *
-                (100 / (Number(utilization) || 100))
-            )}일`,
-        },
-        {
-            label: "지정공사",
-            value: data.parallel_designated,
-            unit: `% → WorkDay: ${Math.round(
-            desighnatedWorkingDay *
-                ((Number(data.parallel_designated) || 100) / 100) *
-                (data.is_surcharge
-                ? 1 + (Number(data.surcharge_ratio) || 0) / 100
-                : 1)
-            )}일, CalDay: ${Math.round(
-            (desighnatedWorkingDay *
-                ((Number(data.parallel_designated) || 100) / 100) *
-                (data.is_surcharge
-                ? 1 + (Number(data.surcharge_ratio) || 0) / 100
-                : 1)) *
-                (100 / (Number(utilization) || 100))
-            )}일`,
-        },
-        ],
+            title: "병행률",
+            headers: ["항목", "입력값"],
+            keys: [
+                "parallel_retention",
+                "parallel_support",
+                "parallel_excavation",
+                "parallel_designated",
+            ],
+            rows: [
+                {
+                    label: "흙막이가시설",
+                    value: data.parallel_retention,
+                    unit: `%  → WorkDay: ${Math.round(
+                        earthRetentionWorkingDay *
+                        ((Number(data.parallel_retention) || 100) / 100) *
+                        (data.is_surcharge
+                            ? 1 + (Number(data.surcharge_ratio) || 0) / 100
+                            : 1)
+                    )}일, CalDay: ${Math.round(
+                        (earthRetentionWorkingDay *
+                            ((Number(data.parallel_retention) || 100) / 100) *
+                            (data.is_surcharge
+                                ? 1 + (Number(data.surcharge_ratio) || 0) / 100
+                                : 1)) *
+                        (100 / (Number(utilization) || 100))
+                    )}일`,
+                },
+                {
+                    label: "지보공",
+                    value: data.parallel_support,
+                    unit: `% → WorkDay: ${Math.round(
+                        earthsupportWorkingDay *
+                        ((Number(data.parallel_support) || 100) / 100) *
+                        (data.is_surcharge
+                            ? 1 + (Number(data.surcharge_ratio) || 0) / 100
+                            : 1)
+                    )}일, CalDay: ${Math.round(
+                        (earthsupportWorkingDay *
+                            ((Number(data.parallel_support) || 100) / 100) *
+                            (data.is_surcharge
+                                ? 1 + (Number(data.surcharge_ratio) || 0) / 100
+                                : 1)) *
+                        (100 / (Number(utilization) || 100))
+                    )}일`,
+                },
+                {
+                    label: "터파기",
+                    value: data.parallel_excavation,
+                    unit: `% → WorkDay: ${Math.round(
+                        earthsoilWorkingDay *
+                        ((Number(data.parallel_excavation) || 100) / 100) *
+                        (data.is_surcharge
+                            ? 1 + (Number(data.surcharge_ratio) || 0) / 100
+                            : 1)
+                    )}일, CalDay: ${Math.round(
+                        (earthsoilWorkingDay *
+                            ((Number(data.parallel_excavation) || 100) / 100) *
+                            (data.is_surcharge
+                                ? 1 + (Number(data.surcharge_ratio) || 0) / 100
+                                : 1)) *
+                        (100 / (Number(utilization) || 100))
+                    )}일`,
+                },
+                {
+                    label: "지정공사",
+                    value: data.parallel_designated,
+                    unit: `% → WorkDay: ${Math.round(
+                        desighnatedWorkingDay *
+                        ((Number(data.parallel_designated) || 100) / 100) *
+                        (data.is_surcharge
+                            ? 1 + (Number(data.surcharge_ratio) || 0) / 100
+                            : 1)
+                    )}일, CalDay: ${Math.round(
+                        (desighnatedWorkingDay *
+                            ((Number(data.parallel_designated) || 100) / 100) *
+                            (data.is_surcharge
+                                ? 1 + (Number(data.surcharge_ratio) || 0) / 100
+                                : 1)) *
+                        (100 / (Number(utilization) || 100))
+                    )}일`,
+                },
+            ],
 
         },
     ];
 
     return (
         <div
-        ref={scrollRef}
-        className={`scroll-container space-y-4 h-[100vh] overflow-y-auto pr-2 transition-all duration-300 ${
-            isScrolling ? "scrolling" : ""
-        }`}
+            ref={scrollRef}
+            className={`scroll-container space-y-4 h-[100vh] overflow-y-auto pr-2 transition-all duration-300 ${isScrolling ? "scrolling" : ""
+                }`}
         >
-        {tableData.map((tbl, idx) =>
-            renderTable(tbl.title, tbl.headers, tbl.rows, tbl.keys, idx === 0)
-        )}
+            {tableData.map((tbl, idx) =>
+                renderTable(tbl.title, tbl.headers, tbl.rows, tbl.keys, idx === 0)
+            )}
         </div>
     );
 }

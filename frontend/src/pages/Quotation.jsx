@@ -98,18 +98,18 @@ export default function Quotation() {
       if (syncTimerRef.current) clearTimeout(syncTimerRef.current);
     };
   }, [loading, data, startSync]);
-    
+
   const handleScroll = () => {
     setIsScrolling(true);
     clearTimeout(scrollTimeout.current);
     scrollTimeout.current = setTimeout(() => setIsScrolling(false), 1000);
   };
-  
+
   useEffect(() => {
-      const el = scrollRef.current;
-      if (!el) return;
-      el.addEventListener("scroll", handleScroll);
-      return () => el.removeEventListener("scroll", handleScroll);
+    const el = scrollRef.current;
+    if (!el) return;
+    el.addEventListener("scroll", handleScroll);
+    return () => el.removeEventListener("scroll", handleScroll);
   }, []);
 
   // AI 분석 요청 + 폴링으로 결과 확인
@@ -239,10 +239,10 @@ export default function Quotation() {
     { label: "지정공사", calendar: formatDays(designatedWork), remark: data.remark_designated_work },
     {
       label:
-         <span className="text-blue-400 font-semibold text-base bg-[#2f2f45] rounded-md px-2 py-1 inline-block">소계</span>,
+        <span className="text-blue-400 font-semibold text-base bg-[#2f2f45] rounded-md px-2 py-1 inline-block">소계</span>,
       calendar:
         <span className="text-blue-400 font-semibold text-base bg-[#2f2f45] rounded-md px-2 py-1 inline-block">
-        {formatDays(earthworkTotal)}
+          {formatDays(earthworkTotal)}
         </span>,
       remark: data.remark_earthwork_total,
     },
@@ -256,7 +256,7 @@ export default function Quotation() {
       label: <span className="text-blue-400 font-semibold text-base bg-[#2f2f45] rounded-md px-2 py-1 inline-block">소계</span>,
       calendar:
         <span className="text-blue-400 font-semibold text-base bg-[#2f2f45] rounded-md px-2 py-1 inline-block">
-        {formatDays(frameworkTotal)}
+          {formatDays(frameworkTotal)}
         </span>,
       remark: data.remark_framework_total,
     },
@@ -268,199 +268,215 @@ export default function Quotation() {
     { label: "추가기간", calendar: formatDays(additionalPeriod), remark: data.remark_additional_period },
     { label: "정리기간", calendar: formatDays(cleanupPeriod), remark: data.remark_cleanup_period },
     {
-        label: <span className="text-blue-400 font-semibold text-base bg-[#2f2f45] rounded-md px-2 py-1 inline-block">소계</span>,
-        calendar:
+      label: <span className="text-blue-400 font-semibold text-base bg-[#2f2f45] rounded-md px-2 py-1 inline-block">소계</span>,
+      calendar:
         <span className="text-blue-400 font-semibold text-base bg-[#2f2f45] rounded-md px-2 py-1 inline-block">
-            {formatDays(etcTotal)}
+          {formatDays(etcTotal)}
         </span>,
       remark: data.remark_total,
     },
-];
+  ];
 
   // 총합 계산
   const totalDays = earthworkTotal + frameworkTotal + etcTotal;
 
   const totalMonths = Math.round(totalDays / 30.5);
 
-    return (
-        <div className="p-6 text-gray-200">
-            <PageHeader
-            title="공사기간 견적서"
-            description="공종별 공사기간 요약 및 AI 분석 결과"
-            />
-            <div className="mt-2 flex items-center gap-3">
-              {syncing ? (
-                <span className="text-xs text-blue-300">계산 반영 중...</span>
-              ) : (
-                <span className="text-xs text-gray-400">최신 계산값을 확인하세요.</span>
-              )}
-              <button
-                onClick={startSync}
-                disabled={syncing}
-                className={`text-xs px-2 py-1 rounded-md border transition ${
-                  syncing
-                    ? "border-gray-600 text-gray-500 cursor-not-allowed"
-                    : "border-gray-600 text-gray-300 hover:bg-gray-700"
-                }`}
-              >
-                최신화
-              </button>
+  return (
+    <div className="p-6 text-gray-200">
+      <PageHeader
+        title="공사기간 견적서"
+        description="공종별 공사기간 요약 및 AI 분석 결과"
+      />
+
+      {/* 전체 그리드: 왼쪽(본문) + 오른쪽(AI 결과) */}
+      <div className="grid grid-cols-1 xl:grid-cols-[3.6fr_1fr] gap-6 mt-6 items-start">
+        {/* 왼쪽 본문 전체 */}
+        <div className="flex flex-col space-y-6">
+          {/* 기본 정보 섹션 */}
+          <section className="rounded-xl overflow-hidden shadow-lg bg-[#2c2c3a] border border-gray-700">
+            <div className="bg-[#3a3a4a] px-4 py-2 border-b border-gray-600">
+              <h3 className="text-sm md:text-md font-semibold text-white">
+                기본 정보
+              </h3>
             </div>
-
-            {/* 전체 그리드: 왼쪽(본문) + 오른쪽(AI 결과) */}
-            <div className="grid grid-cols-1 xl:grid-cols-[3.6fr_1fr] gap-6 mt-6 items-start">
-            {/* 왼쪽 본문 전체 */}
-            <div className="flex flex-col space-y-6">
-                {/* 기본 정보 섹션 */}
-                <section className="rounded-xl overflow-hidden shadow-lg bg-[#2c2c3a] border border-gray-700">
-                <div className="bg-[#3a3a4a] px-4 py-2 border-b border-gray-600">
-                    <h3 className="text-sm md:text-md font-semibold text-white">
-                    기본 정보
-                    </h3>
-                </div>
-                <div className="p-4 text-gray-300 text-sm md:text-base space-y-2">
-                    <div className="flex flex-col sm:flex-row sm:items-center sm:gap-4">
-                    <span className="font-semibold text-white w-28">공사명</span>
-                    <span className="flex-1 border-b border-gray-700 pb-1">
-                        {data.project_title || "—"}
-                    </span>
-                    </div>
-
-                    <div className="flex flex-col sm:flex-row sm:items-center sm:gap-4">
-                    <span className="font-semibold text-white w-28">공사 규모</span>
-                    <span className="flex-1 border-b border-gray-700 pb-1">
-                        지하 {data.construction_overview?.basement_floors ?? "—"}층 / 지상{" "}
-                        {data.construction_overview?.ground_floors ?? "—"}층 /{" "}
-                        {data.construction_overview?.building_use || "—"}
-                    </span>
-                    </div>
-
-                    <div className="flex flex-col sm:flex-row sm:items-center sm:gap-4">
-                    <span className="font-semibold text-white w-28">공사 면적</span>
-                    <span className="flex-1 border-b border-gray-700 pb-1">
-                        대지면적 : {data.construction_overview?.site_area ?? "—"}㎡ / 연면적 :{" "}
-                        {data.construction_overview?.total_floor_area ?? "—"}㎡
-                    </span>
-                    </div>
-                </div>
-                </section>
-
-                {/* 세 공사 구분 */}
-                <div className="flex flex-col xl:flex-row gap-4">
-                {/* 토공사 */}
-                <section className="flex-1 rounded-xl overflow-hidden shadow-lg bg-[#2c2c3a] border border-gray-700">
-                    <div className="bg-[#3a3a4a] px-4 py-2 border-b border-gray-600">
-                    <h3 className="text-sm md:text-md font-semibold text-white">토공사</h3>
-                    </div>
-                    <div className="p-4">
-                    <DataTable
-                        columns={columns}
-                        rows={rowsEarthwork}
-                        onChange={(i, k, v) => {
-                        if (k === "remark") handleRemarkChange("earthwork", i, v);
-                        }}
-                        onAutoSave={onAutoSave}
-                    />
-                    </div>
-                </section>
-
-                {/* 골조공사 */}
-                <section className="flex-1 rounded-xl overflow-hidden shadow-lg bg-[#2c2c3a] border border-gray-700">
-                    <div className="bg-[#3a3a4a] px-4 py-2 border-b border-gray-600">
-                    <h3 className="text-sm md:text-md font-semibold text-white">골조공사</h3>
-                    </div>
-                    <div className="p-4">
-                    <DataTable
-                        columns={columns}
-                        rows={rowsFramework}
-                        onChange={(i, k, v) => {
-                        if (k === "remark") handleRemarkChange("framework", i, v);
-                        }}
-                        onAutoSave={onAutoSave}
-                    />
-                    </div>
-                </section>
-
-                {/* 기타 기간 */}
-                <section className="flex-1 rounded-xl overflow-hidden shadow-lg bg-[#2c2c3a] border border-gray-700">
-                    <div className="bg-[#3a3a4a] px-4 py-2 border-b border-gray-600">
-                    <h3 className="text-sm md:text-md font-semibold text-white">기타 기간</h3>
-                    </div>
-                    <div className="p-4">
-                    <DataTable
-                        columns={columns}
-                        rows={rowsEtc}
-                        onChange={(i, k, v) => {
-                        if (k === "remark") handleRemarkChange("etc", i, v);
-                        }}
-                        onAutoSave={onAutoSave}
-                    />
-                    </div>
-                </section>
-                </div>
-
-                {/* 총 공사기간 */}
-                <section className="bg-gradient-to-r from-indigo-600 to-blue-500 rounded-xl p-5 text-center text-white shadow">
-                <h3 className="text-lg font-bold mb-1">총 공사기간</h3>
-                <p className="text-4xl font-extrabold">{totalDays}일</p>
-                <p className="text-sm opacity-90">약 {totalMonths}개월</p>
-                </section>
-            </div>
-
-            {/* 오른쪽: AI 분석 결과 (위아래 꽉 차게) */}
-            <section className="rounded-xl overflow-hidden shadow-lg bg-[#2c2c3a] border border-gray-700 flex flex-col h-full">
-              {/* 상단 헤더: 제목 + 생성/전체보기 버튼 */}
-              <div className="bg-[#3a3a4a] px-4 py-3 border-b border-gray-600 flex justify-between items-center">
-                <h3 className="text-sm md:text-md font-semibold text-white">
-                  AI 분석 결과
-                </h3>
-
-                <div className="flex items-center gap-2">
-                  {/* 전체보기 버튼 */}
-                  <button
-                    onClick={() => setShowModal(true)}  // ⬅ 모달 열기
-                    className="flex items-center gap-1 text-xs px-2 py-1 rounded-md bg-gray-700 hover:bg-gray-600 text-white transition"
-                  >
-                    <Maximize2 size={13} />
-                    전체보기
-                  </button>
-
-                  {/* 생성 버튼 */}
-                  <button
-                    onClick={handleGenerateAi}
-                    disabled={aiLoading}
-                    className={`flex items-center gap-1 text-xs px-2 py-1 rounded-md transition
-                      ${
-                        aiLoading
-                          ? "bg-gray-600 text-gray-300 cursor-not-allowed"
-                          : "bg-indigo-600 hover:bg-indigo-500 text-white"
-                      }`}
-                  >
-                    <RefreshCcw
-                      size={14}
-                      className={aiLoading ? "animate-spin" : ""}
-                    />
-                    {aiLoading ? "생성 중..." : "생성"}
-                  </button>
-                </div>
+            <div className="p-4 text-gray-300 text-sm md:text-base space-y-2">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:gap-4">
+                <span className="font-semibold text-white w-28">공사명</span>
+                <span className="flex-1 border-b border-gray-700 pb-1">
+                  {data.project_title || "—"}
+                </span>
               </div>
 
-              {/* 내용 영역 (Markdown + 스크롤) */}
-              <div
-                ref={scrollRef}
-                className={`scroll-container space-y-4 h-[70vh] overflow-y-auto pr-2 transition-all duration-300 w-[100%] ${
-                  isScrolling ? "scrolling" : ""
-                }`}
+              <div className="flex flex-col sm:flex-row sm:items-center sm:gap-4">
+                <span className="font-semibold text-white w-28">공사 규모</span>
+                <span className="flex-1 border-b border-gray-700 pb-1">
+                  지하 {data.construction_overview?.basement_floors ?? "—"}층 / 지상{" "}
+                  {data.construction_overview?.ground_floors ?? "—"}층 /{" "}
+                  {data.construction_overview?.building_use || "—"}
+                </span>
+              </div>
+
+              <div className="flex flex-col sm:flex-row sm:items-center sm:gap-4">
+                <span className="font-semibold text-white w-28">공사 면적</span>
+                <span className="flex-1 border-b border-gray-700 pb-1">
+                  대지면적 : {data.construction_overview?.site_area ?? "—"}㎡ / 연면적 :{" "}
+                  {data.construction_overview?.total_floor_area ?? "—"}㎡
+                </span>
+              </div>
+            </div>
+          </section>
+
+          {/* 세 공사 구분 */}
+          <div className="flex flex-col xl:flex-row gap-4">
+            {/* 토공사 */}
+            <section className="flex-1 rounded-xl overflow-hidden shadow-lg bg-[#2c2c3a] border border-gray-700">
+              <div className="bg-[#3a3a4a] px-4 py-2 border-b border-gray-600">
+                <h3 className="text-sm md:text-md font-semibold text-white">토공사</h3>
+              </div>
+              <div className="p-4">
+                <DataTable
+                  columns={columns}
+                  rows={rowsEarthwork}
+                  onChange={(i, k, v) => {
+                    if (k === "remark") handleRemarkChange("earthwork", i, v);
+                  }}
+                  onAutoSave={onAutoSave}
+                />
+              </div>
+            </section>
+
+            {/* 골조공사 */}
+            <section className="flex-1 rounded-xl overflow-hidden shadow-lg bg-[#2c2c3a] border border-gray-700">
+              <div className="bg-[#3a3a4a] px-4 py-2 border-b border-gray-600">
+                <h3 className="text-sm md:text-md font-semibold text-white">골조공사</h3>
+              </div>
+              <div className="p-4">
+                <DataTable
+                  columns={columns}
+                  rows={rowsFramework}
+                  onChange={(i, k, v) => {
+                    if (k === "remark") handleRemarkChange("framework", i, v);
+                  }}
+                  onAutoSave={onAutoSave}
+                />
+              </div>
+            </section>
+
+            {/* 기타 기간 */}
+            <section className="flex-1 rounded-xl overflow-hidden shadow-lg bg-[#2c2c3a] border border-gray-700">
+              <div className="bg-[#3a3a4a] px-4 py-2 border-b border-gray-600">
+                <h3 className="text-sm md:text-md font-semibold text-white">기타 기간</h3>
+              </div>
+              <div className="p-4">
+                <DataTable
+                  columns={columns}
+                  rows={rowsEtc}
+                  onChange={(i, k, v) => {
+                    if (k === "remark") handleRemarkChange("etc", i, v);
+                  }}
+                  onAutoSave={onAutoSave}
+                />
+              </div>
+            </section>
+          </div>
+
+          {/* 총 공사기간 */}
+          <section className="bg-gradient-to-r from-indigo-600 to-blue-500 rounded-xl p-5 text-center text-white shadow">
+            <h3 className="text-lg font-bold mb-1">총 공사기간</h3>
+            <p className="text-4xl font-extrabold">{totalDays}일</p>
+            <p className="text-sm opacity-90">약 {totalMonths}개월</p>
+          </section>
+        </div>
+
+        {/* 오른쪽: AI 분석 결과 (위아래 꽉 차게) */}
+        <section className="rounded-xl overflow-hidden shadow-lg bg-[#2c2c3a] border border-gray-700 flex flex-col h-full">
+          {/* 상단 헤더: 제목 + 생성/전체보기 버튼 */}
+          <div className="bg-[#3a3a4a] px-4 py-3 border-b border-gray-600 flex justify-between items-center">
+            <h3 className="text-sm md:text-md font-semibold text-white">
+              AI 분석 결과
+            </h3>
+
+            <div className="flex items-center gap-2">
+              {/* 전체보기 버튼 */}
+              <button
+                onClick={() => setShowModal(true)}  // ⬅ 모달 열기
+                className="flex items-center gap-1 text-xs px-2 py-1 rounded-md bg-gray-700 hover:bg-gray-600 text-white transition"
               >
+                <Maximize2 size={13} />
+                전체보기
+              </button>
+
+              {/* 생성 버튼 */}
+              <button
+                onClick={handleGenerateAi}
+                disabled={aiLoading}
+                className={`flex items-center gap-1 text-xs px-2 py-1 rounded-md transition
+                      ${aiLoading
+                    ? "bg-gray-600 text-gray-300 cursor-not-allowed"
+                    : "bg-indigo-600 hover:bg-indigo-500 text-white"
+                  }`}
+              >
+                <RefreshCcw
+                  size={14}
+                  className={aiLoading ? "animate-spin" : ""}
+                />
+                {aiLoading ? "생성 중..." : "생성"}
+              </button>
+            </div>
+          </div>
+
+          {/* 내용 영역 (Markdown + 스크롤) */}
+          <div
+            ref={scrollRef}
+            className={`scroll-container space-y-4 h-[70vh] overflow-y-auto pr-2 transition-all duration-300 w-[100%] ${isScrolling ? "scrolling" : ""
+              }`}
+          >
+            {data.ai_response ? (
+              <ReactMarkdown
+                components={{
+                  h1: ({ node, ...props }) => <h1 {...props} className="text-xl font-bold text-white mb-2" />,
+                  h2: ({ node, ...props }) => <h2 {...props} className="text-lg font-semibold text-white mt-2 mb-1" />,
+                  h3: ({ node, ...props }) => <h3 {...props} className="text-md font-semibold text-white mt-2 mb-1" />,
+                  p: ({ node, ...props }) => <p {...props} className="my-1 text-gray-300" />,
+                  strong: ({ node, ...props }) => <strong {...props} className="text-blue-300" />,
+                  li: ({ node, ...props }) => <li {...props} className="ml-4 list-disc" />,
+                }}
+              >
+                {data.ai_response}
+              </ReactMarkdown>
+            ) : (
+              <p className="text-gray-500 italic">AI 분석 결과가 없습니다.</p>
+            )}
+          </div>
+        </section>
+
+        {/* 전체보기 모달 */}
+        {showModal && (
+          <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex justify-center items-center z-50">
+            <div className="bg-[#2c2c3a] w-[80vw] h-[80vh] rounded-xl shadow-2xl flex flex-col border border-gray-700">
+              {/* 모달 헤더 */}
+              <div className="flex justify-between items-center px-5 py-3 rounded-xl border-b border-gray-600 bg-[#3a3a4a]">
+                <h2 className="text-white text-lg font-semibold">AI 분석 결과 전체보기</h2>
+                <button
+                  onClick={() => setShowModal(false)}
+                  className="text-gray-300 hover:text-white transition"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              {/* 모달 내용 (스크롤 + Markdown) */}
+              <div className="flex-1 overflow-y-auto p-6 text-gray-300 leading-relaxed scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-transparent">
                 {data.ai_response ? (
                   <ReactMarkdown
                     components={{
-                      h1: ({ node, ...props }) => <h1 {...props} className="text-xl font-bold text-white mb-2" />,
-                      h2: ({ node, ...props }) => <h2 {...props} className="text-lg font-semibold text-white mt-2 mb-1" />,
-                      h3: ({ node, ...props }) => <h3 {...props} className="text-md font-semibold text-white mt-2 mb-1" />,
-                      p: ({ node, ...props }) => <p {...props} className="my-1 text-gray-300" />,
+                      h1: ({ node, ...props }) => <h1 {...props} className="text-2xl font-bold text-white mb-3" />,
+                      h2: ({ node, ...props }) => <h2 {...props} className="text-xl font-semibold text-white mt-3 mb-2" />,
+                      h3: ({ node, ...props }) => <h3 {...props} className="text-lg font-semibold text-white mt-2 mb-1" />,
+                      p: ({ node, ...props }) => <p {...props} className="my-2 text-gray-300" />,
                       strong: ({ node, ...props }) => <strong {...props} className="text-blue-300" />,
-                      li: ({ node, ...props }) => <li {...props} className="ml-4 list-disc" />,
+                      li: ({ node, ...props }) => <li {...props} className="ml-6 list-disc" />,
                     }}
                   >
                     {data.ai_response}
@@ -469,47 +485,11 @@ export default function Quotation() {
                   <p className="text-gray-500 italic">AI 분석 결과가 없습니다.</p>
                 )}
               </div>
-            </section>
-
-            {/* 전체보기 모달 */}
-            {showModal && (
-              <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex justify-center items-center z-50">
-                <div className="bg-[#2c2c3a] w-[80vw] h-[80vh] rounded-xl shadow-2xl flex flex-col border border-gray-700">
-                  {/* 모달 헤더 */}
-                  <div className="flex justify-between items-center px-5 py-3 rounded-xl border-b border-gray-600 bg-[#3a3a4a]">
-                    <h2 className="text-white text-lg font-semibold">AI 분석 결과 전체보기</h2>
-                    <button
-                      onClick={() => setShowModal(false)}
-                      className="text-gray-300 hover:text-white transition"
-                    >
-                      <X size={18} />
-                    </button>
-                  </div>
-
-                  {/* 모달 내용 (스크롤 + Markdown) */}
-                  <div className="flex-1 overflow-y-auto p-6 text-gray-300 leading-relaxed scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-transparent">
-                    {data.ai_response ? (
-                      <ReactMarkdown
-                        components={{
-                          h1: ({ node, ...props }) => <h1 {...props} className="text-2xl font-bold text-white mb-3" />,
-                          h2: ({ node, ...props }) => <h2 {...props} className="text-xl font-semibold text-white mt-3 mb-2" />,
-                          h3: ({ node, ...props }) => <h3 {...props} className="text-lg font-semibold text-white mt-2 mb-1" />,
-                          p: ({ node, ...props }) => <p {...props} className="my-2 text-gray-300" />,
-                          strong: ({ node, ...props }) => <strong {...props} className="text-blue-300" />,
-                          li: ({ node, ...props }) => <li {...props} className="ml-6 list-disc" />,
-                        }}
-                      >
-                        {data.ai_response}
-                      </ReactMarkdown>
-                    ) : (
-                      <p className="text-gray-500 italic">AI 분석 결과가 없습니다.</p>
-                    )}
-                  </div>
-                </div>
-              </div>
-            )}
-
             </div>
-        </div>
-    );
+          </div>
+        )}
+
+      </div>
+    </div>
+  );
 }
