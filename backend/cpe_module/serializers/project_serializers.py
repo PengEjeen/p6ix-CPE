@@ -107,4 +107,17 @@ class ProjectSerializer(serializers.ModelSerializer):
             ]
             ConstructionProductivity.objects.bulk_create(new_objects)
 
+            # CIP 생산성 근거 초기화 (Template Copy)
+            from cpe_all_module.models.cip_productivity_models import CIPProductivityBasis
+            
+            standard_cip = CIPProductivityBasis.objects.filter(project__isnull=True).values()
+            cip_new_objects = [
+                CIPProductivityBasis(
+                    project=project,
+                    **{k: v for k, v in item.items() if k != 'id' and k != 'project_id'}
+                )
+                for item in standard_cip
+            ]
+            CIPProductivityBasis.objects.bulk_create(cip_new_objects)
+
         return project

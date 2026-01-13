@@ -55,6 +55,11 @@ function Header() {
       desc: "전체 프로젝트 공기 산정 및 관리",
       path: `/projects/${id}/total-calc`,
     },
+    {
+      name: "CIP 생산성 근거",
+      desc: "CIP 공법 생산성 산출 근거",
+      path: `/projects/${id}/cip-basis`,
+    },
   ];
 
   const menus = project?.calc_type === "TOTAL" ? totalMenus : apartmentMenus;
