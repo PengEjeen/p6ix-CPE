@@ -60,6 +60,11 @@ function Header() {
       desc: "CIP 공법 생산성 산출 근거",
       path: `/projects/${id}/cip-basis`,
     },
+    {
+      name: "기성말뚝 생산성 근거",
+      desc: "기성말뚝 기초 생산성 산출 근거",
+      path: `/projects/${id}/pile-basis`,
+    },
   ];
 
   const menus = project?.calc_type === "TOTAL" ? totalMenus : apartmentMenus;

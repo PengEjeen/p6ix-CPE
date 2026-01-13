@@ -11,6 +11,7 @@ import Quotation from "./pages/Quotation";
 import UserProfile from "./pages/UserProfile";
 import TotalCalc from "./pages/TotalCalc";
 import CIPBasisList from "./pages/CIPBasisList";
+import PileBasisList from "./pages/PileBasisList";
 
 const router = createBrowserRouter(
   createRoutesFromElements(
@@ -26,6 +27,7 @@ const router = createBrowserRouter(
         <Route path="/projects/:id/" element={<Quotation />} />
         <Route path="/projects/:id/total-calc" element={<TotalCalc />} />
         <Route path="/projects/:id/cip-basis" element={<CIPBasisList />} />
+        <Route path="/projects/:id/pile-basis" element={<PileBasisList />} />
       </Route>
     </>
   )
