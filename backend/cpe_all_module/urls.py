@@ -1,10 +1,11 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from .views import ConstructionProductivityViewSet, CIPProductivityBasisViewSet, CIPDrillingStandardViewSet
+from .views import ConstructionProductivityViewSet, CIPProductivityBasisViewSet, CIPDrillingStandardViewSet, CIPResultViewSet
 
 router = DefaultRouter()
 router.register(r'productivity', ConstructionProductivityViewSet, basename='productivity')
 router.register(r'cip-basis', CIPProductivityBasisViewSet, basename='cip-basis')
+router.register(r'cip-result', CIPResultViewSet, basename='cip-result')
 router.register(r'cip-standard', CIPDrillingStandardViewSet, basename='cip-standard')
 
 urlpatterns = [

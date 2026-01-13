@@ -1,2 +1,2 @@
 from .construction_productivity import ConstructionProductivityViewSet
-from .cip_productivity import CIPProductivityBasisViewSet, CIPDrillingStandardViewSet
+from .cip_productivity import CIPProductivityBasisViewSet, CIPDrillingStandardViewSet, CIPResultViewSet

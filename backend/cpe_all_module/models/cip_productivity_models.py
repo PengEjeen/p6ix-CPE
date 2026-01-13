@@ -1,5 +1,24 @@
 from django.db import models
 
+class CIPResult(models.Model):
+    project = models.ForeignKey(
+        "cpe_module.Project",
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="cip_results",
+        verbose_name="프로젝트"
+    )
+    
+    diameter_selection = models.CharField(max_length=50, blank=True, null=True, verbose_name="직경 규격(선택)")
+    
+    bit_type_clay = models.CharField(max_length=20, blank=True, null=True, verbose_name="점질토 비트")
+    bit_type_sand = models.CharField(max_length=20, blank=True, null=True, verbose_name="사질토 비트")
+    bit_type_weathered = models.CharField(max_length=20, blank=True, null=True, verbose_name="풍화암 비트")
+    bit_type_soft_rock = models.CharField(max_length=20, blank=True, null=True, verbose_name="연암 비트")
+    bit_type_hard_rock = models.CharField(max_length=20, blank=True, null=True, verbose_name="경암 비트")
+    bit_type_mixed = models.CharField(max_length=20, blank=True, null=True, verbose_name="혼합층 비트")
+
 class CIPProductivityBasis(models.Model):
     project = models.ForeignKey(
         "cpe_module.Project",
@@ -12,8 +31,6 @@ class CIPProductivityBasis(models.Model):
     
     # Basic Specs
     description = models.CharField(max_length=255, verbose_name="비고/설명")
-    
-    
     
     # --- INPUTS ---
     

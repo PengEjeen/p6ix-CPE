@@ -1,2 +1,2 @@
 from .construction_productivity_models import ConstructionProductivity
-from .cip_productivity_models import CIPProductivityBasis, CIPDrillingStandard
+from .cip_productivity_models import CIPProductivityBasis, CIPDrillingStandard, CIPResult

@@ -67,3 +67,35 @@ export const updateCIPStandard = async (id, data) => {
         throw error;
     }
 };
+// --- CIP Result (Bits/Diameter) ---
+export const fetchCIPResults = async (projectId) => {
+    try {
+        const response = await axiosInstance.get("/cpe-all/cip-result/", {
+            params: { project: projectId },
+        });
+        return response.data;
+    } catch (error) {
+        console.error("fetchCIPResults Error:", error);
+        throw error;
+    }
+};
+
+export const updateCIPResult = async (id, data) => {
+    try {
+        const response = await axiosInstance.patch(`/cpe-all/cip-result/${id}/`, data);
+        return response.data;
+    } catch (error) {
+        console.error("updateCIPResult Error:", error);
+        throw error;
+    }
+};
+
+export const createCIPResult = async (data) => {
+    try {
+        const response = await axiosInstance.post("/cpe-all/cip-result/", data);
+        return response.data;
+    } catch (error) {
+        console.error("createCIPResult Error:", error);
+        throw error;
+    }
+};

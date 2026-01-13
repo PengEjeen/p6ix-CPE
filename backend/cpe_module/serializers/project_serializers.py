@@ -108,7 +108,7 @@ class ProjectSerializer(serializers.ModelSerializer):
             ConstructionProductivity.objects.bulk_create(new_objects)
 
             # CIP 생산성 근거 초기화 (Template Copy)
-            from cpe_all_module.models.cip_productivity_models import CIPProductivityBasis
+            from cpe_all_module.models.cip_productivity_models import CIPProductivityBasis, CIPResult
             
             standard_cip = CIPProductivityBasis.objects.filter(project__isnull=True).values()
             cip_new_objects = [
@@ -119,5 +119,9 @@ class ProjectSerializer(serializers.ModelSerializer):
                 for item in standard_cip
             ]
             CIPProductivityBasis.objects.bulk_create(cip_new_objects)
+
+            # CIP 생산성 결과 초기화
+            # 생산성 결과는 별도의 템플릿이 없음 그냥 지금의 프로젝트와 연결해서 생성
+            CIPResult.objects.create(project=project)
 
         return project
