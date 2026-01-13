@@ -17,8 +17,14 @@ export default function CIPBasisList() {
 
     useEffect(() => {
         loadData();
-        loadResultSummary();
     }, [id]);
+
+    // Load result summary AFTER standardData is populated
+    useEffect(() => {
+        if (standardData.length > 0) {
+            loadResultSummary();
+        }
+    }, [standardData]);
 
     // --- Helpers ---
 
