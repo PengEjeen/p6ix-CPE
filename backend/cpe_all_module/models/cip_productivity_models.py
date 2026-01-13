@@ -10,14 +10,32 @@ class CIPResult(models.Model):
         verbose_name="프로젝트"
     )
     
+    
+    # --- INPUT FIELDS ---
     diameter_selection = models.CharField(max_length=50, blank=True, null=True, verbose_name="직경 규격(선택)")
     
+    # Layer Depths (User Inputs)
+    layer_depth_clay = models.FloatField(default=0.0, verbose_name="점질토 깊이(m)")
+    layer_depth_sand = models.FloatField(default=0.0, verbose_name="사질토 깊이(m)")
+    layer_depth_weathered = models.FloatField(default=0.0, verbose_name="풍화암 깊이(m)")
+    layer_depth_soft_rock = models.FloatField(default=0.0, verbose_name="연암 깊이(m)")
+    layer_depth_hard_rock = models.FloatField(default=0.0, verbose_name="경암 깊이(m)")
+    layer_depth_mixed = models.FloatField(default=0.0, verbose_name="혼합층 깊이(m)")
+    
+    # Bit Types (Auto-selected or Manual)
     bit_type_clay = models.CharField(max_length=20, blank=True, null=True, verbose_name="점질토 비트")
     bit_type_sand = models.CharField(max_length=20, blank=True, null=True, verbose_name="사질토 비트")
     bit_type_weathered = models.CharField(max_length=20, blank=True, null=True, verbose_name="풍화암 비트")
     bit_type_soft_rock = models.CharField(max_length=20, blank=True, null=True, verbose_name="연암 비트")
     bit_type_hard_rock = models.CharField(max_length=20, blank=True, null=True, verbose_name="경암 비트")
     bit_type_mixed = models.CharField(max_length=20, blank=True, null=True, verbose_name="혼합층 비트")
+
+    # --- CALCULATED RESULTS ---
+    total_depth = models.FloatField(default=0.0, verbose_name="합계 깊이(m)")
+    t2 = models.FloatField(default=0.0, verbose_name="천공 시간(t2, 분)")
+    cycle_time = models.FloatField(default=0.0, verbose_name="본당 작업시간(분)")
+    daily_production_count = models.FloatField(default=0.0, verbose_name="일일 생산성(본)")
+
 
 class CIPProductivityBasis(models.Model):
     project = models.ForeignKey(

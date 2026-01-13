@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { fetchCIPBasis, fetchCIPStandard, updateCIPBasis, updateCIPStandard, fetchCIPResults, updateCIPResult, createCIPResult } from "../api/cpe_all/cip_basis";
+import { fetchCIPResultSummary, updateCIPResultSummary, createCIPResultSummary } from "../api/cpe_all/productivity";
 import EditableTable from "../components/cpe/EditableTable";
 import PageHeader from "../components/cpe/PageHeader";
 import SaveButton from "../components/cpe/SaveButton";
@@ -10,11 +11,13 @@ export default function CIPBasisList() {
     const { id } = useParams(); // Project ID
     const [data, setData] = useState([]);
     const [standardData, setStandardData] = useState([]);
+    const [resultSummary, setResultSummary] = useState(null); // Single CIP Result row
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
 
     useEffect(() => {
         loadData();
+        loadResultSummary();
     }, [id]);
 
     // --- Helpers ---
@@ -29,12 +32,56 @@ export default function CIPBasisList() {
         });
     }, [standardData]);
 
+    // Helper: Check if two diameter specs are compatible (range overlap)
+    const isDiameterCompatible = (selected, standard) => {
+        if (!selected || !standard) return false;
+
+        // Exact match
+        if (selected === standard) return true;
+
+        // Parse ranges
+        const parseRange = (spec) => {
+            if (spec.includes('미만')) {
+                const num = parseInt(spec);
+                return { min: 0, max: num };
+            } else if (spec.includes('이상')) {
+                const num = parseInt(spec);
+                return { min: num, max: Infinity };
+            } else if (spec.includes('~')) {
+                const [min, max] = spec.split('~').map(s => parseInt(s.trim()));
+                return { min, max };
+            }
+            // Fallback: treat as exact number
+            const num = parseInt(spec);
+            return { min: num, max: num };
+        };
+
+        const selectedRange = parseRange(selected);
+        const standardRange = parseRange(standard);
+
+        // Check if ranges overlap
+        const overlap = !(selectedRange.max < standardRange.min || selectedRange.min > standardRange.max);
+        return overlap;
+    };
+
     const getAvailableBits = (diameterSpec, layerKey, standards) => {
         if (!diameterSpec) return [];
-        return standards.filter(s =>
-            s.diameter_spec.trim() === diameterSpec.trim() &&
-            s[`value_${layerKey}`] !== null
-        ).map(s => s.bit_type);
+
+        const filtered = standards.filter(s => {
+            const diameterMatch = isDiameterCompatible(diameterSpec, s.diameter_spec);
+            const hasValue = s[`value_${layerKey}`] != null && s[`value_${layerKey}`] !== undefined;
+
+            // Debug log
+            if (layerKey === 'clay' && diameterMatch) {
+                console.log(`[Bit Filter] Selected:${diameterSpec}, Standard:${s.diameter_spec}, Bit:${s.bit_type}, Value:${s[`value_${layerKey}`]}, Match:${diameterMatch}`);
+            }
+
+            return diameterMatch && hasValue;
+        });
+
+        const bits = [...new Set(filtered.map(s => s.bit_type))]; // Deduplicate
+        console.log(`[Available Bits] Dia:${diameterSpec}, Layer:${layerKey} -> ${bits.join(', ')}`);
+        return bits;
     };
 
 
@@ -217,6 +264,109 @@ export default function CIPBasisList() {
         }
     };
 
+    const loadResultSummary = async () => {
+        try {
+            let result = await fetchCIPResultSummary(id);
+            if (!result) {
+                // Create empty result for project
+                result = await createCIPResultSummary({ project: id });
+            }
+            setResultSummary(calculateResultSummary(result, standardData));
+        } catch (err) {
+            console.error("Failed to load CIP Result Summary:", err);
+        }
+    };
+
+    const calculateResultSummary = (result, standards = []) => {
+        // Calculate total depth
+        const total_depth = (
+            Number(result.layer_depth_clay || 0) +
+            Number(result.layer_depth_sand || 0) +
+            Number(result.layer_depth_weathered || 0) +
+            Number(result.layer_depth_soft_rock || 0) +
+            Number(result.layer_depth_hard_rock || 0) +
+            Number(result.layer_depth_mixed || 0)
+        );
+
+        // Auto-select bit types and calculate t2
+        const layers = ['clay', 'sand', 'weathered', 'soft_rock', 'hard_rock', 'mixed'];
+        let t2 = 0;
+        const updated = { ...result, total_depth };
+
+        layers.forEach(l => {
+            const depth = Number(result[`layer_depth_${l}`] || 0);
+            if (depth > 0 && result.diameter_selection && standards.length > 0) {
+                // Auto-select bit if not set
+                if (!result[`bit_type_${l}`]) {
+                    const validBits = standards.filter(s =>
+                        s.diameter_spec.trim() === result.diameter_selection.trim() &&
+                        s[`value_${l}`] !== null
+                    );
+                    if (validBits.length === 1) {
+                        updated[`bit_type_${l}`] = validBits[0].bit_type;
+                    } else if (validBits.length > 0) {
+                        const auger = validBits.find(s => s.bit_type === "AUGER");
+                        updated[`bit_type_${l}`] = auger ? "AUGER" : validBits[0].bit_type;
+                    }
+                }
+
+                // Calculate time
+                const bitType = updated[`bit_type_${l}`];
+                if (bitType) {
+                    const std = standards.find(s =>
+                        s.diameter_spec.trim() === result.diameter_selection.trim() &&
+                        s.bit_type === bitType
+                    );
+                    if (std && std[`value_${l}`] !== null) {
+                        t2 += depth * std[`value_${l}`];
+                    }
+                }
+            }
+        });
+
+        // Calculate cycle time: (t1 + t2 + t3 + t4) / f
+        const t1 = 3; // minutes
+        const t3 = 2; // minutes
+        const t4 = total_depth < 10 ? 3 : (total_depth < 20 ? 5 : (total_depth < 30 ? 7 : 9)); // IFS logic
+        const f = 0.8; // classification factor
+        const cycle_time = (t1 + t2 + t3 + t4) / f;
+
+        // Calculate daily production: 1/cycle_time * 60min/hr * 8hr = 480/cycle_time
+        const daily_production_count = cycle_time > 0 ? 480 / cycle_time : 0;
+
+        return {
+            ...updated,
+            t2: parseFloat(t2.toFixed(2)),
+            cycle_time: parseFloat(cycle_time.toFixed(2)),
+            daily_production_count: parseFloat(daily_production_count.toFixed(2))
+        };
+    };
+
+    const handleResultSummaryChange = (rowId, field, value) => {
+        setResultSummary(prev => {
+            const updated = { ...prev, [field]: value };
+            return calculateResultSummary(updated, standardData);
+        });
+    };
+
+    const handleResultSummarySave = async (rowId) => {
+        if (!resultSummary) return;
+        try {
+            if (resultSummary.id) {
+                const saved = await updateCIPResultSummary(resultSummary.id, resultSummary);
+                setResultSummary(calculateResultSummary(saved, standardData));
+            } else {
+                const created = await createCIPResultSummary({ ...resultSummary, project: id });
+                setResultSummary(calculateResultSummary(created, standardData));
+            }
+            toast.success("CIP 결과 저장됨");
+        } catch (err) {
+            console.error(err);
+            toast.error("저장 실패");
+        }
+    };
+
+
     // --- Handlers ---
     const handleBasisChange = (rowId, field, value) => {
         setData(prev => prev.map(row => {
@@ -391,15 +541,17 @@ export default function CIPBasisList() {
         const bitType = row[`bit_type_${layerKey}`];
         const diameterSpec = row.diameter_selection;
 
+        // --- FALLBACK CHECK (Visual) ---
+        // If data exists, display it.
+
         let timeDisplay = "-";
+        // Calculate Time for display
         if (depth > 0 && bitType && diameterSpec) {
-            // Robust lookup trimming strings
             const std = standardData.find(s =>
                 s.diameter_spec.trim() === diameterSpec.trim() &&
                 s.bit_type === bitType
             );
             const unitTime = std ? std[`value_${layerKey}`] : null;
-
             if (unitTime !== null && unitTime !== undefined) {
                 timeDisplay = (depth * unitTime).toFixed(2) + "분";
             }
@@ -408,51 +560,84 @@ export default function CIPBasisList() {
         const availableBits = getAvailableBits(diameterSpec, layerKey, standardData);
 
         return (
-            <div className="flex flex-col gap-1 items-stretch h-full min-h-[70px]">
-                {/* 1. Depth Input */}
-                <div className="flex items-center justify-end border-b border-gray-700/50 pb-1">
+            <div className="flex flex-col h-full min-h-[90px] border-collapse">
+                {/* 1. Depth Input (Top) */}
+                <div className="flex items-center justify-center h-[30px] border-b border-gray-600 bg-gray-800/30">
                     <input
                         type="number"
                         step="0.1"
-                        className="bg-transparent text-white w-full text-right font-bold text-xs no-spin focus:bg-gray-700 rounded px-1"
+                        className="w-full h-full bg-transparent text-white text-center font-bold text-xs no-spin focus:bg-gray-700"
                         value={depth || ""}
                         placeholder="-"
                         onChange={(e) => handleBasisChange(row.id, `layer_depth_${layerKey}`, e.target.value)}
                         onBlur={() => handleBasisSave(row.id)}
                     />
-                    <span className="text-[10px] text-gray-400 ml-0.5">m</span>
+                    {depth > 0 && <span className="text-[10px] text-gray-400 absolute right-1 pointer-events-none">m</span>}
                 </div>
 
-                {/* 2. Bit Select */}
-                <div className="flex items-center justify-center py-1 flex-1">
+                {/* 2. Bit Select (Middle) */}
+                <div className="flex items-center justify-center h-[30px] border-b border-gray-600 bg-gray-800/50">
                     {availableBits.length > 0 ? (
                         <select
-                            className="bg-gray-700 text-cyan-300 w-full text-[10px] p-0.5 rounded text-center border-none"
+                            className="bg-transparent text-cyan-300 w-full text-[10px] h-full text-center appearance-none cursor-pointer focus:bg-gray-700 font-semibold"
                             value={bitType || ""}
                             onChange={(e) => handleBasisChange(row.id, `bit_type_${layerKey}`, e.target.value)}
                             onBlur={() => handleBasisSave(row.id)}
-                            // Auto-select if only 1 option and no value set
+                            // Auto-select if 1 option
                             ref={(select) => {
                                 if (select && !bitType && availableBits.length === 1) {
                                     handleBasisChange(row.id, `bit_type_${layerKey}`, availableBits[0]);
                                 }
                             }}
                         >
-                            <option value="">비트선택</option>
+                            <option value="">-</option>
                             {availableBits.map(bit => (
                                 <option key={bit} value={bit}>
-                                    {bit === 'AUGER' ? '오거' : bit === 'HAMMER' ? '해머' : bit === 'IMPROVED' ? '개량' : bit}
+                                    {bit === 'AUGER' ? '오거비트' : bit === 'HAMMER' ? '해머비트' : bit === 'IMPROVED' ? '개량형비트' : bit}
                                 </option>
                             ))}
                         </select>
-                    ) : (
-                        <span className="text-[10px] text-gray-600">-</span>
-                    )}
+                    ) : <span className="text-gray-600 text-[10px]">-</span>}
                 </div>
 
-                {/* 3. Time Display */}
-                <div className="text-right text-yellow-500 text-[10px] font-mono border-t border-gray-700/50 pt-1">
+                {/* 3. Time Display (Bottom) */}
+                <div className="flex items-center justify-center h-[30px] bg-gray-900 text-yellow-500 font-mono text-[11px]">
                     {timeDisplay}
+                </div>
+            </div>
+        );
+    };
+
+    const renderTotalCell = (row) => {
+        return (
+            <div className="flex flex-col h-full min-h-[90px] w-full">
+                <div className="flex items-center justify-center h-[30px] border-b border-gray-600 bg-gray-800 font-bold text-white text-xs">
+                    {row.total_depth ? `${row.total_depth}m` : '-'}
+                </div>
+                <div className="flex items-center justify-center h-[30px] border-b border-gray-600 bg-gray-800">
+                    {/* Spacer or Mid content? Image is blank/merged? Assuming blank or title */}
+                    <span className="text-[10px] text-gray-500">-</span>
+                </div>
+                <div className="flex items-center justify-center h-[30px] bg-gray-900 text-yellow-400 font-bold text-xs">
+                    {row.t2 ? `${Number(row.t2).toFixed(2)}분` : '-'}
+                </div>
+            </div>
+        );
+    };
+
+    const renderDailyProdCell = (row) => {
+        return (
+            <div className="flex flex-col h-full min-h-[90px] w-full border-l border-gray-600 font-bold">
+                {/* Count */}
+                <div className="flex-1 flex items-center justify-center bg-cyan-900/40 text-cyan-300 text-sm border-b border-gray-600">
+                    {row.daily_production_count ? `${Number(row.daily_production_count).toFixed(2)}본` : '-'}
+                </div>
+                {/* Length */}
+                <div className="flex-1 flex items-center justify-center bg-gray-800 text-white text-sm">
+                    {/* Length = Count * Depth? Image says 53.36m. 4.45 * 12 = 53.4. Matches. */}
+                    {(row.daily_production_count && row.total_depth)
+                        ? `${(row.daily_production_count * row.total_depth).toFixed(2)}m`
+                        : '-'}
                 </div>
             </div>
         );
@@ -461,109 +646,141 @@ export default function CIPBasisList() {
     const scheduleHeader = (
         <thead className="bg-[#3b3b4f] text-gray-200 text-center text-xs">
             <tr>
-                <th className="border border-gray-600 p-1 w-[80px]" rowSpan="2">T<br />본당소요<br />(분)</th>
-                <th className="border border-gray-600 p-1 w-[60px]" rowSpan="2">t1<br />준비시간</th>
-                <th colSpan="9" className="border border-gray-600 p-1">t2 : 선공시간 (L1:지층별 굴착연장 × a1:지층별굴착시간)</th>
-                <th className="border border-gray-600 p-1 w-[60px]" rowSpan="2">t3<br />철근망</th>
-                <th colSpan="2" className="border border-gray-600 p-1">t4 : 콘크리트 타설 시간</th>
-                <th className="border border-gray-600 p-1 w-[50px]" rowSpan="2">f<br />계수</th>
-                <th className="border border-gray-600 p-1 w-[150px]" rowSpan="2">계산식</th>
-                <th className="border border-gray-600 p-1 w-[120px]" rowSpan="2">비고</th>
+                <th className="border border-gray-600 p-1 w-[80px]" rowSpan="2">말뚝직경<br />(mm)</th>
+                <th className="border border-gray-600 p-1" colSpan="7">굴착 깊이 및 장비</th>
+                <th className="border border-gray-600 p-1 w-[80px]" rowSpan="2">작업시간<br />(본당)</th>
+                <th className="border border-gray-600 p-1 w-[100px]" rowSpan="2">일일 생산성</th>
             </tr>
             <tr>
-                {/* t2 sub-columns */}
-                <th className="border border-gray-600 p-1 w-[70px]">직경</th>
-                <th className="border border-gray-600 p-1 w-[50px]">점질토</th>
-                <th className="border border-gray-600 p-1 w-[50px]">사질토</th>
-                <th className="border border-gray-600 p-1 w-[50px]">풍화암</th>
-                <th className="border border-gray-600 p-1 w-[50px]">연암</th>
-                <th className="border border-gray-600 p-1 w-[50px]">경암</th>
-                <th className="border border-gray-600 p-1 w-[50px]">혼합층</th>
-                <th className="border border-gray-600 p-1 w-[60px]">합계</th>
-                <th className="border border-gray-600 p-1 w-[60px]">시간</th>
-
-                {/* t4 sub-columns */}
-                <th className="border border-gray-600 p-1 w-[60px]">길이</th>
-                <th className="border border-gray-600 p-1 w-[60px]">소요시간</th>
+                {/* Layers */}
+                <th className="border border-gray-600 p-1 w-[75px]">점질토</th>
+                <th className="border border-gray-600 p-1 w-[75px]">사질토</th>
+                <th className="border border-gray-600 p-1 w-[75px]">풍화암</th>
+                <th className="border border-gray-600 p-1 w-[75px]">연암</th>
+                <th className="border border-gray-600 p-1 w-[75px]">경암</th>
+                <th className="border border-gray-600 p-1 w-[75px]">혼합층</th>
+                <th className="border border-gray-600 p-1 w-[75px] bg-gray-700">합계</th>
             </tr>
         </thead>
     );
 
     const scheduleColumns = [
-        // T (Calculated)
+        // 1. Diameter
+        { key: 'diameter_selection', editable: false, render: renderDiameterCell, className: "p-1 align-middle border-r border-gray-500" },
+
+        // 2. Layers (Stacked)
+        { key: 'clay', editable: false, render: (row) => renderLayerCell(row, 'clay'), className: "p-0 align-top border-r border-gray-600" },
+        { key: 'sand', editable: false, render: (row) => renderLayerCell(row, 'sand'), className: "p-0 align-top border-r border-gray-600" },
+        { key: 'weathered', editable: false, render: (row) => renderLayerCell(row, 'weathered'), className: "p-0 align-top border-r border-gray-600" },
+        { key: 'soft_rock', editable: false, render: (row) => renderLayerCell(row, 'soft_rock'), className: "p-0 align-top border-r border-gray-600" },
+        { key: 'hard_rock', editable: false, render: (row) => renderLayerCell(row, 'hard_rock'), className: "p-0 align-top border-r border-gray-600" },
+        { key: 'mixed', editable: false, render: (row) => renderLayerCell(row, 'mixed'), className: "p-0 align-top border-r border-gray-600" },
+
+        // 3. Total (Stacked)
+        { key: 'total_depth', editable: false, render: renderTotalCell, className: "p-0 align-top border-r-2 border-gray-500" },
+
+        // 4. Work Time
         {
             key: 'cycle_time',
             editable: false,
-            className: "align-middle bg-cyan-100 text-black font-bold text-center border-r border-gray-400",
+            className: "align-middle font-bold text-lg text-white text-center border-r border-gray-500",
             render: (row) => <span>{Number(row.cycle_time).toFixed(2)}분</span>
         },
-        // t1 (Input)
-        { key: 't1', editable: true, render: (row) => renderNumberInput(row, 't1', handleBasisSave), className: "p-0" },
 
-        // t2 Group
-        { key: 'diameter_selection', editable: false, render: renderDiameterCell, className: "align-middle p-1" },
-        { key: 'clay', editable: false, render: (row) => renderLayerCell(row, 'clay'), className: "align-top p-0 border border-gray-700" },
-        { key: 'sand', editable: false, render: (row) => renderLayerCell(row, 'sand'), className: "align-top p-0 border border-gray-700" },
-        { key: 'weathered', editable: false, render: (row) => renderLayerCell(row, 'weathered'), className: "align-top p-0 border border-gray-700" },
-        { key: 'soft_rock', editable: false, render: (row) => renderLayerCell(row, 'soft_rock'), className: "align-top p-0 border border-gray-700" },
-        { key: 'hard_rock', editable: false, render: (row) => renderLayerCell(row, 'hard_rock'), className: "align-top p-0 border border-gray-700" },
-        { key: 'mixed', editable: false, render: (row) => renderLayerCell(row, 'mixed'), className: "align-top p-0 border border-gray-700" },
-        { // t2 Sum (Depth)
-            key: 'total_depth',
-            editable: false,
-            className: "align-middle text-center bg-gray-800 font-bold text-white",
-            render: (row) => <span>{row.total_depth}m</span>
-        },
-        { // t2 Time
-            key: 't2',
-            editable: false,
-            className: "align-middle text-center bg-gray-800 text-yellow-500 font-bold",
-            render: (row) => <span>{Number(row.t2).toFixed(2)}분</span>
-        },
-
-        // t3 (Input)
-        { key: 't3', editable: true, render: (row) => renderNumberInput(row, 't3', handleBasisSave), className: "p-0" },
-
-        // t4 Group
-        { // Length (Auto/Input)
-            key: 'concrete_pouring_length',
-            editable: true,
-            className: "p-0",
-            render: (row) => renderNumberInput(row, 'concrete_pouring_length', handleBasisSave)
-        },
-        { // Time (Calculated from IFS logic)
-            key: 't4',
-            editable: false,
-            className: "p-0",
-            render: (row) => renderCalculatedNumber(row, 't4')
-        },
-
-        // f (Input)
-        { key: 'classification_factor', editable: true, render: (row) => renderNumberInput(row, 'classification_factor', handleBasisSave), className: "p-0" },
-
-        // Formula
-        {
-            key: 'calculation_formula',
-            editable: false,
-            className: "align-middle text-xs text-gray-400 text-center break-all px-1",
-            render: (row) => row.calculation_formula
-        },
-        // Remark
-        {
-            key: 'description',
-            editable: true,
-            className: "align-middle p-0",
-            render: (row) => (
-                <input
-                    type="text"
-                    className="w-full h-full bg-transparent text-gray-300 text-xs px-1 text-center"
-                    value={row.description || ""}
-                    onChange={(e) => handleBasisChange(row.id, 'description', e.target.value)}
-                    onBlur={() => handleBasisSave(row.id)}
-                />
-            )
-        },
+        // 6. Daily Prod
+        { key: 'daily_production_count', editable: false, render: renderDailyProdCell, className: "p-0 align-top" },
     ];
+
+    // --- Result Summary Table (uses same layout, different handlers) ---
+    const renderDiameterCellForResult = (row) => (
+        <select
+            className="bg-gray-800 text-white border border-gray-600 rounded p-1 w-full text-xs"
+            value={row.diameter_selection || ""}
+            onChange={(e) => handleResultSummaryChange(row.id, 'diameter_selection', e.target.value)}
+            onBlur={() => handleResultSummarySave(row.id)}
+        >
+            <option value="">선택</option>
+            {diameterOptions.map(opt => (
+                <option key={opt} value={opt}>{opt}</option>
+            ))}
+        </select>
+    );
+
+    const renderLayerCellForResult = (row, layerKey) => {
+        const depth = row[`layer_depth_${layerKey}`];
+        const bitType = row[`bit_type_${layerKey}`];
+        const diameterSpec = row.diameter_selection;
+
+        let timeDisplay = "-";
+        if (depth > 0 && bitType && diameterSpec) {
+            const std = standardData.find(s =>
+                s.diameter_spec.trim() === diameterSpec.trim() &&
+                s.bit_type === bitType
+            );
+            const unitTime = std ? std[`value_${layerKey}`] : null;
+            if (unitTime !== null && unitTime !== undefined) {
+                timeDisplay = (depth * unitTime).toFixed(2) + "분";
+            }
+        }
+
+        const availableBits = getAvailableBits(diameterSpec, layerKey, standardData);
+
+        return (
+            <div className="flex flex-col h-full min-h-[90px] border-collapse">
+                <div className="flex items-center justify-center h-[30px] border-b border-gray-600 bg-gray-800/30">
+                    <input
+                        type="number"
+                        step="0.1"
+                        className="w-full h-full bg-transparent text-white text-center font-bold text-xs no-spin focus:bg-gray-700"
+                        value={depth || ""}
+                        placeholder="-"
+                        onChange={(e) => handleResultSummaryChange(row.id, `layer_depth_${layerKey}`, e.target.value)}
+                        onBlur={() => handleResultSummarySave(row.id)}
+                    />
+                    {depth > 0 && <span className="text-[10px] text-gray-400 absolute right-1 pointer-events-none">m</span>}
+                </div>
+                <div className="flex items-center justify-center h-[30px] border-b border-gray-600 bg-gray-800/50">
+                    {availableBits.length > 0 ? (
+                        <select
+                            className="bg-transparent text-cyan-300 w-full text-[10px] h-full text-center appearance-none cursor-pointer focus:bg-gray-700 font-semibold"
+                            value={bitType || ""}
+                            onChange={(e) => handleResultSummaryChange(row.id, `bit_type_${layerKey}`, e.target.value)}
+                            onBlur={() => handleResultSummarySave(row.id)}
+                        >
+                            <option value="">-</option>
+                            {availableBits.map(bit => (
+                                <option key={bit} value={bit}>
+                                    {bit === 'AUGER' ? '오거비트' : bit === 'HAMMER' ? '해머비트' : bit === 'IMPROVED' ? '개량형비트' : bit}
+                                </option>
+                            ))}
+                        </select>
+                    ) : <span className="text-gray-600 text-[10px]">-</span>}
+                </div>
+                <div className="flex items-center justify-center h-[30px] bg-gray-900 text-yellow-500 font-mono text-[11px]">
+                    {timeDisplay}
+                </div>
+            </div>
+        );
+    };
+
+    const resultSummaryColumns = [
+        { key: 'diameter_selection', editable: false, render: renderDiameterCellForResult, className: "p-1 align-middle border-r border-gray-500" },
+        { key: 'clay', editable: false, render: (row) => renderLayerCellForResult(row, 'clay'), className: "p-0 align-top border-r border-gray-600" },
+        { key: 'sand', editable: false, render: (row) => renderLayerCellForResult(row, 'sand'), className: "p-0 align-top border-r border-gray-600" },
+        { key: 'weathered', editable: false, render: (row) => renderLayerCellForResult(row, 'weathered'), className: "p-0 align-top border-r border-gray-600" },
+        { key: 'soft_rock', editable: false, render: (row) => renderLayerCellForResult(row, 'soft_rock'), className: "p-0 align-top border-r border-gray-600" },
+        { key: 'hard_rock', editable: false, render: (row) => renderLayerCellForResult(row, 'hard_rock'), className: "p-0 align-top border-r border-gray-600" },
+        { key: 'mixed', editable: false, render: (row) => renderLayerCellForResult(row, 'mixed'), className: "p-0 align-top border-r border-gray-600" },
+        { key: 'total_depth', editable: false, render: renderTotalCell, className: "p-0 align-top border-r-2 border-gray-500" },
+        {
+            key: 'cycle_time',
+            editable: false,
+            className: "align-middle font-bold text-lg text-white text-center border-r border-gray-500",
+            render: (row) => <span>{Number(row.cycle_time).toFixed(2)}분</span>
+        },
+        { key: 'daily_production_count', editable: false, render: renderDailyProdCell, className: "p-0 align-top" },
+    ];
+
 
     // --- Column & Header Definitions ---
 
@@ -693,6 +910,24 @@ export default function CIPBasisList() {
             </div>
 
             <div className="flex-1 overflow-auto space-y-8">
+                {/* 3. NEW: CIP Result Summary Table (Single Row) */}
+                <div>
+                    <h2 className="text-xl font-bold mb-4 text-gray-300">CIP 작업 결과표</h2>
+                    {resultSummary ? (
+                        <div className="overflow-auto">
+                            <EditableTable
+                                data={[resultSummary]}
+                                columns={resultSummaryColumns}
+                                customThead={scheduleHeader}
+                                onRowChange={handleResultSummaryChange}
+                                onSaveRow={handleResultSummarySave}
+                            />
+                        </div>
+                    ) : (
+                        <div className="text-gray-400">Loading result...</div>
+                    )}
+                </div>
+
                 {/* 1. Drilling Standard Table */}
                 <div>
                     <h2 className="text-xl font-bold mb-4 text-gray-300">※ 천공 속도/시간 기준표 (참고)</h2>
@@ -724,3 +959,4 @@ export default function CIPBasisList() {
         </div>
     );
 }
+
