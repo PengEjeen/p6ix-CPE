@@ -1,3 +1,4 @@
 from .construction_productivity_models import ConstructionProductivity
 from .cip_productivity_models import CIPProductivityBasis, CIPDrillingStandard, CIPResult
 from .pile_productivity_models import PileProductivityBasis, PileStandard, PileResult
+from .bored_pile_productivity_models import BoredPileProductivityBasis, BoredPileStandard, BoredPileResult

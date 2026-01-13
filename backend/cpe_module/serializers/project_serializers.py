@@ -124,6 +124,7 @@ class ProjectSerializer(serializers.ModelSerializer):
             # 생산성 결과는 별도의 템플릿이 없음 그냥 지금의 프로젝트와 연결해서 생성
             CIPResult.objects.create(project=project)
 
+
             # Pile 생산성 근거 및 결과 초기화
             from cpe_all_module.models.pile_productivity_models import PileProductivityBasis, PileResult
             
@@ -139,5 +140,21 @@ class ProjectSerializer(serializers.ModelSerializer):
             
             # Pile 생산성 결과 초기화
             PileResult.objects.create(project=project)
+
+            # Bored Pile 생산성 근거 및 결과 초기화
+            from cpe_all_module.models.bored_pile_productivity_models import BoredPileProductivityBasis, BoredPileResult
+            
+            standard_bored = BoredPileProductivityBasis.objects.filter(project__isnull=True).values()
+            bored_new_objects = [
+                BoredPileProductivityBasis(
+                    project=project,
+                    **{k: v for k, v in item.items() if k != 'id' and k != 'project_id'}
+                )
+                for item in standard_bored
+            ]
+            BoredPileProductivityBasis.objects.bulk_create(bored_new_objects)
+            
+            # Bored Pile 생산성 결과 초기화
+            BoredPileResult.objects.create(project=project)
 
         return project

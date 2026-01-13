@@ -65,6 +65,11 @@ function Header() {
       desc: "기성말뚝 기초 생산성 산출 근거",
       path: `/projects/${id}/pile-basis`,
     },
+    {
+      name: "현장타설말뚝 생산성 근거",
+      desc: "현장타설말뚝 생산성 산출 근거",
+      path: `/projects/${id}/bored-pile-basis`,
+    },
   ];
 
   const menus = project?.calc_type === "TOTAL" ? totalMenus : apartmentMenus;

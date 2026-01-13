@@ -12,6 +12,7 @@ import UserProfile from "./pages/UserProfile";
 import TotalCalc from "./pages/TotalCalc";
 import CIPBasisList from "./pages/CIPBasisList";
 import PileBasisList from "./pages/PileBasisList";
+import BoredPileBasisList from "./pages/BoredPileBasisList";
 
 const router = createBrowserRouter(
   createRoutesFromElements(
@@ -28,6 +29,7 @@ const router = createBrowserRouter(
         <Route path="/projects/:id/total-calc" element={<TotalCalc />} />
         <Route path="/projects/:id/cip-basis" element={<CIPBasisList />} />
         <Route path="/projects/:id/pile-basis" element={<PileBasisList />} />
+        <Route path="/projects/:id/bored-pile-basis" element={<BoredPileBasisList />} />
       </Route>
     </>
   )

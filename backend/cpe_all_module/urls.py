@@ -4,12 +4,13 @@ from .views import (
     ConstructionProductivityViewSet,
     CIPProductivityBasisViewSet,
     CIPDrillingStandardViewSet,
-    CIPResultViewSet
-)
-from .views.pile_productivity import (
+    CIPResultViewSet,
     PileProductivityBasisViewSet,
     PileStandardViewSet,
-    PileResultViewSet
+    PileResultViewSet,
+    BoredPileProductivityBasisViewSet,
+    BoredPileStandardViewSet,
+    BoredPileResultViewSet
 )
 
 router = DefaultRouter()
@@ -20,6 +21,9 @@ router.register(r'cip-standard', CIPDrillingStandardViewSet, basename='cip-stand
 router.register(r'pile-basis', PileProductivityBasisViewSet, basename='pile-basis')
 router.register(r'pile-result', PileResultViewSet, basename='pile-result')
 router.register(r'pile-standard', PileStandardViewSet, basename='pile-standard')
+router.register(r'bored-pile-basis', BoredPileProductivityBasisViewSet, basename='bored-pile-basis')
+router.register(r'bored-pile-result', BoredPileResultViewSet, basename='bored-pile-result')
+router.register(r'bored-pile-standard', BoredPileStandardViewSet, basename='bored-pile-standard')
 
 urlpatterns = [
     path('productivity/project/<str:project_id>/', ConstructionProductivityViewSet.as_view({'get': 'list'}), name='productivity-project-list'),
