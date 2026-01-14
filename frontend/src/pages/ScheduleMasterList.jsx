@@ -10,6 +10,7 @@ import { fetchCIPResults } from "../api/cpe_all/cip_basis";
 import { fetchPileResults } from "../api/cpe_all/pile_basis";
 import { fetchBoredPileResults } from "../api/cpe_all/bored_pile_basis";
 import { detailProject } from "../api/cpe/project";
+import { detailWorkCondition, updateWorkCondition } from "../api/cpe/calc";
 import SaveButton from "../components/cpe/SaveButton";
 import toast from "react-hot-toast";
 import { Trash2, Link, RefreshCw, Plus, GripVertical } from "lucide-react";
@@ -277,6 +278,26 @@ export default function ScheduleMasterList() {
             // User said "remove star_date and working condition and Change DB completely to JSON". 
             // He might mean store start_date in JSON too. But I'll keep it simple: UI works with Project Date.
             setStartDate(projectData.start_date || "");
+
+            // Safely fetch Run Rate (WorkCondition)
+            try {
+                const workCondResponse = await detailWorkCondition(projectId);
+                console.log("[DEBUG LOAD] WorkCondition API response:", workCondResponse);
+
+                const workCond = workCondResponse.data || workCondResponse;
+                console.log("[DEBUG LOAD] WorkCondition data:", workCond);
+                console.log("[DEBUG LOAD] earthwork_type:", workCond.earthwork_type);
+
+                if (workCond && workCond.earthwork_type) {
+                    const newWorkDayType = `${workCond.earthwork_type}d`;
+                    console.log("[DEBUG LOAD] Setting workDayType to:", newWorkDayType);
+                    setWorkDayType(newWorkDayType);
+                } else {
+                    console.warn("[DEBUG LOAD] No earthwork_type found in response");
+                }
+            } catch (e) {
+                console.warn("Run Rate Load Failed (Non-critical):", e);
+            }
         } catch (error) {
             console.error("Data load failed:", error);
             toast.error("데이터 초기화 실패");
@@ -523,9 +544,52 @@ export default function ScheduleMasterList() {
             }
 
             console.log("Calling saveScheduleData API with ID:", targetContainerId);
-            await saveScheduleData(targetContainerId, items);
-            console.log("Save success!");
-            toast.success("저장 완료");
+
+            // Run both saves independently
+            const typeVal = workDayType.replace("d", "");
+            console.log("[DEBUG] About to save Run Rate:", {
+                projectId,
+                typeVal,
+                workDayType,
+                payload: {
+                    earthwork_type: typeVal,
+                    framework_type: typeVal
+                }
+            });
+
+            const results = await Promise.allSettled([
+                saveScheduleData(targetContainerId, items),
+                updateWorkCondition(projectId, {
+                    earthwork_type: typeVal,
+                    framework_type: typeVal
+                })
+            ]);
+
+            // Check results
+            const scheduleResult = results[0];
+            const runRateResult = results[1];
+
+            console.log("[DEBUG] Run Rate Result:", runRateResult);
+
+            if (scheduleResult.status === "fulfilled") {
+                console.log("Schedule data saved successfully");
+            } else {
+                console.error("Schedule save failed:", scheduleResult.reason);
+            }
+
+            if (runRateResult.status === "fulfilled") {
+                console.log("Run Rate saved successfully:", typeVal);
+                console.log("Run Rate response:", runRateResult.value);
+            } else {
+                console.error("Run Rate save failed:", runRateResult.reason);
+            }
+
+            // Show success if at least one succeeded
+            if (scheduleResult.status === "fulfilled" || runRateResult.status === "fulfilled") {
+                toast.success("저장 완료");
+            } else {
+                throw new Error("Both saves failed");
+            }
         } catch (error) {
             console.error("Save failed:", error);
             toast.error("저장 실패");

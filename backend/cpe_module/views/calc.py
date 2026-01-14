@@ -43,7 +43,7 @@ def update_construction_overview(request, project_id):
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def detail_work_condition(request, project_id):
-    instance = get_object_or_404(WorkCondition, project_id=project_id)
+    instance, _ = WorkCondition.objects.get_or_create(project_id=project_id)
     serializer = WorkConditionSerializer(instance)
     return Response(serializer.data)
 
@@ -51,11 +51,21 @@ def detail_work_condition(request, project_id):
 @api_view(["PUT"])
 @permission_classes([IsAuthenticated])
 def update_work_condition(request, project_id):
-    instance = get_object_or_404(WorkCondition, project_id=project_id)
+    print(f"[DEBUG] update_work_condition called for project_id: {project_id}")
+    print(f"[DEBUG] Request data: {request.data}")
+    
+    instance, created = WorkCondition.objects.get_or_create(project_id=project_id)
+    print(f"[DEBUG] Instance: {instance}, Created: {created}")
+    print(f"[DEBUG] Current earthwork_type: {instance.earthwork_type}")
+    print(f"[DEBUG] Current framework_type: {instance.framework_type}")
+    
     serializer = WorkConditionSerializer(instance, data=request.data, partial=True)
     if serializer.is_valid():
         serializer.save()
+        print(f"[DEBUG] Save successful. New earthwork_type: {instance.earthwork_type}")
         return Response(serializer.data)
+    
+    print(f"[DEBUG] Validation errors: {serializer.errors}")
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 # 준비·정리 기간
