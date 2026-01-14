@@ -6,6 +6,9 @@ export const detailOperatingRate = async (project_id) => {
     const res = await api.get(`cpe/work-schedule-weights/${project_id}/`);
     return res.data;
   } catch (error) {
+    if (error.response && error.response.status === 404) {
+      return [];
+    }
     console.error("가동률 불러오기 실패:", error);
     throw error;
   }

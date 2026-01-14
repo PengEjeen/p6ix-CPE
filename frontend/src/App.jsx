@@ -13,6 +13,7 @@ import TotalCalc from "./pages/TotalCalc";
 import CIPBasisList from "./pages/CIPBasisList";
 import PileBasisList from "./pages/PileBasisList";
 import BoredPileBasisList from "./pages/BoredPileBasisList";
+import ScheduleMasterList from "./pages/ScheduleMasterList";
 
 const router = createBrowserRouter(
   createRoutesFromElements(
@@ -30,6 +31,7 @@ const router = createBrowserRouter(
         <Route path="/projects/:id/cip-basis" element={<CIPBasisList />} />
         <Route path="/projects/:id/pile-basis" element={<PileBasisList />} />
         <Route path="/projects/:id/bored-pile-basis" element={<BoredPileBasisList />} />
+        <Route path="/projects/:id/schedule-master" element={<ScheduleMasterList />} />
       </Route>
     </>
   )

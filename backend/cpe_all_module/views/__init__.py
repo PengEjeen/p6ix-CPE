@@ -2,3 +2,4 @@ from .construction_productivity import ConstructionProductivityViewSet
 from .cip_productivity import CIPProductivityBasisViewSet, CIPDrillingStandardViewSet, CIPResultViewSet
 from .pile_productivity import PileProductivityBasisViewSet, PileStandardViewSet, PileResultViewSet
 from .bored_pile_productivity import BoredPileProductivityBasisViewSet, BoredPileStandardViewSet, BoredPileResultViewSet
+from .construction_schedule import ConstructionScheduleItemViewSet

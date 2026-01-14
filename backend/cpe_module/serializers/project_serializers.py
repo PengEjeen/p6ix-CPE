@@ -19,6 +19,7 @@ class ProjectSerializer(serializers.ModelSerializer):
             "title",
             "description",
             "calc_type",
+            "start_date",
             "created_at",
             "updated_at",
             "is_delete",
@@ -156,5 +157,20 @@ class ProjectSerializer(serializers.ModelSerializer):
             
             # Bored Pile 생산성 결과 초기화
             BoredPileResult.objects.create(project=project)
+
+            # 가동률 초기화
+            # from ..models.operating_rate_models import ConstructionType, WorkScheduleWeight (Already imported globally)
+            for choice in ConstructionType:
+                WorkScheduleWeight.objects.create(project=project, type=choice.value)
+        
+        # Schedule Master Initial Data (For ALL project types)
+        # cpe_all_module/models/construction_schedule_models
+        from cpe_all_module.models.construction_schedule_models import ConstructionScheduleItem
+        from cpe_all_module.initial_data import get_default_schedule_data
+        
+        ConstructionScheduleItem.objects.create(
+            project=project,
+            data=get_default_schedule_data()
+        )
 
         return project

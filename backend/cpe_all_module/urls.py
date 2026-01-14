@@ -10,7 +10,8 @@ from .views import (
     PileResultViewSet,
     BoredPileProductivityBasisViewSet,
     BoredPileStandardViewSet,
-    BoredPileResultViewSet
+    BoredPileResultViewSet,
+    ConstructionScheduleItemViewSet
 )
 
 router = DefaultRouter()
@@ -24,6 +25,7 @@ router.register(r'pile-standard', PileStandardViewSet, basename='pile-standard')
 router.register(r'bored-pile-basis', BoredPileProductivityBasisViewSet, basename='bored-pile-basis')
 router.register(r'bored-pile-result', BoredPileResultViewSet, basename='bored-pile-result')
 router.register(r'bored-pile-standard', BoredPileStandardViewSet, basename='bored-pile-standard')
+router.register(r'schedule-item', ConstructionScheduleItemViewSet, basename='schedule-item')
 
 urlpatterns = [
     path('productivity/project/<str:project_id>/', ConstructionProductivityViewSet.as_view({'get': 'list'}), name='productivity-project-list'),

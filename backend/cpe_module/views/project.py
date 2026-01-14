@@ -6,6 +6,8 @@ from django.shortcuts import get_object_or_404
 
 from ..models.project_models import Project
 from ..serializers.project_serializers import ProjectSerializer
+from cpe_all_module.models.construction_schedule_models import ConstructionScheduleItem
+from ..models.operating_rate_models import WorkScheduleWeight, ConstructionType
 
 
 # 프로젝트 목록 조회
@@ -33,6 +35,9 @@ def create_project(request):
     serializer = ProjectSerializer(data=request.data, context={"request": request})
     if serializer.is_valid():
         project = serializer.save()
+
+        # Schedule Item is initialized in ProjectSerializer.create() now.
+        
         return Response(ProjectSerializer(project).data, status=status.HTTP_201_CREATED)
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 

@@ -51,8 +51,13 @@ function Header() {
 
   const totalMenus = [
     {
+      name: "공사기간 산정 기준",
+      desc: "공정별 생산성 데이터 및 공기 산정 기준",
+      path: `/projects/${id}/schedule-master`,
+    },
+    {
       name: "표준품셈",
-      desc: "전체 프로젝트 공기 산정 및 관리",
+      desc: "공종별 표준품셈 및 생산성 데이터",
       path: `/projects/${id}/total-calc`,
     },
     {
@@ -69,6 +74,11 @@ function Header() {
       name: "현장타설말뚝 생산성 근거",
       desc: "현장타설말뚝 생산성 산출 근거",
       path: `/projects/${id}/bored-pile-basis`,
+    },
+    {
+      name: "가동률",
+      desc: "작업 가동률 입력 및 자동 계산",
+      path: `/projects/${id}/operating_rate`,
     },
   ];
 
