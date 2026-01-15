@@ -91,26 +91,10 @@ const SmartGanttBar = ({
         const handleMouseUp = (moveEvent) => {
             setIsResizing(false);
             if (tempDuration !== null) {
-                const isShortened = tempDuration < durationDays;
-                onBarResize(item.id, tempDuration);
-
-                // Trigger "Contextual Brain" Popover if shortened
-                if (isShortened) {
-                    setPopoverState({
-                        visible: true,
-                        item: item,
-                        oldDuration: durationDays,
-                        newDuration: tempDuration,
-                        baseProductivity: item.productivity,
-                        x: moveEvent.clientX,
-                        y: moveEvent.clientY
-                    });
-                } else {
-                    setPopoverState(null);
-                }
+                // Pass coordinates to parent for Popover positioning
+                onBarResize(item.id, tempDuration, moveEvent.clientX, moveEvent.clientY);
 
                 setTempDuration(null);
-                if (onResizing) onResizing(null);
             }
             document.removeEventListener('mousemove', handleMouseMove);
             document.removeEventListener('mouseup', handleMouseUp);

@@ -460,13 +460,20 @@ export default function ScheduleMasterList() {
     };
 
     // --- Gantt to Store Connection ---
-    const handleGanttResize = (itemId, newCalendarDays) => {
-        // Default Drag Action: Update Duration via Productivity Adjustment (Work Harder)
-        resizeTaskBarByProductivity(itemId, newCalendarDays);
+    const handleGanttResize = (itemId, newCalendarDays, mode = 'crew') => {
+        // Mode-based Resize (Crew Adjustment vs Productivity Adjustment)
+        if (mode === 'prod') {
+            // Adjust Productivity (Keep Crew Constant)
+            resizeTaskBarByProductivity(itemId, newCalendarDays);
+        } else {
+            // Adjust Crew (Default: Keep Workload Constant)
+            // Smart Action: Increase Crew (Maintain standard productivity)
+            resizeTaskBar(itemId, newCalendarDays);
+        }
     };
 
     const handleSmartResize = (itemId, newCalendarDays, baseProductivity = null) => {
-        // Smart Action: Increase Crew (Maintain standard productivity, reverting to base if provided)
+        // Legacy/Direct calling support if needed
         resizeTaskBar(itemId, newCalendarDays, baseProductivity);
     };
 
@@ -521,7 +528,10 @@ export default function ScheduleMasterList() {
         return map;
     }, [items]);
 
-    // Auto-mark enclosed tasks as "병행작업" in remarks
+    // [DISABLED] Auto-mark enclosed tasks as "병행작업"
+    // This was causing UI lag/sync issues (requiring double click).
+    // Visuals for parallel tasks will be handled dynamically in GanttChart.
+    /*
     useEffect(() => {
         if (!items || items.length === 0) return;
 
@@ -569,6 +579,7 @@ export default function ScheduleMasterList() {
             }
         });
     }, [items, updateItem]);
+    */
 
     // Dnd Handlers
     const handleDragStart = (event) => {
@@ -817,7 +828,7 @@ export default function ScheduleMasterList() {
                                 <col width="120" /> {/* Remarks */}
                                 <col width="50" />  {/* Action */}
                             </colgroup>
-                            <thead className="bg-gray-50 text-gray-700 sticky top-0 z-20 shadow-sm border-b border-gray-300">
+                            <thead className="bg-gray-50 text-gray-700 sticky top-0 z-[2] shadow-sm border-b border-gray-300">
                                 <tr>
                                     <th className="border-r border-gray-300 px-2 py-3 bg-gray-100"></th>
                                     <th className="border-r border-gray-300 px-2 py-3 font-bold bg-gray-100 text-center" colSpan={2}>분류</th>

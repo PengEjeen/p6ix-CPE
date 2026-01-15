@@ -1,5 +1,5 @@
-import React, { useMemo, useState } from "react";
-import { Activity, Calendar, Sparkles, Users } from "lucide-react";
+import React, { useMemo, useState, useCallback } from "react";
+import { Activity, Calendar, Sparkles, Users, Zap } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { solveForCrewSize } from "../../utils/solver";
 import { generateTimeline } from "./ganttUtils";
@@ -30,68 +30,7 @@ export default function GanttChart({ items, startDate, onReorder, onResize, onSm
     // eslint-disable-next-line no-unused-vars
     const [expandedProcesses, setExpandedProcesses] = useState({});
 
-    const handleItemClick = (itemId, source) => {
-        setSelectedItemId(itemId);
-
-        // Scroll Logic: Manual calculation to avoid layout breaking with scrollIntoView
-        setTimeout(() => {
-            if (source === 'sidebar') {
-                // Scroll Chart to Bar
-                const container = chartRef.current;
-                const targetRow = document.getElementById(`chart-item-${itemId}`);
-                const item = itemsWithTiming.find(i => i.id === itemId);
-
-                if (container && targetRow && item) {
-                    const containerRect = container.getBoundingClientRect();
-                    const targetRect = targetRow.getBoundingClientRect();
-
-                    // Vertical Alignment (Center Row)
-                    const relativeTop = targetRect.top - containerRect.top + container.scrollTop;
-                    const scrollTopTarget = relativeTop - container.clientHeight / 2 + targetRow.clientHeight / 2;
-
-                    // Horizontal Alignment (Center Bar)
-                    const barLeftPx = (item.startDay / dateScale) * pixelsPerUnit;
-                    const barWidthPx = (item.durationDays / dateScale) * pixelsPerUnit;
-                    const scrollLeftTarget = barLeftPx + (barWidthPx / 2) - (container.clientWidth / 2);
-
-                    container.scrollTo({
-                        top: scrollTopTarget,
-                        left: scrollLeftTarget,
-                        behavior: 'smooth'
-                    });
-                }
-            } else if (source === 'chart') {
-                // Scroll Sidebar to Item
-                const container = sidebarRef.current;
-                const target = document.getElementById(`sidebar-item-${itemId}`);
-                if (container && target) {
-                    const containerRect = container.getBoundingClientRect();
-                    const targetRect = target.getBoundingClientRect();
-
-                    const relativeTop = targetRect.top - containerRect.top + container.scrollTop;
-
-                    container.scrollTo({
-                        top: relativeTop - container.clientHeight / 2 + target.clientHeight / 2,
-                        behavior: 'smooth'
-                    });
-                }
-            }
-        }, 50);
-    };
-
-    const handleBarResizing = (itemId, duration, x, y) => {
-        if (!itemId) {
-            setSimulation(null);
-            return;
-        }
-        const originalItem = items.find(i => i.id === itemId);
-        if (!originalItem) return;
-
-        const simulated = solveForCrewSize(originalItem, duration);
-        setSimulation({ original: originalItem, calculated: simulated, x, y });
-    };
-
-    // Calculate Grid Data
+    // Calculate Grid Data FIRST (needed for handlers)
     const { itemsWithTiming, totalDays, dailyLoads } = useMemo(() => {
         if (!items || items.length === 0) return { itemsWithTiming: [], totalDays: 0, parallelGroups: new Map(), dailyLoads: new Map() };
 
@@ -137,6 +76,88 @@ export default function GanttChart({ items, startDate, onReorder, onResize, onSm
         }
         const maxEndDay = result.reduce((max, item) => Math.max(max, item.startDay + item.durationDays), 0);
         return { itemsWithTiming: result, totalDays: maxEndDay, parallelGroups: groups, dailyLoads: loads };
+    }, [items]);
+
+    const handleItemClick = useCallback((itemId, source) => {
+        setSelectedItemId(itemId);
+
+        // Scroll Logic: Manual calculation to avoid layout breaking with scrollIntoView
+        setTimeout(() => {
+            if (source === 'sidebar') {
+                // Scroll Chart to Bar
+                const container = chartRef.current;
+                const targetRow = document.getElementById(`chart-item-${itemId}`);
+                const item = itemsWithTiming.find(i => i.id === itemId);
+
+                if (container && targetRow && item) {
+                    const containerRect = container.getBoundingClientRect();
+                    const targetRowRect = targetRow.getBoundingClientRect();
+
+                    // Vertical Alignment (Center Row)
+                    // Note: targetRowRect is relative to viewport, containerRect is relative to viewport.
+                    // scrollTop is container's current scroll.
+                    const relativeTop = targetRowRect.top - containerRect.top;
+                    const scrollTopTarget = container.scrollTop + relativeTop - container.clientHeight / 2 + targetRow.clientHeight / 2;
+
+                    // Horizontal Alignment (Center Bar)
+                    const barLeftPx = (item.startDay / dateScale) * pixelsPerUnit;
+                    const barWidthPx = (item.durationDays / dateScale) * pixelsPerUnit;
+                    const scrollLeftTarget = barLeftPx + (barWidthPx / 2) - (container.clientWidth / 2);
+
+                    container.scrollTo({
+                        top: scrollTopTarget,
+                        left: scrollLeftTarget,
+                        behavior: 'smooth'
+                    });
+                }
+            } else if (source === 'chart') {
+                // Scroll Sidebar to Item
+                const container = sidebarRef.current;
+                const target = document.getElementById(`sidebar-item-${itemId}`);
+                if (container && target) {
+                    const containerRect = container.getBoundingClientRect();
+                    const targetRect = target.getBoundingClientRect();
+
+                    const relativeTop = targetRect.top - containerRect.top;
+
+                    container.scrollTo({
+                        top: container.scrollTop + relativeTop - container.clientHeight / 2 + target.clientHeight / 2,
+                        behavior: 'smooth'
+                    });
+                }
+            }
+        }, 50);
+    }, [itemsWithTiming, dateScale]);
+
+    const handleBarResizing = useCallback((itemId, duration, x, y) => {
+        if (!itemId) {
+            setSimulation(null);
+            return;
+        }
+        const originalItem = items.find(i => i.id === itemId);
+        if (!originalItem) return;
+
+        // Safe Parsing
+        const workload = parseFloat(originalItem.total_workload) || parseFloat(originalItem.quantity) || 0;
+        const prod = parseFloat(originalItem.productivity) || 0.1; // Prevent zero division
+        const crew = parseFloat(originalItem.crew_size) || 1;
+
+        // Calculate impacts
+        const newCrewSize = duration > 0 && prod > 0 ? (workload / (duration * prod)).toFixed(1) : "0.0";
+        const newProd = duration > 0 && crew > 0 ? (workload / (duration * crew)).toFixed(1) : "0.0";
+
+        setSimulation({
+            original: originalItem,
+            newDuration: duration,
+            impact: {
+                start: originalItem.startDay,
+                end: originalItem.startDay + duration,
+                crew: newCrewSize,
+                prod: newProd
+            },
+            x,
+            y
+        });
     }, [items]);
 
     const timeline = useMemo(() => generateTimeline(startDate, totalDays, dateScale), [startDate, totalDays, dateScale]);
@@ -246,24 +267,54 @@ export default function GanttChart({ items, startDate, onReorder, onResize, onSm
 
 
     // Handlers
-    const handleBarDrag = (itemId, newStartDay) => {
+    const handleBarDrag = useCallback((itemId, newStartDay) => {
         const newItems = items.map(item => item.id === itemId ? { ...item, _startDay: newStartDay } : item);
         onReorder(newItems);
-    };
+    }, [items, onReorder]);
 
-    const handleBarResize = (itemId, newDuration) => {
-        if (onResize) onResize(itemId, newDuration);
-    };
+    const handleBarResize = useCallback((itemId, newDuration, x, y) => {
+        // Trigger Popover for Logic Choice
+        const item = items.find(i => i.id === itemId);
+        if (!item) return;
+
+        // Use passed coords or fallback
+        const finalX = x || window.innerWidth / 2;
+        const finalY = y || window.innerHeight / 2;
+
+        // Safe Parsing
+        const workload = parseFloat(item.total_workload) || parseFloat(item.quantity) || 0;
+        const prod = parseFloat(item.productivity) || 0.1;
+        const crew = parseFloat(item.crew_size) || 1;
+
+        // Calculate potential impacts for Popover display
+        const newCrewSize = newDuration > 0 && prod > 0 ? (workload / (newDuration * prod)).toFixed(1) : "0.0";
+        const newProdResult = newDuration > 0 && crew > 0 ? (workload / (newDuration * crew)).toFixed(1) : "0.0";
+
+        setSimulation(null); // Clear live tooltip first
+
+        // Defer Popover trigger to ensure state flush
+        setTimeout(() => {
+            setPopover({
+                visible: true,
+                item,
+                oldDuration: item.calendar_days,
+                newDuration: newDuration,
+                impact: {
+                    crew: newCrewSize,
+                    prod: newProdResult
+                },
+                x: finalX,
+                y: finalY
+            });
+        }, 10);
+    }, [items]);
 
     return (
         <div className="h-full flex flex-col bg-white rounded-2xl border border-gray-100 shadow-2xl overflow-hidden font-sans">
 
             {/* --- Toolbar --- */}
-            <div className={`px-6 py-4 flex items-center justify-between bg-white border-b border-gray-100 z-20`}>
+            <div className={`px-6 py-4 flex items-center justify-between bg-white border-b border-gray-100 z-[2]`}>
                 <div className="flex items-center gap-4">
-                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600 flex items-center justify-center shadow-lg shadow-blue-200">
-                        <Activity className="text-white" size={20} />
-                    </div>
                     <div>
                         <h2 className="text-lg font-bold text-slate-900 tracking-tight">공사 일정 (Construction Schedule)</h2>
                         <div className="text-xs text-slate-500 font-medium flex gap-3">
@@ -339,41 +390,30 @@ export default function GanttChart({ items, startDate, onReorder, onResize, onSm
                             initial={{ opacity: 0, y: 10, scale: 0.95 }}
                             animate={{ opacity: 1, y: 0, scale: 1 }}
                             exit={{ opacity: 0, y: 10 }}
-                            className="fixed z-[100] bg-white/80 backdrop-blur-xl border border-white/40 shadow-2xl rounded-2xl p-4 w-72 pointer-events-none ring-1 ring-black/5"
+                            className="fixed z-[100] bg-white/90 backdrop-blur-xl border border-violet-100 shadow-xl rounded-xl p-3 w-64 pointer-events-none ring-1 ring-black/5"
                             style={{ left: simulation.x + 20, top: simulation.y }}
                         >
-                            <div className="flex items-center gap-2 mb-3 text-violet-600">
-                                <Sparkles size={14} className="fill-violet-200 animate-pulse" />
-                                <span className="text-xs font-bold uppercase tracking-widest">AI 예측 (Prediction)</span>
-                            </div>
-
-                            <div className="flex justify-between items-end mb-2">
-                                <div>
-                                    <div className="text-[10px] text-gray-500 uppercase font-semibold">공사기간</div>
-                                    <div className="text-2xl font-black text-slate-800 tracking-tight">
-                                        {simulation.calculated.calendar_days.toFixed(1)}<span className="text-sm text-gray-400 font-normal ml-1">일</span>
-                                    </div>
-                                </div>
-                                <div className="text-right">
-                                    <div className="text-xs text-gray-400 line-through mb-1">{parseFloat(simulation.original.calendar_days).toFixed(1)} 일</div>
-                                    <div className="text-[10px] font-bold text-emerald-500 bg-emerald-50 px-2 py-0.5 rounded-full">
-                                        {simulation.calculated.calendar_days > simulation.original.calendar_days ? '+ 연장됨' : '- 단축됨'}
-                                    </div>
+                            <div className="flex justify-between items-center mb-2 border-b border-gray-100 pb-2">
+                                <div className="text-[10px] uppercase font-bold text-gray-400 tracking-wider">New Duration</div>
+                                <div className="text-xl font-black text-slate-800">
+                                    {simulation.newDuration.toFixed(1)}<span className="text-sm font-medium text-gray-400 ml-0.5">d</span>
                                 </div>
                             </div>
 
-                            <div className="h-px w-full bg-gradient-to-r from-transparent via-gray-200 to-transparent my-3"></div>
-
-                            <div className="flex justify-between items-center">
-                                <div className="flex items-center gap-2">
-                                    <div className={`p-1.5 rounded-lg ${simulation.calculated.crew_size > simulation.original.crew_size ? 'bg-amber-100 text-amber-600' : 'bg-gray-100 text-gray-500'}`}>
+                            <div className="grid grid-cols-2 gap-2">
+                                <div className="bg-violet-50 rounded-lg p-2">
+                                    <div className="text-[9px] text-violet-600 mb-0.5">If Crew Adjust</div>
+                                    <div className="flex items-center gap-1 font-bold text-violet-900">
                                         <Users size={12} />
+                                        <span>{simulation.impact.crew}</span>
                                     </div>
-                                    <span className="text-xs font-semibold text-gray-600">필요 인원</span>
                                 </div>
-                                <div className="flex items-baseline gap-1">
-                                    <span className="text-sm font-bold text-slate-900">{simulation.calculated.crew_size}</span>
-                                    <span className="text-[10px] text-gray-400">명</span>
+                                <div className="bg-blue-50 rounded-lg p-2">
+                                    <div className="text-[9px] text-blue-600 mb-0.5">If Prod Adjust</div>
+                                    <div className="flex items-center gap-1 font-bold text-blue-900">
+                                        <Zap size={12} />
+                                        <span>{simulation.impact.prod}</span>
+                                    </div>
                                 </div>
                             </div>
                         </motion.div>
@@ -388,8 +428,12 @@ export default function GanttChart({ items, startDate, onReorder, onResize, onSm
                         setSimulation(null);
                     }}
                     onApplyCrewAdjustment={(id, dur) => {
-                        const baseProd = popover?.baseProductivity || null;
-                        if (onSmartResize) onSmartResize(id, dur, baseProd);
+                        if (onResize) onResize(id, dur, 'crew');
+                        setPopover(null);
+                        setSimulation(null);
+                    }}
+                    onApplyProdAdjustment={(id, dur) => {
+                        if (onResize) onResize(id, dur, 'prod');
                         setPopover(null);
                         setSimulation(null);
                     }}

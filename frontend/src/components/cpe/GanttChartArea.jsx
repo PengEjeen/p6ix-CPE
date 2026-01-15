@@ -27,7 +27,7 @@ const GanttChartArea = ({
                     else if (load > 20) bg = "bg-amber-50/30";
 
                     return (
-                        <div key={i} style={{ width: pixelsPerUnit }} className={`border-r border-gray-50 h-full ${bg}`}></div>
+                        <div key={i} style={{ width: pixelsPerUnit }} className={`border-r border-gray-200 h-full ${bg}`}></div>
                     );
                 })}
             </div>
@@ -164,11 +164,15 @@ const GanttChartArea = ({
 
                     // Rule: If successor task finishes before predecessor, successor should be grey
                     const prevEnd = prevItem ? prevItem.startDay + prevItem.durationDays : 0;
-                    const isEnclosed = prevEnd > taskEnd; // This task ends before previous task
 
-                    // Check if next task is enclosed within this task
+                    // Logic: Task is "Enclosed/Parallel" if it ends before previous task OR explicitly marked
+                    const isExplicitParallel = item.remarks === '병행작업' || item.remarks === 'Parallel';
+                    const isEnclosed = (prevEnd > taskEnd) || isExplicitParallel;
+
+                    // Check if next task is enclosed within this task (to determine overlap behavior)
                     const nextEnd = nextItem ? nextItem.startDay + nextItem.durationDays : Infinity;
-                    const nextIsEnclosed = taskEnd > nextEnd;
+                    // Next is enclosed if it ends before ME, or if it is explicitly marked parallel
+                    const nextIsEnclosed = (taskEnd > nextEnd) || (nextItem && (nextItem.remarks === '병행작업' || nextItem.remarks === 'Parallel'));
 
                     let redS, redE;
                     if (isEnclosed) {
@@ -176,12 +180,19 @@ const GanttChartArea = ({
                         redS = taskStart;
                         redE = taskStart;
                     } else {
-                        // Normal rule: red starts at taskStart, grey at overlap with next
+                        // Normal rule: red starts at taskStart
                         redS = taskStart;
-                        // If next task is enclosed, don't grey out at overlap - stay red
+
+                        // Overlap Logic:
+                        // Normally, Red segment ends where the *Next Critical Task* begins.
+                        // If the immediate next task is "Parallel/Enclosed", it is NOT the critical successor.
+                        // We should search for the first "Non-Parallel" successor to decide Red End?
+                        // For simplicity/performance: If next is enclosed, we extend Red to full duration (assuming this task drives a later task).
+
                         if (nextIsEnclosed) {
                             redE = taskEnd;
                         } else {
+                            // If next task is Critical (Red), our Red Segment stops when Next starts (Waterfall)
                             redE = nextItem ? Math.min(taskEnd, nextItem.startDay) : taskEnd;
                         }
                     }

@@ -1,66 +1,132 @@
 import React from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { ChevronRight, Layers, FileText, Clock } from "lucide-react";
 
 const GanttSidebar = ({ groupedItems, expandedCategories, setExpandedCategories, selectedItemId, onItemClick, containerRef }) => {
     return (
-        <div ref={containerRef} className="w-80 border-r border-gray-200 bg-white flex-shrink-0 overflow-y-auto">
+        <div ref={containerRef} className="w-80 border-r border-gray-200 bg-white flex-shrink-0 overflow-y-auto font-sans scrollbar-thin scrollbar-thumb-gray-200 scrollbar-track-transparent">
             {/* Header */}
-            <div className="sticky top-0 bg-gray-50 border-b border-gray-200 px-3 py-2 z-10">
-                <span className="text-xs font-bold text-gray-600 uppercase tracking-wide">작업 목록</span>
+            <div className="sticky top-0 bg-white/95 backdrop-blur border-b border-gray-200 px-4 py-3 z-[2] shadow-sm flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                    <Layers size={16} className="text-blue-600" />
+                    <span className="text-sm font-bold text-slate-700 uppercase tracking-widest">Project Tasks</span>
+                </div>
+                <span className="text-xs font-medium text-gray-500 bg-gray-50 px-2 py-0.5 rounded-full border border-gray-100">
+                    {groupedItems.length} Categories
+                </span>
             </div>
 
             {/* Content */}
-            {groupedItems.map((categoryGroup, catIdx) => {
-                const isCategoryExpanded = expandedCategories[catIdx] !== false;
+            <div className="pb-10">
+                {groupedItems.map((categoryGroup, catIdx) => {
+                    const isCategoryExpanded = expandedCategories[catIdx] !== false;
+                    const duration = Math.max(0, categoryGroup.maxEnd - categoryGroup.minStart);
+                    const months = (duration / 30).toFixed(1);
 
-                const duration = Math.max(0, categoryGroup.maxEnd - categoryGroup.minStart);
-                const months = (duration / 30).toFixed(1);
+                    return (
+                        <div key={catIdx} className="border-b border-gray-50 last:border-0">
+                            {/* Category Header */}
+                            <div
+                                className={`group flex items-center px-4 py-3 cursor-pointer transition-all duration-200 select-none
+                                    ${isCategoryExpanded ? 'bg-slate-50' : 'hover:bg-gray-50 bg-white'}
+                                `}
+                                onClick={() => setExpandedCategories(prev => ({ ...prev, [catIdx]: !isCategoryExpanded }))}
+                            >
+                                <div className={`mr-3 transition-transform duration-200 ${isCategoryExpanded ? 'rotate-90' : 'rotate-0'}`}>
+                                    <ChevronRight size={16} className="text-gray-400 group-hover:text-blue-500" />
+                                </div>
 
-                return (
-                    <div key={catIdx}>
-                        <div
-                            className="flex items-center px-3 py-2 bg-gradient-to-r from-slate-100 to-slate-50 border-b border-slate-300 cursor-pointer"
-                            onClick={() => setExpandedCategories(prev => ({ ...prev, [catIdx]: !isCategoryExpanded }))}
-                        >
-                            <span className="mr-2 text-gray-400 text-xs">{isCategoryExpanded ? '▼' : '▶'}</span>
-                            <div className="w-1 h-5 bg-blue-500 rounded-full mr-2"></div>
-                            <h3 className="font-bold text-gray-800 text-sm flex-1">{categoryGroup.mainCategory}</h3>
-                            <div className="text-right flex-shrink-0 ml-2">
-                                <div className="text-[10px] font-bold text-slate-600">{duration.toFixed(0)}일</div>
-                                <div className="text-[9px] text-gray-400 font-medium">({months}개월)</div>
-                            </div>
-                        </div>
-                        {isCategoryExpanded && categoryGroup.processes.map((processGroup, procIdx) => (
-                            <div key={procIdx}>
-                                {processGroup.items.map((item) => {
-                                    const calendarDays = item.calendar_days || item.durationDays || 0;
-                                    const months = (calendarDays / 30).toFixed(1);
-                                    const isSelected = selectedItemId === item.id;
-
-                                    return (
-                                        <div
-                                            key={item.id}
-                                            id={`sidebar-item-${item.id}`} // For scroll targeting
-                                            className={`flex items-center px-3 py-2 border-b border-gray-100 transition-colors cursor-pointer
-                                                ${isSelected ? 'bg-violet-50 border-l-4 border-l-violet-500' : 'hover:bg-blue-50/50'}`}
-                                            onClick={() => onItemClick && onItemClick(item.id, 'sidebar')}
-                                            style={{ height: '44px' }}
-                                        >
-                                            <div className="flex-1 min-w-0 pr-2">
-                                                <div className={`text-[11px] font-medium truncate ${isSelected ? 'text-violet-900 font-bold' : 'text-gray-800'}`}>{item.work_type}</div>
-                                                <div className="text-[10px] text-gray-500 truncate">{item.process}</div>
-                                            </div>
-                                            <div className="text-right flex-shrink-0">
-                                                <div className="text-[10px] font-medium text-gray-700 whitespace-nowrap">{calendarDays.toFixed(1)}일</div>
-                                                <div className="text-[9px] text-gray-400 whitespace-nowrap">{months}개월</div>
-                                            </div>
+                                <div className="flex-1 min-w-0">
+                                    <h3 className={`text-lg font-bold truncate transition-colors ${isCategoryExpanded ? 'text-slate-800' : 'text-slate-600'}`}>
+                                        {categoryGroup.mainCategory}
+                                    </h3>
+                                    {!isCategoryExpanded && (
+                                        <div className="text-xs text-gray-400 mt-0.5 flex items-center gap-1">
+                                            <span className="w-1.5 h-1.5 rounded-full bg-blue-400 inline-block"></span>
+                                            {categoryGroup.processes.length} Processes
                                         </div>
-                                    );
-                                })}
+                                    )}
+                                </div>
+
+                                <div className="text-right flex-shrink-0 ml-3 flex flex-col items-end">
+                                    <div className="flex items-center gap-1.5 bg-white border border-gray-200 rounded-md px-2 py-1 shadow-sm">
+                                        <Clock size={12} className="text-blue-500" />
+                                        <span className="text-xs font-bold text-slate-700">{duration.toFixed(0)}d</span>
+                                    </div>
+                                    {isCategoryExpanded && <span className="text-[10px] text-gray-400 mt-1 font-medium">{months} mo</span>}
+                                </div>
                             </div>
-                        ))}
-                    </div>
-                );
-            })}
+
+                            {/* Processes & Items (Accordion Body) */}
+                            <AnimatePresence initial={false}>
+                                {isCategoryExpanded && (
+                                    <motion.div
+                                        initial={{ height: 0, opacity: 0 }}
+                                        animate={{ height: "auto", opacity: 1 }}
+                                        exit={{ height: 0, opacity: 0 }}
+                                        transition={{ duration: 0.2, ease: "easeInOut" }}
+                                        className="overflow-hidden bg-gray-50/30"
+                                    >
+                                        {categoryGroup.processes.map((processGroup, procIdx) => (
+                                            <div key={procIdx} className="relative">
+                                                {/* Vertical Line for Tree Structure */}
+                                                <div className="absolute left-6 top-0 bottom-0 w-px bg-gray-200" />
+
+                                                {processGroup.items.map((item, itemIdx) => {
+                                                    const calendarDays = item.calendar_days || item.durationDays || 0;
+                                                    const isSelected = selectedItemId === item.id;
+
+                                                    return (
+                                                        <motion.div
+                                                            key={item.id}
+                                                            layout
+                                                            initial={{ opacity: 0, x: -10 }}
+                                                            animate={{ opacity: 1, x: 0 }}
+                                                            transition={{ delay: itemIdx * 0.03 }}
+                                                            id={`sidebar-item-${item.id}`} // For scroll targeting
+                                                            onClick={() => onItemClick && onItemClick(item.id, 'sidebar')}
+                                                            className={`relative flex items-center pl-10 pr-4 py-3 cursor-pointer border-l-[3px] transition-all duration-200
+                                                                ${isSelected
+                                                                    ? 'bg-blue-50/60 border-l-blue-600 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.5)]'
+                                                                    : 'border-l-transparent hover:bg-slate-100/80 hover:border-l-gray-300'
+                                                                }
+                                                            `}
+                                                            style={{ height: '60px' }}
+                                                        >
+                                                            {/* Horizontal Connector Line */}
+                                                            <div className="absolute left-6 top-1/2 w-3 h-px bg-gray-200" />
+
+                                                            <div className="flex-1 min-w-0 pr-3">
+                                                                <div className="flex items-center gap-1.5 mb-0.5">
+                                                                    <FileText size={12} className={isSelected ? 'text-blue-500' : 'text-gray-400'} />
+                                                                    <div className={`text-xs font-semibold truncate transition-colors ${isSelected ? 'text-blue-900' : 'text-slate-500'}`}>
+                                                                        {item.process}
+                                                                    </div>
+                                                                </div>
+                                                                <div className={`text-base font-bold truncate ${isSelected ? 'text-blue-700' : 'text-slate-700'}`}>
+                                                                    {item.work_type}
+                                                                </div>
+                                                            </div>
+
+                                                            <div className="text-right flex-shrink-0">
+                                                                <div className={`text-xs font-mono font-bold ${isSelected ? 'text-blue-700' : 'text-slate-600'}`}>
+                                                                    {calendarDays.toFixed(1)}
+                                                                </div>
+                                                                <div className="text-[10px] text-gray-400">days</div>
+                                                            </div>
+                                                        </motion.div>
+                                                    );
+                                                })}
+                                            </div>
+                                        ))}
+                                        <div className="h-2"></div> {/* Spacing at bottom of group */}
+                                    </motion.div>
+                                )}
+                            </AnimatePresence>
+                        </div>
+                    );
+                })}
+            </div>
         </div>
     );
 };
