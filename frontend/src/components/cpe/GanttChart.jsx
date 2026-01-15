@@ -334,6 +334,10 @@ export default function GanttChart({ items, startDate, onReorder, onResize, onSm
     // Simulation Tooltip State
     const [simulation, setSimulation] = useState(null);
 
+    // Tree View State
+    const [expandedCategories, setExpandedCategories] = useState({});
+    const [expandedProcesses, setExpandedProcesses] = useState({});
+
     const handleBarResizing = (itemId, duration, x, y) => {
         if (!itemId) {
             setSimulation(null);
@@ -397,6 +401,103 @@ export default function GanttChart({ items, startDate, onReorder, onResize, onSm
 
     const timeline = useMemo(() => generateTimeline(startDate, totalDays, dateScale), [startDate, totalDays, dateScale]);
 
+    // Calculate category completion milestones
+    const categoryMilestones = useMemo(() => {
+        if (!itemsWithTiming || itemsWithTiming.length === 0) return [];
+
+        const milestones = [];
+        let currentCategory = null;
+        let categoryEndDay = 0;
+        let categoryEndIndex = 0;
+
+        itemsWithTiming.forEach((item, index) => {
+            const itemEndDay = item.startDay + item.durationDays;
+
+            // Check if category changed or last item
+            if (currentCategory && (item.main_category !== currentCategory || index === itemsWithTiming.length - 1)) {
+                // Add milestone for previous category
+                milestones.push({
+                    category: currentCategory,
+                    endDay: categoryEndDay,
+                    rowIndex: categoryEndIndex
+                });
+            }
+
+            // Update tracking
+            if (item.main_category !== currentCategory) {
+                currentCategory = item.main_category;
+                categoryEndDay = itemEndDay;
+                categoryEndIndex = index;
+            } else {
+                // Same category, update end day if this item ends later
+                if (itemEndDay > categoryEndDay) {
+                    categoryEndDay = itemEndDay;
+                    categoryEndIndex = index;
+                }
+            }
+        });
+
+        // Add last category milestone
+        if (currentCategory) {
+            milestones.push({
+                category: currentCategory,
+                endDay: categoryEndDay,
+                rowIndex: categoryEndIndex
+            });
+        }
+
+
+        console.log('📍 Milestones:', milestones, 'Items:', itemsWithTiming.map(i => ({ cat: i.main_category, end: i.startDay + i.durationDays })));
+        return milestones;
+    }, [itemsWithTiming]);
+
+    // Group items for hierarchical table with rowspan
+    const groupedItems = useMemo(() => {
+        if (!itemsWithTiming || itemsWithTiming.length === 0) return [];
+
+        const groups = [];
+        let currentMainCategory = null;
+        let currentProcess = null;
+        let mainCategoryGroup = null;
+        let processGroup = null;
+
+        itemsWithTiming.forEach((item, index) => {
+            // New main category
+            if (item.main_category !== currentMainCategory) {
+                if (mainCategoryGroup) groups.push(mainCategoryGroup);
+
+                currentMainCategory = item.main_category;
+                currentProcess = null;
+                mainCategoryGroup = {
+                    mainCategory: item.main_category,
+                    processes: [],
+                    startIndex: index
+                };
+                processGroup = null;
+            }
+
+            // New process within same category
+            if (item.process !== currentProcess) {
+                currentProcess = item.process;
+                processGroup = {
+                    process: item.process,
+                    items: [],
+                    startIndex: index
+                };
+                mainCategoryGroup.processes.push(processGroup);
+            }
+
+            // Add item to current process group
+            processGroup.items.push({ ...item, rowIndex: index });
+        });
+
+        // Push last group
+        if (mainCategoryGroup) groups.push(mainCategoryGroup);
+
+        return groups;
+    }, [itemsWithTiming]);
+
+
     // Handlers
     const handleBarDrag = (itemId, newStartDay) => {
         const newItems = items.map(item => item.id === itemId ? { ...item, _startDay: newStartDay } : item);
@@ -445,20 +546,55 @@ export default function GanttChart({ items, startDate, onReorder, onResize, onSm
             {/* --- Main Content --- */}
             <div className="flex flex-1 min-h-0 relative">
 
-                {/* Left Sidebar */}
-                <div className="w-64 border-r border-gray-100 bg-gray-50/30 flex-shrink-0 overflow-y-auto">
-                    <div className="sticky top-0 bg-white/80 backdrop-blur border-b border-gray-100 h-10 flex items-center px-4 z-10">
-                        <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">작업 목록 (Activity List)</span>
+                {/* Left Sidebar - Tree View */}
+                <div className="w-80 border-r border-gray-200 bg-white flex-shrink-0 overflow-y-auto">
+                    {/* Header */}
+                    <div className="sticky top-0 bg-gray-50 border-b border-gray-200 px-3 py-2 z-10">
+                        <span className="text-xs font-bold text-gray-600 uppercase tracking-wide">작업 목록</span>
                     </div>
-                    {itemsWithTiming.map((item) => (
-                        <div key={item.id} className="h-11 border-b border-gray-50 flex items-center px-4 hover:bg-white transition-colors group">
-                            <div className={`w-1.5 h-1.5 rounded-full mr-3 ${getCategoryColor(item.main_category).replace('bg-', 'bg-')}`}></div>
-                            <div className="flex-1 min-w-0">
-                                <div className="text-sm font-medium text-slate-700 truncate group-hover:text-blue-600 transition-colors">{item.work_type}</div>
-                                <div className="text-[10px] text-gray-400 truncate">{item.process}</div>
+
+                    {/* Content */}
+                    {groupedItems.map((categoryGroup, catIdx) => {
+                        const isCategoryExpanded = expandedCategories[catIdx] !== false;
+
+
+                        return (
+                            <div key={catIdx}>
+                                <div
+                                    className="flex items-center px-3 py-2 bg-gradient-to-r from-slate-100 to-slate-50 border-b border-slate-300 cursor-pointer"
+                                    onClick={() => setExpandedCategories(prev => ({ ...prev, [catIdx]: !isCategoryExpanded }))}
+                                >
+                                    <span className="mr-2 text-gray-400 text-xs">{isCategoryExpanded ? '▼' : '▶'}</span>
+                                    <div className="w-1 h-5 bg-blue-500 rounded-full mr-2"></div>
+                                    <h3 className="font-bold text-gray-800 text-sm flex-1">{categoryGroup.mainCategory}</h3>
+                                </div>
+                                {isCategoryExpanded && categoryGroup.processes.map((processGroup, procIdx) => (
+                                    <div key={procIdx}>
+                                        {processGroup.items.map((item) => {
+                                            const calendarDays = item.calendar_days || item.durationDays || 0;
+                                            const months = (calendarDays / 30).toFixed(1);
+                                            return (
+                                                <div
+                                                    key={item.id}
+                                                    className="flex items-center px-3 py-2 hover:bg-blue-50/50 border-b border-gray-100 transition-colors"
+                                                    style={{ height: '44px' }}
+                                                >
+                                                    <div className="flex-1 min-w-0 pr-2">
+                                                        <div className="text-[11px] font-medium text-gray-800 truncate">{item.work_type}</div>
+                                                        <div className="text-[10px] text-gray-500 truncate">{item.process}</div>
+                                                    </div>
+                                                    <div className="text-right flex-shrink-0">
+                                                        <div className="text-[10px] font-medium text-gray-700 whitespace-nowrap">{calendarDays.toFixed(1)}일</div>
+                                                        <div className="text-[9px] text-gray-400 whitespace-nowrap">{months}개월</div>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                ))}
                             </div>
-                        </div>
-                    ))}
+                        );
+                    })}
                 </div>
 
                 {/* Right Timeline */}
@@ -476,12 +612,13 @@ export default function GanttChart({ items, startDate, onReorder, onResize, onSm
                                 ))}
                             </div>
                             {/* Days */}
-                            <div className="flex">
+                            <div className="flex relative">
                                 {timeline.days.map((d, i) => (
                                     <div key={i} style={{ width: pixelsPerUnit }} className="py-1 text-[10px] text-gray-400 text-center border-r border-gray-50">
                                         {d.dayOfMonth.replace('일', '')}
                                     </div>
                                 ))}
+
                             </div>
                         </div>
 
@@ -569,7 +706,59 @@ export default function GanttChart({ items, startDate, onReorder, onResize, onSm
                                         </g>
                                     );
                                 })}
+
+                                {/* Category Completion Milestones */}
+                                {categoryMilestones.map((milestone, idx) => {
+                                    const pxFactor = pixelsPerUnit / dateScale;
+                                    const rowH = 44;
+                                    const milestoneX = milestone.endDay * pxFactor;
+                                    const milestoneY = (milestone.rowIndex * rowH) + 22;
+
+                                    console.log(`🔶 Rendering milestone ${idx}:`, milestone.category, `X=${milestoneX}, Y=${milestoneY}, endDay=${milestone.endDay}`);
+
+                                    return (
+                                        <g key={`milestone-${idx}`}>
+
+
+                                        </g>
+                                    );
+                                })}
                             </svg>
+
+                            {/* Sticky Milestone Labels */}
+                            <div className="absolute top-0 left-0 pointer-events-none z-40 sticky" style={{ top: 0 }}>
+                                {categoryMilestones.map((milestone, idx) => {
+                                    const pxFactor = pixelsPerUnit / dateScale;
+                                    const milestoneX = milestone.endDay * pxFactor;
+
+                                    return (
+                                        <div
+                                            key={`label-${idx}`}
+                                            className="absolute"
+                                            style={{
+                                                left: `${milestoneX}px`,
+                                                top: '5px',
+                                                transform: 'translateX(-50%)'
+                                            }}
+                                        >
+                                            {/* Triangle Marker */}
+                                            <div
+                                                className="mx-auto mb-1"
+                                                style={{
+                                                    width: 0,
+                                                    height: 0,
+                                                    borderLeft: '6px solid transparent',
+                                                    borderRight: '6px solid transparent',
+                                                    borderTop: '10px solid #10b981'
+                                                }}
+                                            ></div>
+                                            <span className="text-xs font-bold text-green-700 px-2 py-1 whitespace-nowrap bg-white/95 rounded shadow-sm border border-green-200 inline-block">
+                                                {milestone.category} 완료
+                                            </span>
+                                        </div>
+                                    );
+                                })}
+                            </div>
 
                             {/* Gantt Rows */}
                             <div className="relative py-1">
@@ -689,8 +878,7 @@ export default function GanttChart({ items, startDate, onReorder, onResize, onSm
                         setSimulation(null);
                     }}
                 />
-
-            </div>
-        </div >
+            </div >
+        </div>
     );
 }

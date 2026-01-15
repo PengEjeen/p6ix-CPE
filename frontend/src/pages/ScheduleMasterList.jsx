@@ -59,19 +59,8 @@ const SortableRow = ({ item, isLinked, handleChange, handleDeleteItem, handleAdd
                 <GripVertical size={14} className="mx-auto" />
             </td>
 
-            {/* Main Category */}
-            {(spanInfo.isMainFirst || isOverlay) && (
-                <td
-                    rowSpan={isOverlay ? 1 : spanInfo.mainRowSpan}
-                    className="border-r border-gray-300 bg-gray-100/50 p-1 align-top relative group font-bold text-gray-800 text-center"
-                >
-                    <input
-                        className="w-full bg-transparent outline-none text-center"
-                        value={item.main_category}
-                        onChange={(e) => handleChange(item.id, 'main_category', e.target.value)}
-                    />
-                </td>
-            )}
+
+            {/* Main Category - Hidden (shown in section header) */}
 
             {/* Process */}
             {(spanInfo.isProcFirst || isOverlay) && (
@@ -532,6 +521,55 @@ export default function ScheduleMasterList() {
         return map;
     }, [items]);
 
+    // Auto-mark enclosed tasks as "병행작업" in remarks
+    useEffect(() => {
+        if (!items || items.length === 0) return;
+
+        // Calculate timing data similar to GanttChart
+        const itemsWithTiming = [];
+
+        for (let i = 0; i < items.length; i++) {
+            const item = items[i];
+            const duration = parseFloat(item.calendar_days) || 0;
+
+            let startDay;
+            if (item._startDay !== undefined && item._startDay !== null) {
+                startDay = item._startDay;
+            } else {
+                if (i === 0) {
+                    startDay = 0;
+                } else {
+                    const maxPrevEnd = itemsWithTiming.length > 0
+                        ? Math.max(...itemsWithTiming.map(r => r.startDay + r.durationDays))
+                        : 0;
+                    startDay = maxPrevEnd;
+                }
+            }
+
+            itemsWithTiming.push({ ...item, startDay, durationDays: duration });
+        }
+
+        // Check each item for enclosed status
+        itemsWithTiming.forEach((item, index) => {
+            if (index === 0) return; // Skip first item
+
+            const prevItem = itemsWithTiming[index - 1];
+            const prevEnd = prevItem.startDay + prevItem.durationDays;
+            const currentEnd = item.startDay + item.durationDays;
+
+            // Check if current item is fully enclosed (grey)
+            const isEnclosed = prevEnd > currentEnd;
+
+            if (isEnclosed && item.remarks !== '병행작업') {
+                // Auto-update remarks to "병행작업"
+                updateItem(item.id, 'remarks', '병행작업');
+            } else if (!isEnclosed && item.remarks === '병행작업') {
+                // Clear if no longer enclosed
+                updateItem(item.id, 'remarks', '');
+            }
+        });
+    }, [items, updateItem]);
+
     // Dnd Handlers
     const handleDragStart = (event) => {
         setActiveId(event.active.id);
@@ -545,12 +583,22 @@ export default function ScheduleMasterList() {
     const handleDragEnd = (event) => {
         const { active, over } = event;
         setActiveId(null);
-        if (active.id !== over.id) {
-            const oldIndex = items.findIndex((item) => item.id === active.id);
-            const newIndex = items.findIndex((item) => item.id === over.id);
-            const newOrder = arrayMove(items, oldIndex, newIndex);
-            reorderItems(newOrder);
+
+        if (!over || active.id === over.id) return;
+
+        const activeItem = items.find(item => item.id === active.id);
+        const overItem = items.find(item => item.id === over.id);
+
+        // Prevent drag-drop across different categories
+        if (activeItem.main_category !== overItem.main_category) {
+            toast.error('같은 대공종 내에서만 이동 가능합니다.');
+            return;
         }
+
+        const oldIndex = items.findIndex((item) => item.id === active.id);
+        const newIndex = items.findIndex((item) => item.id === over.id);
+        const newOrder = arrayMove(items, oldIndex, newIndex);
+        reorderItems(newOrder);
     };
 
     const handleSaveAll = async () => {
@@ -753,7 +801,6 @@ export default function ScheduleMasterList() {
                         <table className="w-full text-sm box-border table-fixed border-collapse">
                             <colgroup>
                                 <col width="30" />  {/* Drag Handle */}
-                                <col width="100" /> {/* Main Category (Merged) */}
                                 <col width="120" /> {/* Process (Merged) */}
                                 <col width="180" /> {/* Work Type */}
                                 <col width="60" />  {/* Unit */}
@@ -773,14 +820,13 @@ export default function ScheduleMasterList() {
                             <thead className="bg-gray-50 text-gray-700 sticky top-0 z-20 shadow-sm border-b border-gray-300">
                                 <tr>
                                     <th className="border-r border-gray-300 px-2 py-3 bg-gray-100"></th>
-                                    <th className="border-r border-gray-300 px-2 py-3 font-bold bg-gray-100 text-center" colSpan={3}>Classification</th>
-                                    <th className="border-r border-gray-300 px-2 py-3 font-bold bg-gray-100 text-center" colSpan={3}>Quantity</th>
-                                    <th className="border-r border-gray-300 px-2 py-3 font-bold bg-gray-100 text-center text-blue-600" colSpan={4}>Calculation</th>
-                                    <th className="border-r border-gray-300 px-2 py-3 font-bold bg-gray-100 text-center" colSpan={3}>Info</th>
+                                    <th className="border-r border-gray-300 px-2 py-3 font-bold bg-gray-100 text-center" colSpan={2}>분류</th>
+                                    <th className="border-r border-gray-300 px-2 py-3 font-bold bg-gray-100 text-center" colSpan={3}>물량</th>
+                                    <th className="border-r border-gray-300 px-2 py-3 font-bold bg-gray-100 text-center text-blue-600" colSpan={4}>산정</th>
+                                    <th className="border-r border-gray-300 px-2 py-3 font-bold bg-gray-100 text-center" colSpan={3}>정보</th>
                                 </tr>
                                 <tr className="bg-white text-gray-600 font-medium">
                                     <th className="border-r border-gray-200 px-1"></th>
-                                    <th className="border-r border-gray-200 px-2 py-2">대공종</th>
                                     <th className="border-r border-gray-200 px-2 py-2">공종</th>
                                     <th className="border-r border-gray-200 px-2 py-2">세부공종</th>
 
@@ -789,7 +835,7 @@ export default function ScheduleMasterList() {
                                     <th className="border-r border-gray-200 px-2 py-2">산출식</th>
 
                                     <th className="border-r border-gray-200 px-2 py-2">일생산성</th>
-                                    <th className="border-r border-gray-200 px-2 py-2">Crew</th>
+                                    <th className="border-r border-gray-200 px-2 py-2">작업조</th>
                                     <th className="border-r border-gray-200 px-2 py-2">일작업량</th>
 
                                     <th className="border-r border-gray-200 px-2 py-2 text-blue-500">작업일수</th>
@@ -797,25 +843,94 @@ export default function ScheduleMasterList() {
                                     <th className="border-r border-gray-200 px-2 py-2 text-blue-700 font-bold bg-blue-50">공사기간</th>
                                     <th className="border-r border-gray-200 px-2 py-2 text-blue-700 font-bold bg-blue-50">개월수</th>
 
-                                    <th className="border-r border-gray-200 px-2 py-2">Code</th>
+                                    <th className="border-r border-gray-200 px-2 py-2">표준코드</th>
                                     <th className="border-r border-gray-200 px-2 py-2">비고</th>
                                     <th className="border-r border-gray-200 px-2 py-2">기능</th>
                                 </tr>
                             </thead>
                             <SortableContext items={items} strategy={verticalListSortingStrategy}>
                                 <tbody className="divide-y divide-gray-200">
-                                    {items.map((item) => (
-                                        <SortableRow
-                                            key={item.id}
-                                            item={item}
-                                            isLinked={item.link_module_type && item.link_module_type !== 'NONE'}
-                                            handleChange={handleChange}
-                                            handleDeleteItem={handleDeleteItem}
-                                            handleAddItem={handleAddItem}
-                                            handleOpenImport={handleOpenImport}
-                                            spanInfo={spanInfoMap[item.id] || { isMainFirst: true, isProcFirst: true, mainRowSpan: 1, procRowSpan: 1 }}
-                                        />
-                                    ))}
+                                    {(() => {
+                                        // Group items by main_category
+                                        const groupedItems = items.reduce((acc, item) => {
+                                            const category = item.main_category || '기타';
+                                            if (!acc[category]) acc[category] = [];
+                                            acc[category].push(item);
+                                            return acc;
+                                        }, {});
+
+                                        // Render grouped rows
+                                        return Object.entries(groupedItems).map(([category, categoryItems]) => (
+                                            <React.Fragment key={category}>
+                                                {/* Section Header */}
+                                                <tr className="bg-gradient-to-r from-slate-100 to-slate-50 border-t-2 border-slate-300">
+                                                    <td colSpan="16" className="px-4 py-2.5">
+                                                        <div className="flex items-center justify-between gap-2">
+                                                            <div className="flex items-center gap-2">
+                                                                <div className="w-1 h-5 bg-blue-500 rounded-full"></div>
+                                                                <h3 className="font-bold text-gray-800 text-base tracking-tight">
+                                                                    {category}
+                                                                </h3>
+                                                                <span className="text-xs text-gray-500 bg-white px-2 py-0.5 rounded-full border border-gray-200">
+                                                                    {categoryItems.length}개 항목
+                                                                </span>
+                                                            </div>
+                                                            {/* Action Buttons */}
+                                                            <div className="flex items-center gap-2">
+                                                                {/* Standard Import Button */}
+                                                                <button
+                                                                    onClick={() => {
+                                                                        const lastCategoryItem = categoryItems[categoryItems.length - 1] || items[0];
+                                                                        if (lastCategoryItem) {
+                                                                            handleOpenImport({
+                                                                                ...lastCategoryItem,
+                                                                                main_category: category
+                                                                            });
+                                                                        }
+                                                                    }}
+                                                                    className="flex items-center gap-1.5 px-3 py-1.5 bg-green-500 hover:bg-green-600 text-white rounded-lg text-sm font-medium shadow-sm transition-all hover:shadow-md active:scale-95"
+                                                                >
+                                                                    <RefreshCw size={16} />
+                                                                    <span>표준품셈 선택</span>
+                                                                </button>
+
+                                                                {/* Add Item Button */}
+                                                                <button
+                                                                    onClick={() => {
+                                                                        const lastCategoryItem = categoryItems[categoryItems.length - 1] || items[0];
+                                                                        if (lastCategoryItem) {
+                                                                            handleAddItem({
+                                                                                ...lastCategoryItem,
+                                                                                main_category: category,
+                                                                                process: category === lastCategoryItem.main_category ? lastCategoryItem.process : ''
+                                                                            });
+                                                                        }
+                                                                    }}
+                                                                    className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-500 hover:bg-blue-600 text-white rounded-lg text-sm font-medium shadow-sm transition-all hover:shadow-md active:scale-95"
+                                                                >
+                                                                    <Plus size={16} />
+                                                                    <span>항목 추가</span>
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                                {/* Category Items */}
+                                                {categoryItems.map((item) => (
+                                                    <SortableRow
+                                                        key={item.id}
+                                                        item={item}
+                                                        isLinked={item.link_module_type && item.link_module_type !== 'NONE'}
+                                                        handleChange={handleChange}
+                                                        handleDeleteItem={handleDeleteItem}
+                                                        handleAddItem={handleAddItem}
+                                                        handleOpenImport={handleOpenImport}
+                                                        spanInfo={spanInfoMap[item.id] || { isMainFirst: true, isProcFirst: true, mainRowSpan: 1, procRowSpan: 1 }}
+                                                    />
+                                                ))}
+                                            </React.Fragment>
+                                        ));
+                                    })()}
                                 </tbody>
                             </SortableContext>
 
@@ -824,7 +939,6 @@ export default function ScheduleMasterList() {
                                     <table className="w-full text-sm box-border table-fixed border-collapse bg-white shadow-2xl skew-y-1 origin-top-left opacity-95">
                                         <colgroup>
                                             <col width="30" />
-                                            <col width="100" />
                                             <col width="120" />
                                             <col width="180" />
                                             <col width="60" />
