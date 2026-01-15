@@ -1,8 +1,8 @@
 import React from "react";
 
-const GanttSidebar = ({ groupedItems, expandedCategories, setExpandedCategories }) => {
+const GanttSidebar = ({ groupedItems, expandedCategories, setExpandedCategories, selectedItemId, onItemClick, containerRef }) => {
     return (
-        <div className="w-80 border-r border-gray-200 bg-white flex-shrink-0 overflow-y-auto">
+        <div ref={containerRef} className="w-80 border-r border-gray-200 bg-white flex-shrink-0 overflow-y-auto">
             {/* Header */}
             <div className="sticky top-0 bg-gray-50 border-b border-gray-200 px-3 py-2 z-10">
                 <span className="text-xs font-bold text-gray-600 uppercase tracking-wide">작업 목록</span>
@@ -34,14 +34,19 @@ const GanttSidebar = ({ groupedItems, expandedCategories, setExpandedCategories 
                                 {processGroup.items.map((item) => {
                                     const calendarDays = item.calendar_days || item.durationDays || 0;
                                     const months = (calendarDays / 30).toFixed(1);
+                                    const isSelected = selectedItemId === item.id;
+
                                     return (
                                         <div
                                             key={item.id}
-                                            className="flex items-center px-3 py-2 hover:bg-blue-50/50 border-b border-gray-100 transition-colors"
+                                            id={`sidebar-item-${item.id}`} // For scroll targeting
+                                            className={`flex items-center px-3 py-2 border-b border-gray-100 transition-colors cursor-pointer
+                                                ${isSelected ? 'bg-violet-50 border-l-4 border-l-violet-500' : 'hover:bg-blue-50/50'}`}
+                                            onClick={() => onItemClick && onItemClick(item.id, 'sidebar')}
                                             style={{ height: '44px' }}
                                         >
                                             <div className="flex-1 min-w-0 pr-2">
-                                                <div className="text-[11px] font-medium text-gray-800 truncate">{item.work_type}</div>
+                                                <div className={`text-[11px] font-medium truncate ${isSelected ? 'text-violet-900 font-bold' : 'text-gray-800'}`}>{item.work_type}</div>
                                                 <div className="text-[10px] text-gray-500 truncate">{item.process}</div>
                                             </div>
                                             <div className="text-right flex-shrink-0">

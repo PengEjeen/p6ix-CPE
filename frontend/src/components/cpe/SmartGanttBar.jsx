@@ -13,10 +13,13 @@ const SmartGanttBar = ({
     onResizing,
     setPopoverState,
     redStartDay,
-    redEndDay
+    redEndDay,
+    selectedItemId,
+    onItemClick
 }) => {
     const [isResizing, setIsResizing] = useState(false);
     const [isDragging, setIsDragging] = useState(false);
+    const [hasMoved, setHasMoved] = useState(false); // Track if drag actually moved
 
     // Temp states for live preview
     const [tempDuration, setTempDuration] = useState(null);
@@ -38,11 +41,14 @@ const SmartGanttBar = ({
         if (e.target.classList.contains('resize-handle')) return;
 
         setIsDragging(true);
+        setHasMoved(false);
         const startX = e.clientX;
         const startLeftPx = leftPx;
 
         const handleMouseMove = (moveEvent) => {
             const deltaX = moveEvent.clientX - startX;
+            if (Math.abs(deltaX) > 2) setHasMoved(true); // movement threshold
+
             const newLeftPx = Math.max(0, startLeftPx + deltaX);
             const newStartDay = Math.round((newLeftPx / pixelsPerUnit) * dateScale);
             setTempStartDay(newStartDay);
@@ -50,9 +56,12 @@ const SmartGanttBar = ({
 
         const handleMouseUp = () => {
             setIsDragging(false);
-            if (tempStartDay !== null) {
+            if (hasMoved && tempStartDay !== null) {
                 onBarDragStart(item.id, tempStartDay);
                 setTempStartDay(null);
+            } else if (!hasMoved) {
+                // It was a click, not a drag
+                if (onItemClick) onItemClick(item.id, 'chart');
             }
             document.removeEventListener('mousemove', handleMouseMove);
             document.removeEventListener('mouseup', handleMouseUp);
@@ -112,11 +121,12 @@ const SmartGanttBar = ({
     };
 
     return (
-        <div className="relative h-11 border-b border-gray-50/50 group/row hover:bg-slate-50 transition-colors">
+        <div id={`chart-item-${item.id}`} className={`relative h-11 border-b border-gray-50/50 group/row hover:bg-slate-50 transition-colors ${selectedItemId === item.id ? 'bg-violet-50/50' : ''}`}>
 
             {/* Task Label (Floating Above) */}
             <div
-                className="absolute top-0 text-[10px] font-bold text-slate-800 truncate px-1 whitespace-nowrap pointer-events-none z-10"
+                className={`absolute top-0 text-[10px] font-bold truncate px-1 whitespace-nowrap pointer-events-none z-10 
+                    ${selectedItemId === item.id ? 'text-violet-700' : 'text-slate-800'}`}
                 style={{
                     left: `${leftPx}px`,
                     width: 'max-content'
@@ -154,7 +164,7 @@ const SmartGanttBar = ({
 
                     return (
                         <div className={`absolute top-1/2 left-0 right-0 h-1.5 -translate-y-1/2 rounded-full overflow-hidden flex shadow-sm ring-1 ring-black/5
-                            ${isDragging || isResizing ? 'ring-2 ring-violet-500' : ''}`}>
+                            ${isDragging || isResizing || selectedItemId === item.id ? 'ring-2 ring-violet-500 shadow-[0_0_10px_rgba(139,92,246,0.3)]' : ''}`}>
                             {s1 > 0 && <div className="h-full bg-slate-400" style={{ width: `${s1}%` }} />}
                             {s2 > 0 && <div className="h-full bg-red-600" style={{ width: `${s2}%` }} />}
                             {s3 > 0 && <div className="h-full bg-slate-400" style={{ width: `${s3}%` }} />}

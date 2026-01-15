@@ -11,7 +11,9 @@ const GanttChartArea = ({
     onBarDragStart,
     onBarResize,
     onBarResizing,
-    setPopoverState
+    setPopoverState,
+    selectedItemId,
+    onItemClick
 }) => {
     return (
         <div className="relative">
@@ -194,10 +196,12 @@ const GanttChartArea = ({
                             dateScale={dateScale}
                             onBarDragStart={onBarDragStart}
                             onBarResize={onBarResize}
-                            onResizing={onBarResizing}
+                            onBarResizing={onBarResizing}
                             setPopoverState={setPopoverState}
                             redStartDay={redS}
                             redEndDay={redE}
+                            selectedItemId={selectedItemId}
+                            onItemClick={onItemClick}
                         />
                     );
                 })}

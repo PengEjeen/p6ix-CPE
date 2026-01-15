@@ -12,7 +12,12 @@ export default function GanttChart({ items, startDate, onReorder, onResize, onSm
     // eslint-disable-next-line no-unused-vars
     const [draggedItem, setDraggedItem] = useState(null);
     const [dateScale, setDateScale] = useState(1);
+    const [selectedItemId, setSelectedItemId] = useState(null);
     const pixelsPerUnit = 40;
+
+    // Refs for scrolling
+    const sidebarRef = React.useRef(null);
+    const chartRef = React.useRef(null);
 
     // Popover State
     const [popover, setPopover] = useState(null); // { visible, item, oldDuration, newDuration, x, y }
@@ -24,6 +29,55 @@ export default function GanttChart({ items, startDate, onReorder, onResize, onSm
     const [expandedCategories, setExpandedCategories] = useState({});
     // eslint-disable-next-line no-unused-vars
     const [expandedProcesses, setExpandedProcesses] = useState({});
+
+    const handleItemClick = (itemId, source) => {
+        setSelectedItemId(itemId);
+
+        // Scroll Logic: Manual calculation to avoid layout breaking with scrollIntoView
+        setTimeout(() => {
+            if (source === 'sidebar') {
+                // Scroll Chart to Bar
+                const container = chartRef.current;
+                const targetRow = document.getElementById(`chart-item-${itemId}`);
+                const item = itemsWithTiming.find(i => i.id === itemId);
+
+                if (container && targetRow && item) {
+                    const containerRect = container.getBoundingClientRect();
+                    const targetRect = targetRow.getBoundingClientRect();
+
+                    // Vertical Alignment (Center Row)
+                    const relativeTop = targetRect.top - containerRect.top + container.scrollTop;
+                    const scrollTopTarget = relativeTop - container.clientHeight / 2 + targetRow.clientHeight / 2;
+
+                    // Horizontal Alignment (Center Bar)
+                    const barLeftPx = (item.startDay / dateScale) * pixelsPerUnit;
+                    const barWidthPx = (item.durationDays / dateScale) * pixelsPerUnit;
+                    const scrollLeftTarget = barLeftPx + (barWidthPx / 2) - (container.clientWidth / 2);
+
+                    container.scrollTo({
+                        top: scrollTopTarget,
+                        left: scrollLeftTarget,
+                        behavior: 'smooth'
+                    });
+                }
+            } else if (source === 'chart') {
+                // Scroll Sidebar to Item
+                const container = sidebarRef.current;
+                const target = document.getElementById(`sidebar-item-${itemId}`);
+                if (container && target) {
+                    const containerRect = container.getBoundingClientRect();
+                    const targetRect = target.getBoundingClientRect();
+
+                    const relativeTop = targetRect.top - containerRect.top + container.scrollTop;
+
+                    container.scrollTo({
+                        top: relativeTop - container.clientHeight / 2 + target.clientHeight / 2,
+                        behavior: 'smooth'
+                    });
+                }
+            }
+        }, 50);
+    };
 
     const handleBarResizing = (itemId, duration, x, y) => {
         if (!itemId) {
@@ -241,13 +295,16 @@ export default function GanttChart({ items, startDate, onReorder, onResize, onSm
 
                 {/* Left Sidebar - Tree View */}
                 <GanttSidebar
+                    containerRef={sidebarRef}
                     groupedItems={groupedItems}
                     expandedCategories={expandedCategories}
                     setExpandedCategories={setExpandedCategories}
+                    selectedItemId={selectedItemId}
+                    onItemClick={handleItemClick}
                 />
 
                 {/* Right Timeline */}
-                <div className="flex-1 overflow-auto bg-white relative">
+                <div ref={chartRef} className="flex-1 overflow-auto bg-white relative">
                     <div style={{ minWidth: `${Math.ceil(totalDays / dateScale) * pixelsPerUnit}px` }}>
 
                         {/* Timeline Header */}
@@ -268,6 +325,8 @@ export default function GanttChart({ items, startDate, onReorder, onResize, onSm
                             onBarResize={handleBarResize}
                             onBarResizing={handleBarResizing}
                             setPopoverState={setPopover}
+                            selectedItemId={selectedItemId}
+                            onItemClick={handleItemClick}
                         />
 
                     </div>
