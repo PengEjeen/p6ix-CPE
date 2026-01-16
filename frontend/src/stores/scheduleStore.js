@@ -174,6 +174,35 @@ export const useScheduleStore = create(
                 }
             }),
 
+            /**
+             * Atomic Drag Resolution (for Undo/Redo)
+             * Handles position update and parallel updates in one go.
+             * parallelUpdates: [{ id, front, back }, ...]
+             */
+            resolveDragOverlap: (draggedId, newStartDay, parallelUpdates) => set((state) => {
+                console.log('[Store] resolveDragOverlap:', { draggedId, newStartDay, parallelUpdates });
+
+                // 1. Move Task
+                if (draggedId && newStartDay !== null && newStartDay !== undefined) {
+                    const idx = state.items.findIndex(i => i.id === draggedId);
+                    if (idx !== -1) {
+                        state.items[idx]._startDay = newStartDay;
+                    }
+                }
+
+                // 2. Update Parallel Periods
+                if (parallelUpdates && parallelUpdates.length > 0) {
+                    parallelUpdates.forEach(update => {
+                        const idx = state.items.findIndex(i => i.id === update.id);
+                        if (idx !== -1) {
+                            // If explicit value provided (including 0), set it.
+                            if (update.front !== undefined) state.items[idx].front_parallel_days = update.front;
+                            if (update.back !== undefined) state.items[idx].back_parallel_days = update.back;
+                        }
+                    });
+                }
+            }),
+
             // --- Snapshot / History Management ---
             snapshots: [],
 

@@ -368,8 +368,10 @@ export default function GanttChart({ items, startDate, onResize, onSmartResize }
 
             // TODO: Figure out which tasks to clear
 
-            useScheduleStore.getState().updateParallelPeriods(itemId, 0, 0);
-            useScheduleStore.getState().moveTaskBar(itemId, newStartDay);
+            // Atomic update for Undo/Redo consistency
+            useScheduleStore.getState().resolveDragOverlap(itemId, newStartDay, [
+                { id: itemId, front: 0, back: 0 }
+            ]);
         }
         console.log('=== [DRAG END] ===');
     }, [items, itemsWithTiming]);
@@ -438,23 +440,6 @@ export default function GanttChart({ items, startDate, onResize, onSmartResize }
                                         </button>
                                     ))}
                                 </div>
-
-                                {/* Sort by Timeline Button */}
-                                {/* <button
-                                    onClick={() => {
-                                        // Sort items by _startDay or calculated start
-                                        const sorted = [...items].sort((a, b) => {
-                                            const aStart = a._startDay ?? 0;
-                                            const bStart = b._startDay ?? 0;
-                                            return aStart - bStart;
-                                        });
-                                        useScheduleStore.getState().setItems(sorted);
-                                    }}
-                                    className="flex items-center gap-2 px-3 py-1.5 bg-indigo-500 text-white text-xs font-medium rounded-lg hover:bg-indigo-600 transition-all shadow-sm"
-                                >
-                                    <Activity size={14} />
-                                    타임라인 정렬
-                                </button> */}
                             </div>
                         </div>
                     </div>
@@ -582,68 +567,54 @@ export default function GanttChart({ items, startDate, onResize, onSmartResize }
                         if (!overlapPopover) return;
 
                         const { currentTask, overlappingTask, overlapDays, draggedItemId, newStartDay } = overlapPopover;
-
-                        // Current task is CP → overlapping task becomes parallel
                         const currentStart = newStartDay;
                         const overlappingStart = overlappingTask.start;
 
-                        // Get existing parallel days for overlapping task
-                        const existingFront = overlappingTask.front_parallel_days || 0;
-                        const existingBack = overlappingTask.back_parallel_days || 0;
-
+                        const updates = [];
                         if (currentStart < overlappingStart) {
-                            // A starts before B → B's front is grey (accumulate)
-                            useScheduleStore.getState().updateParallelPeriods(
-                                overlappingTask.id,
-                                existingFront + overlapDays,  // Add to existing front
-                                existingBack
-                            );
+                            // A starts before B
+                            // A is CP (Current) → Clear A's back
+                            // B becomes parallel (Overlapping) → Set B's front
+                            updates.push({ id: currentTask.id, back: 0 }); // CLEAR A's back
+                            updates.push({ id: overlappingTask.id, front: overlapDays }); // SET B's front
                         } else {
-                            // A starts after B → B's back is grey (accumulate)
-                            useScheduleStore.getState().updateParallelPeriods(
-                                overlappingTask.id,
-                                existingFront,
-                                existingBack + overlapDays  // Add to existing back
-                            );
+                            // A starts after B (B -> A)
+                            // A is CP (Current) → Clear A's front
+                            // B becomes parallel (Overlapping) → Set B's back
+                            updates.push({ id: currentTask.id, front: 0 }); // CLEAR A's front
+                            updates.push({ id: overlappingTask.id, back: overlapDays }); // SET B's back
                         }
 
-                        useScheduleStore.getState().moveTaskBar(draggedItemId, newStartDay);
+                        useScheduleStore.getState().resolveDragOverlap(draggedItemId, newStartDay, updates);
                         setOverlapPopover(null);
                     }}
                     onSelectOtherAsCP={() => {
                         if (!overlapPopover) return;
 
                         const { currentTask, overlappingTask, overlapDays, draggedItemId, newStartDay } = overlapPopover;
-
-                        // Overlapping task is CP → current task becomes parallel
                         const currentStart = newStartDay;
                         const overlappingStart = overlappingTask.start;
 
-                        // Get existing parallel days for current task
-                        const existingFront = currentTask.front_parallel_days || 0;
-                        const existingBack = currentTask.back_parallel_days || 0;
-
+                        const updates = [];
                         if (currentStart < overlappingStart) {
-                            // A starts before B → A's back is grey (accumulate)
-                            useScheduleStore.getState().updateParallelPeriods(
-                                currentTask.id,
-                                existingFront,
-                                existingBack + overlapDays  // Add to existing back
-                            );
+                            // A starts before B
+                            // B is CP (Overlapping) → Clear B's front
+                            // A becomes parallel (Current) → Set A's back
+                            updates.push({ id: overlappingTask.id, front: 0 }); // CLEAR B's front
+                            updates.push({ id: currentTask.id, back: overlapDays }); // SET A's back
                         } else {
-                            // A starts after B → A's front is grey (accumulate)
-                            useScheduleStore.getState().updateParallelPeriods(
-                                currentTask.id,
-                                existingFront + overlapDays,  // Add to existing front
-                                existingBack
-                            );
+                            // A starts after B (B -> A)
+                            // B is CP (Overlapping) → Clear B's back
+                            // A becomes parallel (Current) → Set A's front
+                            updates.push({ id: overlappingTask.id, back: 0 }); // CLEAR B's back
+                            updates.push({ id: currentTask.id, front: overlapDays }); // SET A's front
                         }
 
-                        useScheduleStore.getState().moveTaskBar(draggedItemId, newStartDay);
+                        useScheduleStore.getState().resolveDragOverlap(draggedItemId, newStartDay, updates);
                         setOverlapPopover(null);
                     }}
                 />
             </div >
-        </div>
+        </div >
     );
 }
