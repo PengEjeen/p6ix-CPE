@@ -66,13 +66,15 @@ export default function GanttChart({ items, startDate, onResize, onSmartResize }
                 startDay = item._startDay;
 
             } else {
-                if (i === 0) startDay = 0;
-                else {
-                    // Safe access to result array
-                    const maxPrevEnd = result.length > 0
-                        ? Math.max(...result.map(r => r.startDay + r.durationDays))
-                        : 0;
-                    startDay = maxPrevEnd;
+                if (i === 0) {
+                    startDay = 0;
+                } else {
+                    // Use ONLY the immediate previous task's end (not max of all)
+                    const prevTask = result[result.length - 1];
+                    // Calculate end of RED period: Start + Duration - BackParallel
+                    // (FrontParallel affects START of red, not END of red relative to task end)
+                    const redEnd = prevTask.startDay + prevTask.durationDays - (prevTask.back_parallel_days || 0);
+                    startDay = redEnd;
                 }
             }
 
@@ -335,13 +337,19 @@ export default function GanttChart({ items, startDate, onResize, onSmartResize }
                             id: item.id,
                             name: `${item.process} - ${item.work_type}`,
                             start: newStartDay,
-                            end: newEnd
+                            end: newEnd,
+                            // CRITICAL: Pass existing parallel days to prevent overwriting
+                            front_parallel_days: item.front_parallel_days || 0,
+                            back_parallel_days: item.back_parallel_days || 0
                         },
                         overlappingTask: {
                             id: otherItem.id,
                             name: `${otherItem.process} - ${otherItem.work_type}`,
                             start: otherStart,
-                            end: otherEnd
+                            end: otherEnd,
+                            // CRITICAL: Pass existing parallel days to prevent overwriting
+                            front_parallel_days: otherItem.front_parallel_days || 0,
+                            back_parallel_days: otherItem.back_parallel_days || 0
                         },
                         overlapDays: overlapDays,
                         draggedItemId: itemId,
@@ -432,7 +440,7 @@ export default function GanttChart({ items, startDate, onResize, onSmartResize }
                                 </div>
 
                                 {/* Sort by Timeline Button */}
-                                <button
+                                {/* <button
                                     onClick={() => {
                                         // Sort items by _startDay or calculated start
                                         const sorted = [...items].sort((a, b) => {
@@ -446,7 +454,7 @@ export default function GanttChart({ items, startDate, onResize, onSmartResize }
                                 >
                                     <Activity size={14} />
                                     타임라인 정렬
-                                </button>
+                                </button> */}
                             </div>
                         </div>
                     </div>
@@ -571,106 +579,68 @@ export default function GanttChart({ items, startDate, onResize, onSmartResize }
                     data={overlapPopover}
                     onClose={() => setOverlapPopover(null)}
                     onSelectCurrentAsCP={() => {
-                        console.log('[CP Selection] Current task as CP selected!');
-                        if (!overlapPopover) {
-                            console.log('[CP Selection] ERROR: No overlapPopover data!');
-                            return;
-                        }
+                        if (!overlapPopover) return;
 
-                        console.log('[CP Selection] overlapPopover:', overlapPopover);
-
-                        // FIRST: Clear ALL parallel periods
-                        console.log('[CP Selection] Clearing all parallel periods first...');
-                        items.forEach(item => {
-                            if (item.front_parallel_days > 0 || item.back_parallel_days > 0) {
-                                console.log('[CP Selection] Clearing:', item.id);
-                                useScheduleStore.getState().updateParallelPeriods(item.id, 0, 0);
-                            }
-                        });
-
-                        // Current task is CP → overlapping task becomes parallel
-                        const { overlappingTask, overlapDays, draggedItemId, newStartDay } = overlapPopover;
-
-                        // Determine which end of the overlapping task should be grey
-                        const currentStart = newStartDay;
-                        const overlappingStart = overlappingTask.start;
-
-                        console.log('[CP Selection] Setting parallel periods for overlapping task:', overlappingTask.id);
-
-                        if (currentStart < overlappingStart) {
-                            // Current starts first → overlapping gets front_parallel
-                            console.log('[CP Selection] Overlapping gets front_parallel:', overlapDays);
-                            useScheduleStore.getState().updateParallelPeriods(
-                                overlappingTask.id,
-                                overlapDays,  // front
-                                0             // back
-                            );
-                        } else {
-                            // Overlapping starts first → overlapping gets back_parallel
-                            console.log('[CP Selection] Overlapping gets back_parallel:', overlapDays);
-                            useScheduleStore.getState().updateParallelPeriods(
-                                overlappingTask.id,
-                                0,           // front
-                                overlapDays  // back
-                            );
-                        }
-
-                        // Apply the drag using store action directly (not onReorder!)
-                        console.log('[CP Selection] Applying drag for item:', draggedItemId, 'to', newStartDay);
-                        useScheduleStore.getState().moveTaskBar(draggedItemId, newStartDay);
-                        setOverlapPopover(null);
-                        console.log('[CP Selection] Done!');
-                    }}
-                    onSelectOtherAsCP={() => {
-                        console.log('[CP Selection] Other task as CP selected!');
-                        if (!overlapPopover) {
-                            console.log('[CP Selection] ERROR: No overlapPopover data!');
-                            return;
-                        }
-
-                        console.log('[CP Selection] overlapPopover:', overlapPopover);
-
-                        // FIRST: Clear ALL parallel periods
-                        console.log('[CP Selection] Clearing all parallel periods first...');
-                        items.forEach(item => {
-                            if (item.front_parallel_days > 0 || item.back_parallel_days > 0) {
-                                console.log('[CP Selection] Clearing:', item.id);
-                                useScheduleStore.getState().updateParallelPeriods(item.id, 0, 0);
-                            }
-                        });
-
-                        // Overlapping task is CP → current task becomes parallel
                         const { currentTask, overlappingTask, overlapDays, draggedItemId, newStartDay } = overlapPopover;
 
-                        // Determine which end of the current task should be grey
+                        // Current task is CP → overlapping task becomes parallel
                         const currentStart = newStartDay;
                         const overlappingStart = overlappingTask.start;
 
-                        console.log('[CP Selection] Setting parallel periods for current task:', currentTask.id);
+                        // Get existing parallel days for overlapping task
+                        const existingFront = overlappingTask.front_parallel_days || 0;
+                        const existingBack = overlappingTask.back_parallel_days || 0;
 
                         if (currentStart < overlappingStart) {
-                            // Current starts first → current gets back_parallel
-                            console.log('[CP Selection] Current gets back_parallel:', overlapDays);
+                            // A starts before B → B's front is grey (accumulate)
                             useScheduleStore.getState().updateParallelPeriods(
-                                currentTask.id,
-                                0,           // front
-                                overlapDays  // back
+                                overlappingTask.id,
+                                existingFront + overlapDays,  // Add to existing front
+                                existingBack
                             );
                         } else {
-                            // Overlapping starts first → current gets front_parallel
-                            console.log('[CP Selection] Current gets front_parallel:', overlapDays);
+                            // A starts after B → B's back is grey (accumulate)
                             useScheduleStore.getState().updateParallelPeriods(
-                                currentTask.id,
-                                overlapDays,  // front
-                                0             // back
+                                overlappingTask.id,
+                                existingFront,
+                                existingBack + overlapDays  // Add to existing back
                             );
                         }
 
-                        // Apply the drag using store action directly (not onReorder!)
-                        console.log('[CP Selection] Applying drag for item:', draggedItemId, 'to', newStartDay);
                         useScheduleStore.getState().moveTaskBar(draggedItemId, newStartDay);
                         setOverlapPopover(null);
-                        console.log('[CP Selection] Done!');
+                    }}
+                    onSelectOtherAsCP={() => {
+                        if (!overlapPopover) return;
+
+                        const { currentTask, overlappingTask, overlapDays, draggedItemId, newStartDay } = overlapPopover;
+
+                        // Overlapping task is CP → current task becomes parallel
+                        const currentStart = newStartDay;
+                        const overlappingStart = overlappingTask.start;
+
+                        // Get existing parallel days for current task
+                        const existingFront = currentTask.front_parallel_days || 0;
+                        const existingBack = currentTask.back_parallel_days || 0;
+
+                        if (currentStart < overlappingStart) {
+                            // A starts before B → A's back is grey (accumulate)
+                            useScheduleStore.getState().updateParallelPeriods(
+                                currentTask.id,
+                                existingFront,
+                                existingBack + overlapDays  // Add to existing back
+                            );
+                        } else {
+                            // A starts after B → A's front is grey (accumulate)
+                            useScheduleStore.getState().updateParallelPeriods(
+                                currentTask.id,
+                                existingFront + overlapDays,  // Add to existing front
+                                existingBack
+                            );
+                        }
+
+                        useScheduleStore.getState().moveTaskBar(draggedItemId, newStartDay);
+                        setOverlapPopover(null);
                     }}
                 />
             </div >

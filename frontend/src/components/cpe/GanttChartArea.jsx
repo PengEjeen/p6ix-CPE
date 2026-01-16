@@ -49,8 +49,13 @@ const GanttChartArea = ({
                     const rowH = 44;
                     const rowCenter = 22;
 
-                    const taskEnd = item.startDay + item.durationDays;
+                    // Calculate RED end (excluding grey periods)
+                    const frontParallel = parseFloat(item.front_parallel_days) || 0;
+                    const backParallel = parseFloat(item.back_parallel_days) || 0;
                     const taskStart = item.startDay;
+                    const taskEnd = item.startDay + item.durationDays;
+                    const redStart = taskStart + frontParallel;
+                    const redEnd = taskEnd - backParallel;
 
                     // Check if THIS task is enclosed (don't draw arrow FROM grey tasks)
                     const prevItem = i > 0 ? itemsWithTiming[i - 1] : null;
@@ -65,7 +70,7 @@ const GanttChartArea = ({
                     let targetItem = itemsWithTiming[targetIndex];
 
                     // Skip over any enclosed tasks
-                    while (targetItem && taskEnd > (targetItem.startDay + targetItem.durationDays)) {
+                    while (targetItem && redEnd > (targetItem.startDay + targetItem.durationDays)) {
                         targetIndex++;
                         targetItem = itemsWithTiming[targetIndex];
                     }
@@ -73,13 +78,12 @@ const GanttChartArea = ({
                     // If no valid target found, don't draw arrow
                     if (!targetItem) return null;
 
-                    const targetStart = targetItem.startDay;
+                    // Calculate target's RED start
+                    const targetFrontParallel = parseFloat(targetItem.front_parallel_days) || 0;
+                    const targetRedStart = targetItem.startDay + targetFrontParallel;
 
-                    // Arrow connects from current red end to target red start
-                    const redE = Math.min(taskEnd, targetStart);
-                    const targetRedStart = targetStart;
-
-                    const startX = redE * pxFactor;
+                    // Arrow connects from current RED end to target RED start
+                    const startX = redEnd * pxFactor;
                     const startY = (i * rowH) + rowCenter;
 
                     const endX = targetRedStart * pxFactor;
