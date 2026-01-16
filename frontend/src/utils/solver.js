@@ -87,8 +87,8 @@ export const solveForCrewSize = (item, targetCalendarDays, baseProductivity = nu
 
     const exactCrewSize = requiredDailyProduction / productivity;
 
-    // 5. 정수화 (올림 처리 - 인원은 모자라면 안되므로)
-    const newCrewSize = Math.ceil(exactCrewSize);
+    // 5. Allow decimals (Round up to 1 decimal place)
+    const newCrewSize = Math.ceil(exactCrewSize * 10) / 10;
 
     // 6. 결과 반영 (재계산하여 정합성 보장)
     // 인원을 정수로 맞추면 기간이 미세하게 달라질 수 있음 -> 이건 허용해야 함 (자연스러운 현상)
