@@ -796,7 +796,6 @@ export default function ScheduleMasterList() {
                     <GanttChart
                         items={items}
                         startDate={startDate}
-                        onReorder={setStoreItems}
                         onResize={handleGanttResize}
                         onSmartResize={handleSmartResize}
                     />

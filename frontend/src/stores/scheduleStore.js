@@ -130,6 +130,51 @@ export const useScheduleStore = create(
             }),
 
             /**
+             * Update Parallel Periods
+             * - Sets front_parallel_days and back_parallel_days
+             */
+            updateParallelPeriods: (id, frontDays, backDays) => {
+                console.log('[Store] updateParallelPeriods called:', { id, frontDays, backDays });
+
+                set((state) => {
+                    const index = state.items.findIndex(i => i.id === id);
+                    console.log('[Store] Found item at index:', index);
+
+                    if (index === -1) {
+                        console.log('[Store] ERROR: Item not found with id:', id);
+                        return state; // No change
+                    }
+
+                    console.log('[Store] Before update:', {
+                        id: state.items[index].id,
+                        front_parallel_days: state.items[index].front_parallel_days,
+                        back_parallel_days: state.items[index].back_parallel_days
+                    });
+
+                    // IMPORTANT: Create new array and new object for immutability!
+                    const newItems = state.items.map((item, idx) => {
+                        if (idx === index) {
+                            const updated = {
+                                ...item,
+                                front_parallel_days: frontDays || 0,
+                                back_parallel_days: backDays || 0
+                            };
+                            console.log('[Store] After update:', {
+                                id: updated.id,
+                                front_parallel_days: updated.front_parallel_days,
+                                back_parallel_days: updated.back_parallel_days
+                            });
+                            return updated;
+                        }
+                        return item;
+                    });
+
+                    console.log('[Store] Returning new state with updated items');
+                    return { ...state, items: newItems };
+                });
+            },
+
+            /**
              * Move Task Bar (Gantt Interaction)
              * - Updates start date (custom start day)
              */

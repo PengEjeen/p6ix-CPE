@@ -156,45 +156,32 @@ const GanttChartArea = ({
             {/* Gantt Rows */}
             <div className="relative py-1">
                 {itemsWithTiming.map((item, index) => {
-                    const prevItem = index > 0 ? itemsWithTiming[index - 1] : null;
-                    const nextItem = index < itemsWithTiming.length - 1 ? itemsWithTiming[index + 1] : null;
-
                     const taskStart = item.startDay;
                     const taskEnd = item.startDay + item.durationDays;
 
-                    // Rule: If successor task finishes before predecessor, successor should be grey
-                    const prevEnd = prevItem ? prevItem.startDay + prevItem.durationDays : 0;
+                    // Use stored parallel periods (default to 0)
+                    const frontParallel = parseFloat(item.front_parallel_days) || 0;
+                    const backParallel = parseFloat(item.back_parallel_days) || 0;
 
-                    // Logic: Task is "Enclosed/Parallel" if it ends before previous task OR explicitly marked
-                    const isExplicitParallel = item.remarks === '병행작업' || item.remarks === 'Parallel';
-                    const isEnclosed = (prevEnd > taskEnd) || isExplicitParallel;
+                    // Calculate red (critical path) segment
+                    const redS = taskStart + frontParallel;
+                    const redE = taskEnd - backParallel;
 
-                    // Check if next task is enclosed within this task (to determine overlap behavior)
-                    const nextEnd = nextItem ? nextItem.startDay + nextItem.durationDays : Infinity;
-                    // Next is enclosed if it ends before ME, or if it is explicitly marked parallel
-                    const nextIsEnclosed = (taskEnd > nextEnd) || (nextItem && (nextItem.remarks === '병행작업' || nextItem.remarks === 'Parallel'));
-
-                    let redS, redE;
-                    if (isEnclosed) {
-                        // Enclosed task: entire task is grey (no red segment)
-                        redS = taskStart;
-                        redE = taskStart;
-                    } else {
-                        // Normal rule: red starts at taskStart
-                        redS = taskStart;
-
-                        // Overlap Logic:
-                        // Normally, Red segment ends where the *Next Critical Task* begins.
-                        // If the immediate next task is "Parallel/Enclosed", it is NOT the critical successor.
-                        // We should search for the first "Non-Parallel" successor to decide Red End?
-                        // For simplicity/performance: If next is enclosed, we extend Red to full duration (assuming this task drives a later task).
-
-                        if (nextIsEnclosed) {
-                            redE = taskEnd;
-                        } else {
-                            // If next task is Critical (Red), our Red Segment stops when Next starts (Waterfall)
-                            redE = nextItem ? Math.min(taskEnd, nextItem.startDay) : taskEnd;
-                        }
+                    // Debug logging - ALWAYS log for earth-1
+                    if (item.id === 'earth-1') {
+                        console.log(`[Grey Segments DEBUG] earth-1:`, {
+                            taskStart,
+                            taskEnd,
+                            frontParallel,
+                            backParallel,
+                            redStart: redS,
+                            redEnd: redE,
+                            totalDuration: item.durationDays,
+                            item_data: {
+                                front_parallel_days: item.front_parallel_days,
+                                back_parallel_days: item.back_parallel_days
+                            }
+                        });
                     }
 
                     return (
