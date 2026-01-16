@@ -57,20 +57,61 @@ const GanttChartArea = ({
                     const redStart = taskStart + frontParallel;
                     const redEnd = taskEnd - backParallel;
 
-                    // Check if THIS task is enclosed (don't draw arrow FROM grey tasks)
+                    const hasCriticalSegment = redEnd > redStart;
+                    // Check if THIS task is marked as parallel task (병행작업)
+                    // NOTE: We check 'remarks' field, not parallel days, because:
+                    // - CP tasks can also have parallel days (when overlapping with other tasks)
+                    // - Only tasks explicitly marked as '병행작업' should skip arrow drawing
+                    // If there is no red segment at all, treat as parallel for CP arrows.
+                    const isParallelTask = item.remarks === '병행작업' || !hasCriticalSegment;
+
+                    // DEBUG: Log remarks value for debugging
+                    if (item.process === '기초공사' && item.work_type?.includes('거푸집')) {
+                        console.log('[ARROW DEBUG] 거푸집 task:', {
+                            id: item.id,
+                            process: item.process,
+                            work_type: item.work_type,
+                            remarks: item.remarks,
+                            remarks_type: typeof item.remarks,
+                            remarks_exact: JSON.stringify(item.remarks),
+                            isParallelTask,
+                            shouldSkipArrow: isParallelTask
+                        });
+                    }
+
+                    // Don't draw arrow from parallel (병행) tasks
+                    if (isParallelTask) return null;
+
+                    // Also check if task is enclosed
                     const prevItem = i > 0 ? itemsWithTiming[i - 1] : null;
                     const prevEnd = prevItem ? prevItem.startDay + prevItem.durationDays : 0;
                     const isCurrentEnclosed = prevEnd > taskEnd;
 
-                    // Don't draw arrow from grey (enclosed) tasks
+                    // Don't draw arrow from enclosed tasks
                     if (isCurrentEnclosed) return null;
 
-                    // Find the next non-enclosed task to connect to
+                    // Find the next CP task to connect to (skip enclosed and parallel tasks)
                     let targetIndex = i + 1;
                     let targetItem = itemsWithTiming[targetIndex];
 
-                    // Skip over any enclosed tasks
-                    while (targetItem && redEnd > (targetItem.startDay + targetItem.durationDays)) {
+                    // Skip over:
+                    // 1. Enclosed tasks (completely within current task's timeline)
+                    // 2. Parallel tasks (marked as '병행작업') - but only if they're NOT the immediate next task
+                    while (targetItem) {
+                        const targetFrontParallel = parseFloat(targetItem.front_parallel_days) || 0;
+                        const targetBackParallel = parseFloat(targetItem.back_parallel_days) || 0;
+                        const targetRedStartLoop = targetItem.startDay + targetFrontParallel;
+                        const targetRedEndLoop = (targetItem.startDay + targetItem.durationDays) - targetBackParallel;
+                        const targetHasCriticalLoop = targetRedEndLoop > targetRedStartLoop;
+
+                        if (
+                            redEnd <= (targetItem.startDay + targetItem.durationDays) &&
+                            targetItem.remarks !== '병행작업' &&
+                            targetHasCriticalLoop
+                        ) {
+                            break;
+                        }
+
                         targetIndex++;
                         targetItem = itemsWithTiming[targetIndex];
                     }

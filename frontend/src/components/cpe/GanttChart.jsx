@@ -53,6 +53,9 @@ export default function GanttChart({ items, startDate, onResize, onSmartResize }
         const groups = new Map();
         const loads = new Map();
 
+        // Track the cumulative CRITICAL PATH end across all tasks
+        let cumulativeCPEnd = 0;
+
         for (let i = 0; i < items.length; i++) {
             const originalItem = items[i];
             // Clone first to allow mutation
@@ -69,14 +72,22 @@ export default function GanttChart({ items, startDate, onResize, onSmartResize }
                 if (i === 0) {
                     startDay = 0;
                 } else {
-                    // Use ONLY the immediate previous task's end (not max of all)
-                    const prevTask = result[result.length - 1];
-                    // Calculate end of RED period: Start + Duration - BackParallel
-                    // (FrontParallel affects START of red, not END of red relative to task end)
-                    const redEnd = prevTask.startDay + prevTask.durationDays - (prevTask.back_parallel_days || 0);
-                    startDay = redEnd;
+                    // CRITICAL FIX: Use the cumulative CP end from ALL previous tasks
+                    // This ensures tasks align with CP only, not with parallel task ends
+                    startDay = cumulativeCPEnd;
                 }
             }
+
+            // Calculate this task's CP end (accounting for front/back parallel)
+            // CP Start = startDay + front_parallel_days
+            // CP End = startDay + duration - back_parallel_days
+            const frontParallel = parseFloat(item.front_parallel_days) || 0;
+            const backParallel = parseFloat(item.back_parallel_days) || 0;
+            const cpEnd = startDay + duration - backParallel;
+
+            // Update cumulative CP end tracker
+            // Only advance if this task's CP extends beyond the current cumulative CP
+            cumulativeCPEnd = Math.max(cumulativeCPEnd, cpEnd);
 
             const endDay = Math.ceil(startDay + duration);
             for (let d = Math.floor(startDay); d < endDay; d++) {
