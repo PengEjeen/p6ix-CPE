@@ -66,7 +66,8 @@ class ConstructionScheduleItemSerializer(serializers.ModelSerializer):
         
         # 데이터 검증 로깅
         if representation.get('data'):
-            data_items = representation['data']
+            raw_data = representation['data']
+            data_items = raw_data.get('items', []) if isinstance(raw_data, dict) else raw_data
             logger.info(f"📥 [READ] Schedule Data Count: {len(data_items)}")
             
             # 병행작업 체크
@@ -87,7 +88,8 @@ class ConstructionScheduleItemSerializer(serializers.ModelSerializer):
     
     def update(self, instance, validated_data):
         """데이터 저장 시 로깅"""
-        data_items = validated_data.get('data', [])
+        raw_data = validated_data.get('data', [])
+        data_items = raw_data.get('items', []) if isinstance(raw_data, dict) else raw_data
         
         logger.info(f"📤 [SAVE] Schedule Data Count: {len(data_items)}")
         

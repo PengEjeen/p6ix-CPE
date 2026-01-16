@@ -15,7 +15,9 @@ const SmartGanttBar = ({
     redStartDay,
     redEndDay,
     selectedItemId,
-    onItemClick
+    onItemClick,
+    linkMode,
+    onLinkAnchorClick
 }) => {
     const [isResizing, setIsResizing] = useState(false);
     const [isDragging, setIsDragging] = useState(false);
@@ -169,6 +171,31 @@ const SmartGanttBar = ({
                     <div className="absolute inset-0.5 bg-slate-200 rounded-full pointer-events-none"></div>
                 </motion.div>
             </div>
+
+            {linkMode && (
+                <>
+                    <button
+                        type="button"
+                        className="absolute top-0 left-0 -translate-x-1/2 -translate-y-1/2 w-3 h-3 rounded-full bg-blue-500 ring-2 ring-white shadow-sm z-30"
+                        style={{ left: `${leftPx}px` }}
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            if (onLinkAnchorClick) onLinkAnchorClick(item.id, "start");
+                        }}
+                        aria-label="Link start"
+                    />
+                    <button
+                        type="button"
+                        className="absolute top-0 -translate-y-1/2 w-3 h-3 rounded-full bg-blue-500 ring-2 ring-white shadow-sm z-30"
+                        style={{ left: `${leftPx + widthPx}px` }}
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            if (onLinkAnchorClick) onLinkAnchorClick(item.id, "end");
+                        }}
+                        aria-label="Link end"
+                    />
+                </>
+            )}
 
         </div>
     );

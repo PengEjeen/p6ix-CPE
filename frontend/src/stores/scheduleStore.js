@@ -14,12 +14,16 @@ export const useScheduleStore = create(
         immer((set, get) => ({
             // State
             items: [],
+            links: [],
             operatingRates: [],
             workDayType: '6d', // '5d', '6d', '7d'
 
             // Actions
             setItems: (items) => set((state) => {
                 state.items = items;
+            }),
+            setLinks: (links) => set((state) => {
+                state.links = links;
             }),
 
             setOperatingRates: (rates) => set((state) => {
@@ -67,6 +71,22 @@ export const useScheduleStore = create(
 
             deleteItem: (id) => set((state) => {
                 state.items = state.items.filter(i => i.id !== id);
+                state.links = state.links.filter(l => l.from !== id && l.to !== id);
+            }),
+
+            addLink: (link) => set((state) => {
+                state.links.push(link);
+            }),
+
+            updateLink: (id, updates) => set((state) => {
+                const index = state.links.findIndex(l => l.id === id);
+                if (index !== -1) {
+                    state.links[index] = { ...state.links[index], ...updates };
+                }
+            }),
+
+            deleteLink: (id) => set((state) => {
+                state.links = state.links.filter(l => l.id !== id);
             }),
 
             reorderItems: (newItems) => set((state) => {

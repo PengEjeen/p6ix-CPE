@@ -7,14 +7,55 @@ const GanttChartArea = ({
     pixelsPerUnit,
     dateScale,
     itemsWithTiming,
+    links,
     categoryMilestones,
     onBarDragStart,
     onBarResize,
     onBarResizing,
     setPopoverState,
     selectedItemId,
-    onItemClick
+    onItemClick,
+    linkMode,
+    onLinkAnchorClick,
+    onLinkClick,
+    selectedLinkId
 }) => {
+    const rowH = 44;
+    const rowCenter = 22;
+    const pxFactor = pixelsPerUnit / dateScale;
+    const itemIndexById = new Map(itemsWithTiming.map((item, index) => [item.id, { item, index }]));
+    const getAnchorX = (itemData, anchor) => {
+        const startX = itemData.startDay * pxFactor;
+        const endX = (itemData.startDay + itemData.durationDays) * pxFactor;
+        return anchor === "start" ? startX : endX;
+    };
+    const getAnchorY = (index) => (index * rowH) + rowCenter;
+    const deriveAnchorForType = (type) => {
+        switch (type) {
+            case "SS":
+                return { from: "start", to: "start" };
+            case "FF":
+                return { from: "end", to: "end" };
+            case "SF":
+                return { from: "start", to: "end" };
+            case "FS":
+            default:
+                return { from: "end", to: "start" };
+        }
+    };
+    const buildLinkPath = (fromX, fromY, toX, toY, fromAnchor) => {
+        // 앵커 기준 판단:
+        // - start에서 시작: 그래프 시작 지점 → Y축 먼저 (세로→가로)
+        // - end에서 시작: 그래프 끝 지점 → X축 먼저 (가로→세로)
+
+        if (fromAnchor === "start") {
+            // 그래프 시작에서 출발: Y축 먼저
+            return `M ${fromX} ${fromY} L ${fromX} ${toY} L ${toX} ${toY}`;
+        } else {
+            // 그래프 끝(end)에서 출발: X축 먼저
+            return `M ${fromX} ${fromY} L ${toX} ${fromY} L ${toX} ${toY}`;
+        }
+    };
     return (
         <div className="relative">
             {/* Grid Lines & Heatmap Background */}
@@ -32,8 +73,64 @@ const GanttChartArea = ({
                 })}
             </div>
 
+            {/* Dependency Links */}
+            <svg
+                className={`absolute inset-0 z-20 ${linkMode ? "pointer-events-auto" : "pointer-events-none"}`}
+                style={{ width: '100%', height: itemsWithTiming.length * rowH }}
+            >
+                <defs>
+                    <marker id="arrowhead-link" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+                        <path d="M0,0 L0,6 L6,3 z" fill="#94a3b8" />
+                    </marker>
+                </defs>
+                <style>{`
+                    .gantt-link-path {
+                        stroke-dasharray: 6 4;
+                        animation: gantt-link-dash 2.2s linear infinite;
+                    }
+                    @keyframes gantt-link-dash {
+                        to { stroke-dashoffset: -20; }
+                    }
+                `}</style>
+                {Array.isArray(links) && links.map((link) => {
+                    const fromData = itemIndexById.get(link.from);
+                    const toData = itemIndexById.get(link.to);
+                    if (!fromData || !toData) return null;
+                    const anchors = deriveAnchorForType(link.type);
+                    const fromX = getAnchorX(fromData.item, anchors.from);
+                    const lagValue = parseFloat(link.lag) || 0;
+                    const toX = getAnchorX(toData.item, anchors.to) + (lagValue * pxFactor);
+                    const fromY = getAnchorY(fromData.index);
+                    const toY = getAnchorY(toData.index);
+                    const path = buildLinkPath(fromX, fromY, toX, toY, anchors.from);
+                    const isSelected = link.id === selectedLinkId;
+                    return (
+                        <g key={link.id}>
+                            <path
+                                d={path}
+                                fill="none"
+                                stroke={isSelected ? "#2563eb" : "#94a3b8"}
+                                strokeWidth={isSelected ? 2.5 : 2}
+                                markerEnd="url(#arrowhead-link)"
+                                className="opacity-90 gantt-link-path"
+                            />
+                            <path
+                                d={path}
+                                fill="none"
+                                stroke="transparent"
+                                strokeWidth="10"
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (onLinkClick) onLinkClick(link.id, e.clientX, e.clientY);
+                                }}
+                            />
+                        </g>
+                    );
+                })}
+            </svg>
+
             {/* Critical Path Lines (CP) */}
-            <svg className="absolute inset-0 pointer-events-none z-30" style={{ width: '100%', height: itemsWithTiming.length * 44 }}>
+            <svg className="absolute inset-0 pointer-events-none z-30" style={{ width: '100%', height: itemsWithTiming.length * rowH }}>
                 <defs>
                     <marker id="arrowhead-red" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
                         <path d="M0,0 L0,6 L6,3 z" fill="#ef4444" />
@@ -245,6 +342,8 @@ const GanttChartArea = ({
                             redEndDay={redE}
                             selectedItemId={selectedItemId}
                             onItemClick={onItemClick}
+                            linkMode={linkMode}
+                            onLinkAnchorClick={onLinkAnchorClick}
                         />
                     );
                 })}

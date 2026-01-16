@@ -276,11 +276,13 @@ export default function ScheduleMasterList() {
     // Store Integration
     const items = useScheduleStore((state) => state.items);
     const operatingRates = useScheduleStore((state) => state.operatingRates);
+    const links = useScheduleStore((state) => state.links);
     const workDayType = useScheduleStore((state) => state.workDayType);
 
     // Actions
     const setStoreItems = useScheduleStore((state) => state.setItems);
     const setStoreOperatingRates = useScheduleStore((state) => state.setOperatingRates);
+    const setStoreLinks = useScheduleStore((state) => state.setLinks);
     const setStoreWorkDayType = useScheduleStore((state) => state.setWorkDayType);
     const updateItem = useScheduleStore((state) => state.updateItem);
     const addItem = useScheduleStore((state) => state.addItem);
@@ -359,6 +361,7 @@ export default function ScheduleMasterList() {
 
             // Handle Initial Init
             let scheduleItems = fetchedData.items;
+            let scheduleLinks = fetchedData.links || [];
             let currentContainerId = fetchedData.containerId;
 
             if (!currentContainerId || !scheduleItems || scheduleItems.length === 0) {
@@ -367,6 +370,7 @@ export default function ScheduleMasterList() {
                     await initializeDefaultItems(projectId);
                     const refetched = await fetchScheduleItems(projectId);
                     scheduleItems = refetched.items;
+                    scheduleLinks = refetched.links || [];
                     currentContainerId = refetched.containerId;
                 } catch (e) {
                     console.error("Backend Init Failed, using local fallback");
@@ -376,9 +380,10 @@ export default function ScheduleMasterList() {
                 if (!scheduleItems || scheduleItems.length === 0) {
                     console.warn("Using Local Fallback Data");
                     scheduleItems = DEFAULT_SCHEDULE_ITEMS;
+                    scheduleLinks = [];
                     // Try to save it immediately if we have a containerId, or wait for user save
                     if (currentContainerId) {
-                        saveScheduleData(currentContainerId, scheduleItems).catch(console.error);
+                        saveScheduleData(currentContainerId, { items: scheduleItems, links: scheduleLinks }).catch(console.error);
                     }
                 }
             }
@@ -389,6 +394,7 @@ export default function ScheduleMasterList() {
             // Store Init
             setStoreOperatingRates(rateData);
             setStoreItems(scheduleItems); // Will calculate in store
+            setStoreLinks(scheduleLinks);
 
             setCipResult(Array.isArray(cipData) ? cipData[0] : (cipData.results?.[0] || null));
             setPileResult(Array.isArray(pileData) ? pileData[0] : (pileData.results?.[0] || null));
@@ -647,7 +653,7 @@ export default function ScheduleMasterList() {
             });
 
             const results = await Promise.allSettled([
-                saveScheduleData(targetContainerId, items),
+                saveScheduleData(targetContainerId, { items, links }),
                 updateWorkCondition(projectId, {
                     earthwork_type: typeVal,
                     framework_type: typeVal
@@ -795,6 +801,7 @@ export default function ScheduleMasterList() {
                 <div className="flex-1 min-h-0 overflow-hidden">
                     <GanttChart
                         items={items}
+                        links={links}
                         startDate={startDate}
                         onResize={handleGanttResize}
                         onSmartResize={handleSmartResize}

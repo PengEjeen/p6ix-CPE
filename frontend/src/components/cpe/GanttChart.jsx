@@ -10,7 +10,7 @@ import GanttChartArea from "./GanttChartArea";
 import ContextualBrainPopover from "./ContextualBrainPopover";
 import OverlapResolvePopover from "./OverlapResolvePopover";
 
-export default function GanttChart({ items, startDate, onResize, onSmartResize }) {
+export default function GanttChart({ items, links, startDate, onResize, onSmartResize }) {
     // DEBUG: Log when items change
     React.useEffect(() => {
         console.log('[GanttChart] Items prop changed! Count:', items.length);
@@ -27,6 +27,10 @@ export default function GanttChart({ items, startDate, onResize, onSmartResize }
     const [draggedItem, setDraggedItem] = useState(null);
     const [dateScale, setDateScale] = useState(1);
     const [selectedItemId, setSelectedItemId] = useState(null);
+    const [selectedLinkId, setSelectedLinkId] = useState(null);
+    const [linkMode, setLinkMode] = useState(false);
+    const [linkDraft, setLinkDraft] = useState(null); // { fromId, fromAnchor }
+    const [linkEditor, setLinkEditor] = useState(null); // { id, x, y }
     const pixelsPerUnit = 40;
 
     // Refs for scrolling
@@ -189,6 +193,66 @@ export default function GanttChart({ items, startDate, onResize, onSmartResize }
     }, [items]);
 
     const timeline = useMemo(() => generateTimeline(startDate, totalDays, dateScale), [startDate, totalDays, dateScale]);
+
+    const addLink = useScheduleStore((state) => state.addLink);
+    const updateLink = useScheduleStore((state) => state.updateLink);
+    const deleteLink = useScheduleStore((state) => state.deleteLink);
+
+    const deriveLinkType = (fromAnchor, toAnchor) => {
+        if (fromAnchor === "start" && toAnchor === "start") return "SS";
+        if (fromAnchor === "end" && toAnchor === "end") return "FF";
+        if (fromAnchor === "start" && toAnchor === "end") return "SF";
+        return "FS";
+    };
+
+    const handleLinkAnchorClick = useCallback((itemId, anchor) => {
+        if (!linkMode) return;
+        if (!linkDraft) {
+            setLinkDraft({ fromId: itemId, fromAnchor: anchor });
+            return;
+        }
+        if (linkDraft.fromId === itemId && linkDraft.fromAnchor === anchor) {
+            setLinkDraft(null);
+            return;
+        }
+
+        const linkType = deriveLinkType(linkDraft.fromAnchor, anchor);
+        const newLink = {
+            id: `link-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+            from: linkDraft.fromId,
+            to: itemId,
+            type: linkType,
+            lag: 0
+        };
+
+        const alreadyExists = Array.isArray(links) && links.some(
+            (link) =>
+                link.from === newLink.from &&
+                link.to === newLink.to &&
+                link.type === newLink.type &&
+                (parseFloat(link.lag) || 0) === 0
+        );
+        if (!alreadyExists) {
+            addLink(newLink);
+        }
+        setLinkDraft(null);
+    }, [addLink, linkDraft, linkMode, links]);
+
+    const handleLinkClick = useCallback((linkId, x, y) => {
+        setSelectedLinkId(linkId);
+        setLinkEditor({ id: linkId, x, y });
+    }, []);
+
+    const handleLinkEditorClose = useCallback(() => {
+        setLinkEditor(null);
+        setSelectedLinkId(null);
+    }, []);
+
+    React.useEffect(() => {
+        if (!linkMode) {
+            setLinkDraft(null);
+        }
+    }, [linkMode]);
 
     // Calculate category completion milestones
     const categoryMilestones = useMemo(() => {
@@ -451,6 +515,21 @@ export default function GanttChart({ items, startDate, onResize, onSmartResize }
                                         </button>
                                     ))}
                                 </div>
+                                <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-lg border border-gray-200 shadow-sm">
+                                    <button
+                                        type="button"
+                                        onClick={() => setLinkMode((prev) => !prev)}
+                                        className={`px-2 py-0.5 text-xs rounded transition-all font-semibold ${linkMode
+                                            ? 'bg-blue-600 text-white'
+                                            : 'bg-gray-50 text-gray-600 hover:bg-gray-100'
+                                            }`}
+                                    >
+                                        링크 편집
+                                    </button>
+                                    {linkDraft && (
+                                        <span className="text-[10px] text-blue-600 font-semibold">대상 선택</span>
+                                    )}
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -502,6 +581,7 @@ export default function GanttChart({ items, startDate, onResize, onSmartResize }
                             pixelsPerUnit={pixelsPerUnit}
                             dateScale={dateScale}
                             itemsWithTiming={itemsWithTiming}
+                            links={links}
                             categoryMilestones={categoryMilestones}
                             onBarDragStart={handleBarDrag}
                             onBarResize={handleBarResize}
@@ -509,6 +589,10 @@ export default function GanttChart({ items, startDate, onResize, onSmartResize }
                             setPopoverState={setPopover}
                             selectedItemId={selectedItemId}
                             onItemClick={handleItemClick}
+                            linkMode={linkMode}
+                            onLinkAnchorClick={handleLinkAnchorClick}
+                            onLinkClick={handleLinkClick}
+                            selectedLinkId={selectedLinkId}
                         />
 
                     </div>
@@ -625,6 +709,58 @@ export default function GanttChart({ items, startDate, onResize, onSmartResize }
                         setOverlapPopover(null);
                     }}
                 />
+
+                {linkEditor && (
+                    <div
+                        className="fixed z-[120] bg-white border border-gray-200 rounded-lg shadow-xl p-3 w-52"
+                        style={{ left: linkEditor.x + 10, top: linkEditor.y + 10 }}
+                    >
+                        <div className="text-xs font-bold text-slate-700 mb-2">링크 편집</div>
+                        <div className="space-y-2">
+                            <div>
+                                <label className="block text-[10px] text-gray-500 mb-1">유형</label>
+                                <select
+                                    className="w-full border border-gray-200 rounded px-2 py-1 text-xs"
+                                    value={(links || []).find(l => l.id === linkEditor.id)?.type || "FS"}
+                                    onChange={(e) => updateLink(linkEditor.id, { type: e.target.value })}
+                                >
+                                    <option value="FS">FS</option>
+                                    <option value="SS">SS</option>
+                                    <option value="FF">FF</option>
+                                    <option value="SF">SF</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label className="block text-[10px] text-gray-500 mb-1">Lag(일)</label>
+                                <input
+                                    className="w-full border border-gray-200 rounded px-2 py-1 text-xs"
+                                    type="number"
+                                    value={(links || []).find(l => l.id === linkEditor.id)?.lag ?? 0}
+                                    onChange={(e) => updateLink(linkEditor.id, { lag: parseFloat(e.target.value) || 0 })}
+                                />
+                            </div>
+                        </div>
+                        <div className="flex justify-between mt-3">
+                            <button
+                                type="button"
+                                className="text-xs text-red-600 font-semibold"
+                                onClick={() => {
+                                    deleteLink(linkEditor.id);
+                                    handleLinkEditorClose();
+                                }}
+                            >
+                                삭제
+                            </button>
+                            <button
+                                type="button"
+                                className="text-xs text-gray-500 font-semibold"
+                                onClick={handleLinkEditorClose}
+                            >
+                                닫기
+                            </button>
+                        </div>
+                    </div>
+                )}
             </div >
         </div >
     );
