@@ -700,19 +700,19 @@ export default function ScheduleMasterList() {
     const activeItem = activeId ? items.find(i => i.id === activeId) : null;
 
     return (
-        <div className="p-6 h-screen flex flex-col max-w-[2400px] mx-auto bg-gray-50/50 overflow-hidden">
+        <div className="p-6 h-screen flex flex-col max-w-[2400px] mx-auto bg-[#1f1f2b] overflow-hidden">
             {/* Page Header */}
-            <div className="flex justify-between items-end mb-4 border-b border-gray-200 pb-2 flex-shrink-0">
+            <div className="flex justify-between items-end mb-4 border border-gray-700 bg-[#2c2c3a] rounded-xl p-4 flex-shrink-0">
                 <div>
-                    <h1 className="text-2xl font-bold text-gray-900 mb-1 tracking-tight">공사기간 산정 기준</h1>
+                    <h1 className="text-2xl font-bold text-white mb-1 tracking-tight">공사기간 산정 기준</h1>
                     <div className="flex items-center gap-4">
-                        <p className="text-sm text-gray-500">Drag & Drop 지원, 자동 셀 병합</p>
+                        <p className="text-sm text-gray-400">Drag & Drop 지원, 자동 셀 병합</p>
                         {/* View Mode Tabs */}
-                        <div className="flex gap-1 bg-gray-100 p-1 rounded-lg">
+                        <div className="flex gap-1 bg-[#1f1f2b] p-1 rounded-lg border border-gray-700">
                             <button
                                 className={`px-3 py-1 text-xs font-semibold rounded transition-all ${viewMode === "table"
-                                    ? "bg-white text-blue-600 shadow-sm"
-                                    : "text-gray-600 hover:text-gray-900"
+                                    ? "bg-[#3a3a4d] text-white shadow-sm"
+                                    : "text-gray-400 hover:text-white"
                                     }`}
                                 onClick={() => setViewMode("table")}
                             >
@@ -720,8 +720,8 @@ export default function ScheduleMasterList() {
                             </button>
                             <button
                                 className={`px-3 py-1 text-xs font-semibold rounded transition-all ${viewMode === "gantt"
-                                    ? "bg-white text-blue-600 shadow-sm"
-                                    : "text-gray-600 hover:text-gray-900"
+                                    ? "bg-[#3a3a4d] text-white shadow-sm"
+                                    : "text-gray-400 hover:text-white"
                                     }`}
                                 onClick={() => setViewMode("gantt")}
                             >
@@ -730,11 +730,11 @@ export default function ScheduleMasterList() {
                         </div>
                     </div>
                 </div>
-                <div className="flex gap-4 items-center bg-white px-4 py-2 rounded-xl border border-gray-200 shadow-sm">
+                <div className="flex gap-4 items-center bg-[#2c2c3a] px-4 py-2 rounded-xl border border-gray-700 shadow-sm">
                     {/* Undo/Redo Buttons */}
-                    <div className="flex items-center gap-1 mr-2 border-r border-gray-200 pr-3">
+                    <div className="flex items-center gap-1 mr-2 border-r border-gray-700 pr-3">
                         <button
-                            className={`p-1.5 rounded hover:bg-gray-100 transition-colors ${!canUndo ? 'opacity-30 cursor-not-allowed' : 'text-gray-700'}`}
+                            className={`p-1.5 rounded hover:bg-[#3a3a4d] transition-colors ${!canUndo ? 'opacity-30 cursor-not-allowed' : 'text-gray-200'}`}
                             onClick={() => undo()}
                             disabled={!canUndo}
                             title="실행 취소 (Ctrl+Z)"
@@ -742,7 +742,7 @@ export default function ScheduleMasterList() {
                             <Undo2 size={16} />
                         </button>
                         <button
-                            className={`p-1.5 rounded hover:bg-gray-100 transition-colors ${!canRedo ? 'opacity-30 cursor-not-allowed' : 'text-gray-700'}`}
+                            className={`p-1.5 rounded hover:bg-[#3a3a4d] transition-colors ${!canRedo ? 'opacity-30 cursor-not-allowed' : 'text-gray-200'}`}
                             onClick={() => redo()}
                             disabled={!canRedo}
                             title="다시 실행 (Ctrl+Shift+Z)"
@@ -753,7 +753,7 @@ export default function ScheduleMasterList() {
 
                     {/* Snapshot Button */}
                     <button
-                        className="p-1.5 rounded hover:bg-gray-100 text-gray-700 mr-2 transition-colors relative group"
+                        className="p-1.5 rounded hover:bg-[#3a3a4d] text-gray-200 mr-2 transition-colors relative group"
                         onClick={() => setSnapshotModalOpen(true)}
                         title="스냅샷 / 히스토리"
                     >
@@ -763,10 +763,10 @@ export default function ScheduleMasterList() {
 
                     {/* Start Date Picker */}
                     <div className="flex flex-col gap-1">
-                        <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest pl-1">Start Date</label>
+                        <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest pl-1">Start Date</label>
                         <input
                             type="date"
-                            className="bg-gray-50 text-gray-900 font-bold text-sm py-1.5 pl-3 pr-2 rounded-lg border border-gray-300 focus:border-blue-500 w-36 uppercase"
+                            className="bg-[#1f1f2b] text-gray-100 font-bold text-sm py-1.5 pl-3 pr-2 rounded-lg border border-gray-600 focus:border-amber-400 w-36 uppercase"
                             value={startDate}
                             onChange={(e) => {
                                 const val = e.target.value;
@@ -779,9 +779,9 @@ export default function ScheduleMasterList() {
 
                     {/* Work Day Type Selector (Restored) */}
                     <div className="flex flex-col gap-1 w-20">
-                        <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest pl-1">Run Rate</label>
+                        <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest pl-1">Run Rate</label>
                         <select
-                            className="bg-gray-50 text-gray-900 font-bold text-sm py-1.5 pl-2 pr-1 rounded-lg border border-gray-300 focus:border-blue-500 w-full"
+                            className="bg-[#1f1f2b] text-gray-100 font-bold text-sm py-1.5 pl-2 pr-1 rounded-lg border border-gray-600 focus:border-amber-400 w-full"
                             value={workDayType}
                             onChange={(e) => setStoreWorkDayType(e.target.value)}
                         >
@@ -791,14 +791,14 @@ export default function ScheduleMasterList() {
                         </select>
                     </div>
 
-                    <div className="w-px h-8 bg-gray-300 mx-2"></div>
+                    <div className="w-px h-8 bg-gray-700 mx-2"></div>
                     <SaveButton onSave={handleSaveAll} saving={saving} />
                 </div>
             </div>
 
             {/* Content Area - Table or Gantt */}
             {viewMode === "gantt" ? (
-                <div className="flex-1 min-h-0 overflow-hidden">
+                <div className="flex-1 min-h-0 overflow-hidden rounded-xl border border-gray-700 bg-[#2c2c3a] p-3">
                     <GanttChart
                         items={items}
                         links={links}
@@ -808,14 +808,14 @@ export default function ScheduleMasterList() {
                     />
                 </div>
             ) : (
-                <div className="flex-1 min-h-0 overflow-auto rounded-xl border border-gray-200 shadow-xl bg-white relative">
+                <div className="flex-1 min-h-0 overflow-auto rounded-xl border border-gray-700 shadow-xl bg-[#2c2c3a] relative">
                     <DndContext
                         sensors={sensors}
                         collisionDetection={closestCenter}
                         onDragStart={handleDragStart}
                         onDragEnd={handleDragEnd}
                     >
-                        <table className="w-full text-sm box-border table-fixed border-collapse">
+                        <table className="w-full text-sm box-border table-fixed border-collapse bg-white rounded-lg overflow-hidden">
                             <colgroup>
                                 <col width="30" />  {/* Drag Handle */}
                                 <col width="120" /> {/* Process (Merged) */}

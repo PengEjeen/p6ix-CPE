@@ -962,18 +962,20 @@ export default function PileBasisList() {
     if (loading) return <div className="p-8 text-white">Loading...</div>;
 
     return (
-        <div className="p-6 text-gray-200 space-y-6 h-full flex flex-col">
-            <div className="flex justify-between items-start">
-                <PageHeader
-                    title="기성말뚝 기초 생산성 근거"
-                    description="기성말뚝 기초의 생산성 분석을 위한 기준 데이터 및 산출 내역입니다."
-                />
+        <div className="p-6 text-gray-200 space-y-6 h-full flex flex-col bg-[#1f1f2b]">
+            <div className="flex justify-between items-start border border-gray-700 bg-[#2c2c3a] rounded-xl p-4">
+                <div className="text-white">
+                    <PageHeader
+                        title="기성말뚝 기초 생산성 근거"
+                        description="기성말뚝 기초의 생산성 분석을 위한 기준 데이터 및 산출 내역입니다."
+                    />
+                </div>
                 <SaveButton onSave={handleSaveAll} saving={saving} />
             </div>
 
-            <div className="flex-1 overflow-auto space-y-8">
+            <div className="flex-1 overflow-auto space-y-6">
                 {/* 3. NEW: CIP Result Summary Table (Single Row) */}
-                <div>
+                <div className="bg-[#2c2c3a] border border-gray-700 rounded-xl p-4">
                     <h2 className="text-xl font-bold mb-4 text-gray-300">작업 결과표</h2>
                     {resultSummary ? (
                         <div className="overflow-auto">
@@ -991,7 +993,7 @@ export default function PileBasisList() {
                 </div>
 
                 {/* 1. Drilling Standard Table */}
-                <div>
+                <div className="bg-[#2c2c3a] border border-gray-700 rounded-xl p-4">
                     <h2 className="text-xl font-bold mb-4 text-gray-300">※ 항타 속도/시간 기준표 (참고)</h2>
                     <div className="max-w-4xl">
                         <EditableTable
@@ -1005,7 +1007,7 @@ export default function PileBasisList() {
                 </div>
 
                 {/* 2. Productivity Basis Table */}
-                <div>
+                <div className="bg-[#2c2c3a] border border-gray-700 rounded-xl p-4">
                     <h2 className="text-xl font-bold mb-4 text-gray-300">생산성 산출 내역</h2>
                     <div className="flex-1 overflow-auto">
                         <EditableTable
@@ -1021,4 +1023,3 @@ export default function PileBasisList() {
         </div>
     );
 }
-

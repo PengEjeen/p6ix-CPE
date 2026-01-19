@@ -392,8 +392,8 @@ export default function Quotation() {
         {/* 오른쪽: AI 분석 결과 (위아래 꽉 차게) */}
         <section className="rounded-xl overflow-hidden shadow-lg bg-[#2c2c3a] border border-gray-700 flex flex-col h-full">
           {/* 상단 헤더: 제목 + 생성/전체보기 버튼 */}
-          <div className="bg-[#3a3a4a] px-4 py-3 border-b border-gray-600 flex justify-between items-center">
-            <h3 className="text-sm md:text-md font-semibold text-white">
+          <div className="bg-[#3a3a4a] px-5 py-4 border-b border-gray-600 flex justify-between items-center">
+            <h3 className="text-sm md:text-md font-semibold text-white tracking-wide">
               AI 분석 결과
             </h3>
 
@@ -429,18 +429,17 @@ export default function Quotation() {
           {/* 내용 영역 (Markdown + 스크롤) */}
           <div
             ref={scrollRef}
-            className={`scroll-container space-y-4 h-[70vh] overflow-y-auto pr-2 transition-all duration-300 w-[100%] ${isScrolling ? "scrolling" : ""
-              }`}
+            className={`scroll-container flex-1 min-h-0 max-h-[70vh] px-5 py-4 space-y-6 overflow-y-auto transition-all duration-300 w-full ${isScrolling ? "scrolling" : ""}`}
           >
             {data.ai_response ? (
               <ReactMarkdown
                 components={{
-                  h1: ({ node, ...props }) => <h1 {...props} className="text-xl font-bold text-white mb-2" />,
-                  h2: ({ node, ...props }) => <h2 {...props} className="text-lg font-semibold text-white mt-2 mb-1" />,
-                  h3: ({ node, ...props }) => <h3 {...props} className="text-md font-semibold text-white mt-2 mb-1" />,
-                  p: ({ node, ...props }) => <p {...props} className="my-1 text-gray-300" />,
+                  h1: ({ node, ...props }) => <h1 {...props} className="text-2xl font-bold text-white mb-3 mt-2" />,
+                  h2: ({ node, ...props }) => <h2 {...props} className="text-xl font-semibold text-white mt-4 mb-2" />,
+                  h3: ({ node, ...props }) => <h3 {...props} className="text-lg font-semibold text-white mt-3 mb-2" />,
+                  p: ({ node, ...props }) => <p {...props} className="my-2 text-gray-300 leading-7" />,
                   strong: ({ node, ...props }) => <strong {...props} className="text-blue-300" />,
-                  li: ({ node, ...props }) => <li {...props} className="ml-4 list-disc" />,
+                  li: ({ node, ...props }) => <li {...props} className="ml-5 list-disc leading-7 text-gray-300" />,
                 }}
               >
                 {data.ai_response}
