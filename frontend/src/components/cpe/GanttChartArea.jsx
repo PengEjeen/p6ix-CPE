@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useMemo } from "react";
 import SmartGanttBar from "./SmartGanttBar";
 
 const GanttChartArea = ({
@@ -18,8 +18,27 @@ const GanttChartArea = ({
     linkMode,
     onLinkAnchorClick,
     onLinkClick,
-    selectedLinkId
+    selectedLinkId,
+    aiPreviewItems,
+    aiOriginalItems,
+    aiActiveItemId
 }) => {
+    const aiPreviewMap = useMemo(() => {
+        if (!aiPreviewItems || !aiOriginalItems) return new Map();
+        const originalMap = new Map(aiOriginalItems.map(item => [item.id, item]));
+        const map = new Map();
+        aiPreviewItems.forEach(item => {
+            const original = originalMap.get(item.id);
+            if (!original) return;
+            const crewDiff = (parseFloat(item.crew_size) || 0) - (parseFloat(original.crew_size) || 0);
+            const prodDiff = (parseFloat(item.productivity) || 0) - (parseFloat(original.productivity) || 0);
+            const daysDiff = (parseFloat(item.calendar_days) || 0) - (parseFloat(original.calendar_days) || 0);
+            if (Math.abs(crewDiff) > 0.01 || Math.abs(prodDiff) > 0.01 || Math.abs(daysDiff) > 0.01) {
+                map.set(item.id, { crewDiff, prodDiff, daysDiff });
+            }
+        });
+        return map;
+    }, [aiPreviewItems, aiOriginalItems]);
     const rowH = 44;
     const rowCenter = 22;
     const pxFactor = pixelsPerUnit / dateScale;
@@ -347,6 +366,8 @@ const GanttChartArea = ({
                             onItemClick={onItemClick}
                             linkMode={linkMode}
                             onLinkAnchorClick={onLinkAnchorClick}
+                            aiPreview={aiPreviewMap.get(item.id)}
+                            aiActive={aiActiveItemId === item.id}
                         />
                     );
                 })}

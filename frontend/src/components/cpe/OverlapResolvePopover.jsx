@@ -18,7 +18,7 @@ const OverlapResolvePopover = ({ data, onClose, onSelectCurrentAsCP, onSelectOth
                 <div className="bg-gradient-to-r from-amber-50 to-orange-50 px-6 py-5 border-b border-amber-200 flex justify-between items-center">
                     <div className="flex items-center gap-2 text-amber-700">
                         <AlertTriangle size={22} className="text-amber-600" />
-                        <span className="font-bold text-lg tracking-wider">⚠️ 작업 겹침 감지</span>
+                        <span className="font-bold text-lg tracking-wider">작업 겹침 감지</span>
                     </div>
                     <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
                         <X size={16} />

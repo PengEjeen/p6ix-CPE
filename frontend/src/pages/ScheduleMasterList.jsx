@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo, useCallback } from "react";
+import React, { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import { useParams } from "react-router-dom";
 import {
     fetchScheduleItems,
@@ -11,18 +11,19 @@ import { fetchPileResults } from "../api/cpe_all/pile_basis";
 import { fetchBoredPileResults } from "../api/cpe_all/bored_pile_basis";
 import { detailProject } from "../api/cpe/project";
 import { detailWorkCondition, updateWorkCondition } from "../api/cpe/calc";
-import SaveButton from "../components/cpe/SaveButton";
 import toast from "react-hot-toast";
-import { Trash2, Link, RefreshCw, Plus, GripVertical, Undo2, Redo2, History, Save } from "lucide-react";
+import { Trash2, Link, RefreshCw, Plus, GripVertical, History, Save } from "lucide-react";
 
 import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, DragOverlay } from '@dnd-kit/core';
 import { arrayMove, SortableContext, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 
 import StandardImportModal from "../components/cpe/StandardImportModal";
-import GanttChart from "../components/cpe/GanttChart";
+import ScheduleHeader from "../components/cpe/schedule/ScheduleHeader";
+import ScheduleGanttPanel from "../components/cpe/schedule/ScheduleGanttPanel";
 
 import { useScheduleStore } from "../stores/scheduleStore";
+import { calculateItem } from "../utils/solver";
 
 const SortableRow = ({ item, isLinked, handleChange, handleDeleteItem, handleAddItem, handleOpenImport, spanInfo, isOverlay }) => {
     const {
@@ -327,6 +328,232 @@ export default function ScheduleMasterList() {
     const moveTaskBar = useScheduleStore((state) => state.moveTaskBar);
 
     const [containerId, setContainerId] = useState(null); // ID of the JSON container
+
+    const aiOriginalRef = useRef(null);
+    const [aiTargetDays, setAiTargetDays] = useState("");
+    const [aiMode, setAiMode] = useState("idle"); // idle | running | success | fail | cancelled
+    const [aiLogs, setAiLogs] = useState([]);
+    const [aiPreviewItems, setAiPreviewItems] = useState(null);
+    const [aiActiveItemId, setAiActiveItemId] = useState(null);
+    const [aiSummary, setAiSummary] = useState({ savedDays: 0, remainingDays: 0 });
+    const [aiShowCompare, setAiShowCompare] = useState(false);
+
+    const totalCalendarDays = useMemo(() => {
+        let cumulativeCPEnd = 0;
+        let maxEnd = 0;
+        items.forEach((item, index) => {
+            const duration = parseFloat(item.calendar_days) || 0;
+            const backParallel = parseFloat(item.back_parallel_days) || 0;
+            const startDay = item._startDay !== undefined && item._startDay !== null
+                ? item._startDay
+                : (index === 0 ? 0 : cumulativeCPEnd);
+            const cpEnd = startDay + duration - backParallel;
+            cumulativeCPEnd = Math.max(cumulativeCPEnd, cpEnd);
+            maxEnd = Math.max(maxEnd, startDay + duration);
+        });
+        return Math.max(0, Math.ceil(maxEnd));
+    }, [items]);
+
+    const totalCalendarMonths = useMemo(() => {
+        if (!totalCalendarDays) return 0;
+        return Math.round((totalCalendarDays / 30) * 10) / 10;
+    }, [totalCalendarDays]);
+
+    const totalDaysForItems = useCallback((list) => {
+        let cumulativeCPEnd = 0;
+        let maxEnd = 0;
+        list.forEach((item, index) => {
+            const duration = parseFloat(item.calendar_days) || 0;
+            const backParallel = parseFloat(item.back_parallel_days) || 0;
+            const startDay = item._startDay !== undefined && item._startDay !== null
+                ? item._startDay
+                : (index === 0 ? 0 : cumulativeCPEnd);
+            const cpEnd = startDay + duration - backParallel;
+            cumulativeCPEnd = Math.max(cumulativeCPEnd, cpEnd);
+            maxEnd = Math.max(maxEnd, startDay + duration);
+        });
+        return Math.max(0, Math.ceil(maxEnd));
+    }, []);
+
+    const getCriticalIds = useCallback((list) => {
+        let cumulativeCPEnd = 0;
+        const criticalIds = [];
+        list.forEach((item, index) => {
+            const duration = parseFloat(item.calendar_days) || 0;
+            const backParallel = parseFloat(item.back_parallel_days) || 0;
+            const startDay = item._startDay !== undefined && item._startDay !== null
+                ? item._startDay
+                : (index === 0 ? 0 : cumulativeCPEnd);
+            const cpEnd = startDay + duration - backParallel;
+            if (cpEnd >= cumulativeCPEnd && item.remarks !== "병행작업") {
+                criticalIds.push(item.id);
+            }
+            cumulativeCPEnd = Math.max(cumulativeCPEnd, cpEnd);
+        });
+        return criticalIds;
+    }, []);
+
+    const appendAiLog = useCallback((message, kind = "step") => {
+        setAiLogs((prev) => [
+            ...prev,
+            { id: `log-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, kind, message }
+        ]);
+    }, []);
+
+    const runAiAdjustment = useCallback(async () => {
+        const target = parseFloat(aiTargetDays);
+        if (!Number.isFinite(target) || target <= 0) {
+            toast.error("목표 공기(일)를 입력해주세요.");
+            return;
+        }
+
+        const aiItems = items.map((item) => ({
+            ...item,
+            base_productivity: parseFloat(item.base_productivity) || parseFloat(item.productivity) || 0
+        }));
+        aiOriginalRef.current = items.map((item) => ({ ...item }));
+        setAiPreviewItems(aiItems);
+        setAiActiveItemId(null);
+        setAiLogs([]);
+        setAiShowCompare(false);
+        setAiMode("running");
+        appendAiLog("목표 공기 달성을 위한 조정안을 계산 중입니다…", "status");
+
+        const MAX_CREW_INCREASE = 3;
+        const PROD_STEP = 5;
+        const MAX_PROD = 15;
+        const ALPHA = 0.05;
+        const MIN_EFF = 0.6;
+        const efficiency = (crew, baseCrew) => {
+            if (crew <= baseCrew) return 1;
+            return Math.max(MIN_EFF, 1 - ALPHA * (crew - baseCrew));
+        };
+
+        let currentTotal = totalDaysForItems(aiItems);
+        const initialTotal = currentTotal;
+        let stepCount = 0;
+
+        const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+        while (currentTotal > target && stepCount < 40) {
+            const criticalIds = getCriticalIds(aiItems);
+            let best = null;
+
+            for (const id of criticalIds) {
+                const idx = aiItems.findIndex((i) => i.id === id);
+                const originalItem = aiItems[idx];
+                if (!originalItem) continue;
+
+                const baseCrew = parseFloat(originalItem.crew_size) || 1;
+                const baseProd = parseFloat(originalItem.base_productivity) || parseFloat(originalItem.productivity) || 0;
+                if (!baseProd) continue;
+
+                for (let c = 1; c <= MAX_CREW_INCREASE; c += 1) {
+                    const newCrew = baseCrew + c;
+                    const eff = efficiency(newCrew, baseCrew);
+                    const newProd = baseProd * eff;
+                    const candidate = calculateItem(
+                        { ...originalItem, crew_size: newCrew, productivity: newProd, base_productivity: baseProd },
+                        operatingRates,
+                        workDayType
+                    );
+                    const testItems = aiItems.map((item, i) => (i === idx ? candidate : item));
+                    const total = totalDaysForItems(testItems);
+                    const saved = currentTotal - total;
+                    if (saved > 0.1 && (!best || saved > best.saved)) {
+                        best = { type: "crew", delta: c, saved, total, item: candidate, itemIndex: idx };
+                    }
+                }
+
+                for (let p = PROD_STEP; p <= MAX_PROD; p += PROD_STEP) {
+                    const newProd = baseProd * (1 + p / 100);
+                    const candidate = calculateItem(
+                        { ...originalItem, productivity: newProd, base_productivity: baseProd },
+                        operatingRates,
+                        workDayType
+                    );
+                    const testItems = aiItems.map((item, i) => (i === idx ? candidate : item));
+                    const total = totalDaysForItems(testItems);
+                    const saved = currentTotal - total;
+                    if (saved > 0.1 && (!best || saved > best.saved)) {
+                        best = { type: "prod", delta: p, saved, total, item: candidate, itemIndex: idx };
+                    }
+                }
+            }
+
+            if (!best || best.saved <= 0.1) {
+                appendAiLog("현재 크리티컬 공정에서 유효한 단축 옵션이 없습니다. 다음 공정으로 이동합니다.", "status");
+                appendAiLog(
+                    `한계효용 임계치(효율계수 최소 ${MIN_EFF.toFixed(2)}) 또는 제한 조건에 도달했습니다.`,
+                    "status"
+                );
+                break;
+            }
+
+            aiItems[best.itemIndex] = best.item;
+            currentTotal = best.total;
+            stepCount += 1;
+            setAiPreviewItems([...aiItems]);
+            setAiActiveItemId(best.item.id);
+            setAiSummary({ savedDays: initialTotal - currentTotal, remainingDays: Math.max(0, currentTotal - target) });
+
+            const label = best.type === "crew"
+                ? `인력 +${best.delta}`
+                : `생산성 +${best.delta}%`;
+            appendAiLog(`${best.item.process || "공정"} ${label} → -${best.saved.toFixed(1)}일`, "step");
+            if (best.type === "crew") {
+                appendAiLog(
+                    `근거: 크리티컬 공정의 병목을 해소하기 위해 인력 증원을 우선 적용했습니다. 인원 증가에 따른 효율계수(최소 ${MIN_EFF.toFixed(2)})를 고려해 단축 효과가 유효한 구간에서만 조정합니다.`,
+                    "reason"
+                );
+            } else {
+                appendAiLog(
+                    `근거: 추가 인력 투입의 한계효용이 낮아지는 구간으로 판단되어 생산성 증가로 전환했습니다.`,
+                    "reason"
+                );
+            }
+            appendAiLog(
+                `누적 단축: -${(initialTotal - currentTotal).toFixed(1)}일, 남은 목표: ${Math.max(0, currentTotal - target).toFixed(1)}일`,
+                "summary"
+            );
+            await wait(350);
+        }
+
+        if (currentTotal <= target) {
+            setAiMode("success");
+            appendAiLog(`목표 공기 ${target}일 달성`, "result");
+            appendAiLog(
+                `요약: 조정 공정 ${aiItems.filter((item, idx) => item.calendar_days !== items[idx]?.calendar_days).length}개, 총 단축 -${(initialTotal - currentTotal).toFixed(1)}일`,
+                "summary"
+            );
+        } else {
+            setAiMode("fail");
+            appendAiLog(`자원 조정만으로는 ${initialTotal - currentTotal}일 단축까지 가능합니다.`, "result");
+            appendAiLog(
+                `실패 원인: 자원 조정 한계 및 한계효용 임계치(${MIN_EFF.toFixed(2)})에 도달했습니다.`,
+                "reason"
+            );
+        }
+    }, [aiTargetDays, appendAiLog, getCriticalIds, items, operatingRates, totalDaysForItems, workDayType]);
+
+    const handleAiCancel = useCallback(() => {
+        setAiMode("cancelled");
+        setAiPreviewItems(null);
+        setAiActiveItemId(null);
+        setAiLogs([]);
+        setAiSummary({ savedDays: 0, remainingDays: 0 });
+        setAiShowCompare(false);
+    }, []);
+
+    const handleAiApply = useCallback(() => {
+        if (!aiPreviewItems || aiPreviewItems.length === 0) return;
+        const ok = window.confirm("AI 조정안을 적용하시겠습니까?");
+        if (!ok) return;
+        setStoreItems(aiPreviewItems);
+        handleAiCancel();
+    }, [aiPreviewItems, handleAiCancel, setStoreItems]);
+
+    const aiDisplayItems = aiPreviewItems || items;
 
     const [cipResult, setCipResult] = useState(null);
     const [pileResult, setPileResult] = useState(null);
@@ -701,112 +928,52 @@ export default function ScheduleMasterList() {
 
     return (
         <div className="p-6 h-screen flex flex-col max-w-[2400px] mx-auto text-gray-200 overflow-hidden">
-            {/* Page Header */}
-            <div className="flex justify-between items-end mb-4 flex-shrink-0">
-                <div>
-                    <h1 className="text-2xl font-bold text-gray-100 mb-1 tracking-tight">공사기간 산정 기준</h1>
-                    <div className="flex items-center gap-4">
-                        <p className="text-sm text-gray-400">Drag & Drop 지원, 자동 셀 병합</p>
-                        {/* View Mode Tabs */}
-                        <div className="flex gap-1 bg-[#2c2c3a] p-1 rounded-lg border border-gray-700">
-                            <button
-                                className={`px-3 py-1 text-xs font-semibold rounded transition-all ${viewMode === "table"
-                                    ? "bg-[#3a3a4a] text-white shadow-sm"
-                                    : "text-gray-400 hover:text-white"
-                                    }`}
-                                onClick={() => setViewMode("table")}
-                            >
-                                테이블 뷰
-                            </button>
-                            <button
-                                className={`px-3 py-1 text-xs font-semibold rounded transition-all ${viewMode === "gantt"
-                                    ? "bg-[#3a3a4a] text-white shadow-sm"
-                                    : "text-gray-400 hover:text-white"
-                                    }`}
-                                onClick={() => setViewMode("gantt")}
-                            >
-                                간트차트
-                            </button>
-                        </div>
-                    </div>
-                </div>
-                <div className="flex gap-4 items-center bg-[#2c2c3a] px-4 py-2 rounded-xl border border-gray-700 shadow-sm">
-                    {/* Undo/Redo Buttons */}
-                    <div className="flex items-center gap-1 mr-2 border-r border-gray-700 pr-3">
-                        <button
-                            className={`p-1.5 rounded hover:bg-[#3a3a4d] transition-colors ${!canUndo ? 'opacity-30 cursor-not-allowed' : 'text-gray-200'}`}
-                            onClick={() => undo()}
-                            disabled={!canUndo}
-                            title="실행 취소 (Ctrl+Z)"
-                        >
-                            <Undo2 size={16} />
-                        </button>
-                        <button
-                            className={`p-1.5 rounded hover:bg-[#3a3a4d] transition-colors ${!canRedo ? 'opacity-30 cursor-not-allowed' : 'text-gray-200'}`}
-                            onClick={() => redo()}
-                            disabled={!canRedo}
-                            title="다시 실행 (Ctrl+Shift+Z)"
-                        >
-                            <Redo2 size={16} />
-                        </button>
-                    </div>
-
-                    {/* Snapshot Button */}
-                    <button
-                        className="p-1.5 rounded hover:bg-[#3a3a4d] text-gray-200 mr-2 transition-colors relative group"
-                        onClick={() => setSnapshotModalOpen(true)}
-                        title="스냅샷 / 히스토리"
-                    >
-                        <History size={18} />
-                        {/* Dot indicator if snapshots exist? (Optional) */}
-                    </button>
-
-                    {/* Start Date Picker */}
-                    <div className="flex flex-col gap-1">
-                        <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest pl-1">Start Date</label>
-                        <input
-                            type="date"
-                            className="bg-[#181825] text-gray-100 font-bold text-sm py-1.5 pl-3 pr-2 rounded-lg border border-gray-700 focus:border-blue-500 w-36 uppercase"
-                            value={startDate}
-                            onChange={(e) => {
-                                const val = e.target.value;
-                                setStartDate(val);
-                                // fire and forget update
-                                import("../api/cpe/project").then(({ updateProject }) => updateProject(projectId, { start_date: val }));
-                            }}
-                        />
-                    </div>
-
-                    {/* Work Day Type Selector (Restored) */}
-                    <div className="flex flex-col gap-1 w-20">
-                        <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest pl-1">Run Rate</label>
-                        <select
-                            className="bg-[#181825] text-gray-100 font-bold text-sm py-1.5 pl-2 pr-1 rounded-lg border border-gray-700 focus:border-blue-500 w-full"
-                            value={workDayType}
-                            onChange={(e) => setStoreWorkDayType(e.target.value)}
-                        >
-                            <option value="5d">주5일</option>
-                            <option value="6d">주6일</option>
-                            <option value="7d">주7일</option>
-                        </select>
-                    </div>
-
-                    <div className="w-px h-8 bg-gray-700 mx-2"></div>
-                    <SaveButton onSave={handleSaveAll} saving={saving} />
-                </div>
-            </div>
+            <ScheduleHeader
+                viewMode={viewMode}
+                onViewModeChange={setViewMode}
+                canUndo={canUndo}
+                canRedo={canRedo}
+                onUndo={undo}
+                onRedo={redo}
+                onSnapshotOpen={() => setSnapshotModalOpen(true)}
+                startDate={startDate}
+                onStartDateChange={(val) => {
+                    setStartDate(val);
+                    import("../api/cpe/project").then(({ updateProject }) =>
+                        updateProject(projectId, { start_date: val })
+                    );
+                }}
+                workDayType={workDayType}
+                onWorkDayTypeChange={setStoreWorkDayType}
+                onSave={handleSaveAll}
+                saving={saving}
+                totalCalendarDays={totalCalendarDays}
+                totalCalendarMonths={totalCalendarMonths}
+                aiTargetDays={aiTargetDays}
+                onAiTargetDaysChange={setAiTargetDays}
+                onAiRun={runAiAdjustment}
+                aiMode={aiMode}
+                onAiCancel={handleAiCancel}
+            />
 
             {/* Content Area - Table or Gantt */}
             {viewMode === "gantt" ? (
-                <div className="flex-1 min-h-0 overflow-hidden rounded-xl border border-gray-700 bg-[#2c2c3a] p-3 shadow-lg">
-                    <GanttChart
-                        items={items}
-                        links={links}
-                        startDate={startDate}
-                        onResize={handleGanttResize}
-                        onSmartResize={handleSmartResize}
-                    />
-                </div>
+                <ScheduleGanttPanel
+                    items={aiDisplayItems}
+                    links={links}
+                    startDate={startDate}
+                    onResize={handleGanttResize}
+                    onSmartResize={handleSmartResize}
+                    aiPreviewItems={aiPreviewItems}
+                    aiOriginalItems={aiOriginalRef.current}
+                    aiActiveItemId={aiActiveItemId}
+                    aiMode={aiMode}
+                    aiLogs={aiLogs}
+                    aiSummary={aiSummary}
+                    aiShowCompare={aiShowCompare}
+                    onToggleCompare={() => setAiShowCompare((prev) => !prev)}
+                    onApply={handleAiApply}
+                />
             ) : (
                 <div className="flex-1 min-h-0 overflow-auto rounded-xl border border-gray-700 shadow-xl bg-[#2c2c3a] relative">
                     <DndContext

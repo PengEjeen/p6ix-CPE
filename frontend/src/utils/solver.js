@@ -57,6 +57,14 @@ export const calculateItem = (item, operatingRates = [], workDayType = '6d') => 
  * -> TargetWorkingDays = TargetCalendarDays * (OpRate / 100)
  */
 export const solveForCrewSize = (item, targetCalendarDays, baseProductivity = null) => {
+    const DIMINISHING_ALPHA = 0.05;
+    const MIN_EFFICIENCY = 0.6;
+    const getEfficiency = (crew, baseCrew) => {
+        if (crew <= baseCrew) return 1;
+        const eff = 1 - DIMINISHING_ALPHA * (crew - baseCrew);
+        return Math.max(MIN_EFFICIENCY, eff);
+    };
+
     // 1. 방어 로직: 0일 이하는 1일로 처리
     const days = Math.max(0.5, targetCalendarDays); // 최소 0.5일
 
@@ -76,19 +84,38 @@ export const solveForCrewSize = (item, targetCalendarDays, baseProductivity = nu
     // 4. 필요 인원 역산
     // DailyProd = Productivity * Crew -> Crew = DailyProd / Productivity
     // baseProductivity가 주어지면 그것을 우선 사용 (원복 로직)
-    const productivity = baseProductivity !== null
+    const storedBaseProd = baseProductivity !== null
         ? parseFloat(baseProductivity)
-        : (parseFloat(item.productivity) || 0);
+        : (parseFloat(item.base_productivity) || parseFloat(item.productivity) || 0);
 
-    if (productivity <= 0) {
+    if (storedBaseProd <= 0) {
         // 생산성 정보가 없으면 계산 불가, 기간만 변경해서 리턴
         return { ...item, calendar_days: days };
     }
 
-    const exactCrewSize = requiredDailyProduction / productivity;
+    const baseCrew = parseFloat(item.crew_size) || 1;
+    const linearCrew = requiredDailyProduction / storedBaseProd;
+
+    let exactCrewSize = linearCrew;
+    if (linearCrew > baseCrew) {
+        let guess = Math.max(linearCrew, baseCrew + 0.1);
+        for (let i = 0; i < 20; i += 1) {
+            const eff = getEfficiency(guess, baseCrew);
+            const next = requiredDailyProduction / (storedBaseProd * eff);
+            if (!Number.isFinite(next)) break;
+            if (Math.abs(next - guess) < 0.01) {
+                guess = next;
+                break;
+            }
+            guess = next;
+        }
+        exactCrewSize = guess;
+    }
 
     // 5. Allow decimals (Round up to 1 decimal place)
     const newCrewSize = Math.ceil(exactCrewSize * 10) / 10;
+    const efficiency = getEfficiency(newCrewSize, baseCrew);
+    const effectiveProductivity = storedBaseProd * efficiency;
 
     // 6. 결과 반영 (재계산하여 정합성 보장)
     // 인원을 정수로 맞추면 기간이 미세하게 달라질 수 있음 -> 이건 허용해야 함 (자연스러운 현상)
@@ -98,14 +125,15 @@ export const solveForCrewSize = (item, targetCalendarDays, baseProductivity = nu
     const tempItem = {
         ...item,
         crew_size: newCrewSize,
-        productivity: productivity // 생산성 원복 (만약 변경되었던 것이라면)
+        productivity: effectiveProductivity,
+        base_productivity: storedBaseProd
     };
 
     // 정방향 재계산 (operatingRates는 이미 값으로 들어있다고 가정)
     // 주의: calculateItem을 쓰려면 operatingRates 배열이 필요함. 
     // 여기서는 약식으로 내부 계산
 
-    const newDailyProd = productivity * newCrewSize;
+    const newDailyProd = effectiveProductivity * newCrewSize;
     const newWorkingDays = quantity / newDailyProd;
     const finalCalendarDays = opRate > 0 ? newWorkingDays / opRate : 0;
 

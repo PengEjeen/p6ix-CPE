@@ -10,7 +10,7 @@ import GanttChartArea from "./GanttChartArea";
 import ContextualBrainPopover from "./ContextualBrainPopover";
 import OverlapResolvePopover from "./OverlapResolvePopover";
 
-export default function GanttChart({ items, links, startDate, onResize, onSmartResize }) {
+export default function GanttChart({ items, links, startDate, onResize, onSmartResize, aiPreviewItems, aiOriginalItems, aiActiveItemId }) {
     // DEBUG: Log when items change
     React.useEffect(() => {
         console.log('[GanttChart] Items prop changed! Count:', items.length);
@@ -276,6 +276,11 @@ export default function GanttChart({ items, links, startDate, onResize, onSmartR
         }
     }, [linkMode]);
 
+    React.useEffect(() => {
+        if (!aiActiveItemId) return;
+        handleItemClick(aiActiveItemId, 'sidebar');
+    }, [aiActiveItemId, handleItemClick]);
+
     // Calculate category completion milestones
     const categoryMilestones = useMemo(() => {
         if (!itemsWithTiming || itemsWithTiming.length === 0) return [];
@@ -424,7 +429,7 @@ export default function GanttChart({ items, links, startDate, onResize, onSmartR
                 const overlapEnd = Math.min(newEnd, otherEnd);
                 const overlapDays = overlapEnd - overlapStart;
 
-                console.log(`[DRAG] ✅ OVERLAP FOUND with ${otherItem.process}-${otherItem.work_type}! Days:`, overlapDays);
+                console.log(`[DRAG] OVERLAP FOUND with ${otherItem.process}-${otherItem.work_type}! Days:`, overlapDays);
 
                 // Store first overlap found
                 if (!overlapInfo) {
@@ -584,6 +589,9 @@ export default function GanttChart({ items, links, startDate, onResize, onSmartR
                     setExpandedCategories={setExpandedCategories}
                     selectedItemId={selectedItemId}
                     onItemClick={handleItemClick}
+                    aiPreviewItems={aiPreviewItems}
+                    aiOriginalItems={aiOriginalItems}
+                    aiActiveItemId={aiActiveItemId}
                 />
 
                 {/* Right Timeline */}
@@ -616,6 +624,9 @@ export default function GanttChart({ items, links, startDate, onResize, onSmartR
                             onLinkAnchorClick={handleLinkAnchorClick}
                             onLinkClick={handleLinkClick}
                             selectedLinkId={selectedLinkId}
+                            aiPreviewItems={aiPreviewItems}
+                            aiOriginalItems={aiOriginalItems}
+                            aiActiveItemId={aiActiveItemId}
                         />
 
                     </div>
