@@ -515,14 +515,12 @@ export default function BoredPileBasisList() {
     if (loading) return <div className="p-8 text-white">Loading Bored Pile Data...</div>;
 
     return (
-        <div className="p-6 text-gray-200 space-y-6 h-full flex flex-col bg-[#1f1f2b]">
-            <div className="flex justify-between items-start border border-gray-700 bg-[#2c2c3a] rounded-xl p-4">
-                <div className="text-white">
-                    <PageHeader
-                        title="현장타설말뚝(Bored Pile) 생산성 근거"
-                        description="RCD, 요동식, 전회전식 공법별 생산성 분석 및 기준 데이터입니다."
-                    />
-                </div>
+        <div className="p-6 text-gray-200 space-y-6 h-full flex flex-col">
+            <div className="flex justify-between items-start">
+                <PageHeader
+                    title="현장타설말뚝(Bored Pile) 생산성 근거"
+                    description="RCD, 요동식, 전회전식 공법별 생산성 분석 및 기준 데이터입니다."
+                />
                 <div className="flex gap-4 items-center">
                     <SaveButton onSave={handleSaveAll} saving={saving} />
                 </div>
@@ -530,8 +528,8 @@ export default function BoredPileBasisList() {
 
             <div className="flex-1 overflow-auto space-y-6">
                 {/* 1. Result Summary */}
-                <div className="bg-[#2c2c3a] border border-gray-700 rounded-xl p-4">
-                    <h2 className="text-xl font-bold mb-4 text-cyan-400">작업 결과표</h2>
+                <div className="bg-[#2c2c3a] border border-gray-700 rounded-xl p-4 shadow-lg">
+                    <h2 className="text-xl font-bold mb-4 text-gray-200">작업 결과표</h2>
                     {resultSummary && (
                         <div className="overflow-x-auto">
                             <EditableTable
@@ -546,8 +544,8 @@ export default function BoredPileBasisList() {
                 </div>
 
                 {/* 2. Standards */}
-                <div className="bg-[#2c2c3a] border border-gray-700 rounded-xl p-4">
-                    <h2 className="text-xl font-bold mb-4 text-gray-400">※ 굴착 속도 기준표 (Hour/m)</h2>
+                <div className="bg-[#2c2c3a] border border-gray-700 rounded-xl p-4 shadow-lg">
+                    <h2 className="text-xl font-bold mb-4 text-gray-200">※ 굴착 속도 기준표 (Hour/m)</h2>
                     <div className="max-w-5xl">
                         <EditableTable
                             data={standardData}
@@ -560,8 +558,8 @@ export default function BoredPileBasisList() {
                 </div>
 
                 {/* 3. Basis Detail */}
-                <div className="bg-[#2c2c3a] border border-gray-700 rounded-xl p-4">
-                    <h2 className="text-xl font-bold mb-4 text-gray-400">생산성 산출 내역</h2>
+                <div className="bg-[#2c2c3a] border border-gray-700 rounded-xl p-4 shadow-lg">
+                    <h2 className="text-xl font-bold mb-4 text-gray-200">생산성 산출 내역</h2>
                     <div className="overflow-x-auto">
                         <EditableTable
                             data={data}

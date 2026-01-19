@@ -906,21 +906,19 @@ export default function CIPBasisList() {
     if (loading) return <div className="p-8 text-white">Loading...</div>;
 
     return (
-        <div className="p-6 text-gray-200 space-y-6 h-full flex flex-col bg-[#1f1f2b]">
-            <div className="flex justify-between items-start border border-gray-700 bg-[#2c2c3a] rounded-xl p-4">
-                <div className="text-white">
-                    <PageHeader
-                        title="CIP 생산성 산출 근거"
-                        description="CIP 공법의 생산성 분석을 위한 기준 데이터 및 산출 내역입니다."
-                    />
-                </div>
+        <div className="p-6 text-gray-200 space-y-6 h-full flex flex-col">
+            <div className="flex justify-between items-start">
+                <PageHeader
+                    title="CIP 생산성 산출 근거"
+                    description="CIP 공법의 생산성 분석을 위한 기준 데이터 및 산출 내역입니다."
+                />
                 <SaveButton onSave={handleSaveAll} saving={saving} />
             </div>
 
             <div className="flex-1 overflow-auto space-y-6">
                 {/* 3. NEW: CIP Result Summary Table (Single Row) */}
-                <div className="bg-[#2c2c3a] border border-gray-700 rounded-xl p-4">
-                    <h2 className="text-xl font-bold mb-4 text-gray-300">CIP 작업 결과표</h2>
+                <div className="bg-[#2c2c3a] border border-gray-700 rounded-xl p-4 shadow-lg">
+                    <h2 className="text-xl font-bold mb-4 text-gray-200">CIP 작업 결과표</h2>
                     {resultSummary ? (
                         <div className="overflow-auto">
                             <EditableTable
@@ -937,8 +935,8 @@ export default function CIPBasisList() {
                 </div>
 
                 {/* 1. Drilling Standard Table */}
-                <div className="bg-[#2c2c3a] border border-gray-700 rounded-xl p-4">
-                    <h2 className="text-xl font-bold mb-4 text-gray-300">※ 천공 속도/시간 기준표 (참고)</h2>
+                <div className="bg-[#2c2c3a] border border-gray-700 rounded-xl p-4 shadow-lg">
+                    <h2 className="text-xl font-bold mb-4 text-gray-200">※ 천공 속도/시간 기준표 (참고)</h2>
                     <div className="max-w-4xl">
                         <EditableTable
                             data={standardData}
@@ -951,8 +949,8 @@ export default function CIPBasisList() {
                 </div>
 
                 {/* 2. Productivity Basis Table */}
-                <div className="bg-[#2c2c3a] border border-gray-700 rounded-xl p-4">
-                    <h2 className="text-xl font-bold mb-4 text-gray-300">생산성 산출 내역</h2>
+                <div className="bg-[#2c2c3a] border border-gray-700 rounded-xl p-4 shadow-lg">
+                    <h2 className="text-xl font-bold mb-4 text-gray-200">생산성 산출 내역</h2>
                     <div className="flex-1 overflow-auto">
                         <EditableTable
                             data={data}

@@ -382,10 +382,10 @@ export default function Quotation() {
           </div>
 
           {/* 총 공사기간 */}
-          <section className="bg-gradient-to-r from-indigo-600 to-blue-500 rounded-xl p-5 text-center text-white shadow">
+          <section className="bg-[#2c2c3a] border border-gray-700 rounded-xl p-5 text-center text-white shadow-lg">
             <h3 className="text-lg font-bold mb-1">총 공사기간</h3>
-            <p className="text-4xl font-extrabold">{totalDays}일</p>
-            <p className="text-sm opacity-90">약 {totalMonths}개월</p>
+            <p className="text-4xl font-extrabold text-blue-400">{totalDays}일</p>
+            <p className="text-sm text-gray-400">약 {totalMonths}개월</p>
           </section>
         </div>
 
@@ -401,7 +401,7 @@ export default function Quotation() {
               {/* 전체보기 버튼 */}
               <button
                 onClick={() => setShowModal(true)}  // ⬅ 모달 열기
-                className="flex items-center gap-1 text-xs px-2 py-1 rounded-md bg-gray-700 hover:bg-gray-600 text-white transition"
+                className="flex items-center gap-1 text-xs px-2 py-1 rounded-md bg-[#2c2c3a] hover:bg-[#3a3a4a] text-gray-200 border border-gray-700 transition"
               >
                 <Maximize2 size={13} />
                 전체보기
@@ -414,7 +414,7 @@ export default function Quotation() {
                 className={`flex items-center gap-1 text-xs px-2 py-1 rounded-md transition
                       ${aiLoading
                     ? "bg-gray-600 text-gray-300 cursor-not-allowed"
-                    : "bg-indigo-600 hover:bg-indigo-500 text-white"
+                    : "bg-blue-600 hover:bg-blue-500 text-white"
                   }`}
               >
                 <RefreshCcw

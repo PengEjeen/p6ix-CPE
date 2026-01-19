@@ -700,18 +700,18 @@ export default function ScheduleMasterList() {
     const activeItem = activeId ? items.find(i => i.id === activeId) : null;
 
     return (
-        <div className="p-6 h-screen flex flex-col max-w-[2400px] mx-auto bg-[#1f1f2b] overflow-hidden">
+        <div className="p-6 h-screen flex flex-col max-w-[2400px] mx-auto text-gray-200 overflow-hidden">
             {/* Page Header */}
-            <div className="flex justify-between items-end mb-4 border border-gray-700 bg-[#2c2c3a] rounded-xl p-4 flex-shrink-0">
+            <div className="flex justify-between items-end mb-4 flex-shrink-0">
                 <div>
-                    <h1 className="text-2xl font-bold text-white mb-1 tracking-tight">공사기간 산정 기준</h1>
+                    <h1 className="text-2xl font-bold text-gray-100 mb-1 tracking-tight">공사기간 산정 기준</h1>
                     <div className="flex items-center gap-4">
                         <p className="text-sm text-gray-400">Drag & Drop 지원, 자동 셀 병합</p>
                         {/* View Mode Tabs */}
-                        <div className="flex gap-1 bg-[#1f1f2b] p-1 rounded-lg border border-gray-700">
+                        <div className="flex gap-1 bg-[#2c2c3a] p-1 rounded-lg border border-gray-700">
                             <button
                                 className={`px-3 py-1 text-xs font-semibold rounded transition-all ${viewMode === "table"
-                                    ? "bg-[#3a3a4d] text-white shadow-sm"
+                                    ? "bg-[#3a3a4a] text-white shadow-sm"
                                     : "text-gray-400 hover:text-white"
                                     }`}
                                 onClick={() => setViewMode("table")}
@@ -720,7 +720,7 @@ export default function ScheduleMasterList() {
                             </button>
                             <button
                                 className={`px-3 py-1 text-xs font-semibold rounded transition-all ${viewMode === "gantt"
-                                    ? "bg-[#3a3a4d] text-white shadow-sm"
+                                    ? "bg-[#3a3a4a] text-white shadow-sm"
                                     : "text-gray-400 hover:text-white"
                                     }`}
                                 onClick={() => setViewMode("gantt")}
@@ -766,7 +766,7 @@ export default function ScheduleMasterList() {
                         <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest pl-1">Start Date</label>
                         <input
                             type="date"
-                            className="bg-[#1f1f2b] text-gray-100 font-bold text-sm py-1.5 pl-3 pr-2 rounded-lg border border-gray-600 focus:border-amber-400 w-36 uppercase"
+                            className="bg-[#181825] text-gray-100 font-bold text-sm py-1.5 pl-3 pr-2 rounded-lg border border-gray-700 focus:border-blue-500 w-36 uppercase"
                             value={startDate}
                             onChange={(e) => {
                                 const val = e.target.value;
@@ -781,7 +781,7 @@ export default function ScheduleMasterList() {
                     <div className="flex flex-col gap-1 w-20">
                         <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest pl-1">Run Rate</label>
                         <select
-                            className="bg-[#1f1f2b] text-gray-100 font-bold text-sm py-1.5 pl-2 pr-1 rounded-lg border border-gray-600 focus:border-amber-400 w-full"
+                            className="bg-[#181825] text-gray-100 font-bold text-sm py-1.5 pl-2 pr-1 rounded-lg border border-gray-700 focus:border-blue-500 w-full"
                             value={workDayType}
                             onChange={(e) => setStoreWorkDayType(e.target.value)}
                         >
@@ -798,7 +798,7 @@ export default function ScheduleMasterList() {
 
             {/* Content Area - Table or Gantt */}
             {viewMode === "gantt" ? (
-                <div className="flex-1 min-h-0 overflow-hidden rounded-xl border border-gray-700 bg-[#2c2c3a] p-3">
+                <div className="flex-1 min-h-0 overflow-hidden rounded-xl border border-gray-700 bg-[#2c2c3a] p-3 shadow-lg">
                     <GanttChart
                         items={items}
                         links={links}

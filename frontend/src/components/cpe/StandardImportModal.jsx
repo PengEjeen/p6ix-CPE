@@ -9,15 +9,15 @@ const ModalAccordion = ({ title, count, children, defaultOpen = false }) => {
     const [isOpen, setIsOpen] = useState(defaultOpen);
 
     return (
-        <div className="border border-gray-700 rounded-lg overflow-hidden mb-2 bg-[#232334] shadow-md">
+        <div className="border border-gray-700 rounded-lg overflow-hidden mb-2 bg-[#2c2c3a] shadow-md">
             <button
                 onClick={() => setIsOpen(!isOpen)}
-                className="w-full flex items-center justify-between px-4 py-3 bg-[#2a2a3d] hover:bg-[#32324a] transition-colors text-left"
+                className="w-full flex items-center justify-between px-4 py-3 bg-[#3a3a4a] hover:bg-[#424259] transition-colors text-left"
             >
                 <div className="flex items-center gap-3">
                     <ChevronDown size={18} className={`text-gray-400 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
                     <span className="font-bold text-gray-200 text-sm">{title}</span>
-                    <span className="text-xs text-gray-400 bg-[#181825] px-2 py-0.5 rounded-full font-mono">
+                    <span className="text-xs text-gray-400 bg-[#1f1f2b] px-2 py-0.5 rounded-full font-mono">
                         {count}개
                     </span>
                 </div>
@@ -89,12 +89,12 @@ export default function StandardImportModal({ isOpen, onClose, onSelect, project
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-            <div className="bg-[#1e1e2f] w-full max-w-5xl max-h-[85vh] rounded-2xl border border-gray-700 shadow-2xl flex flex-col overflow-hidden">
+            <div className="bg-[#2c2c3a] w-full max-w-5xl max-h-[85vh] rounded-2xl border border-gray-700 shadow-2xl flex flex-col overflow-hidden">
                 {/* Header (Navy) */}
-                <div className="p-5 border-b border-gray-700 flex justify-between items-center bg-[#232334]">
+                <div className="p-5 border-b border-gray-700 flex justify-between items-center bg-[#3a3a4a]">
                     <div>
                         <h2 className="text-xl font-bold text-white flex items-center gap-2">
-                            <span className="w-1.5 h-6 bg-cyan-500 rounded-full shadow-[0_0_10px_rgba(6,182,212,0.5)]"></span>
+                            <span className="w-1.5 h-6 bg-blue-500 rounded-full shadow-[0_0_10px_rgba(59,130,246,0.45)]"></span>
                             표준품셈 가져오기
                         </h2>
                         <p className="text-xs text-gray-400 mt-1 pl-3.5">
@@ -110,13 +110,13 @@ export default function StandardImportModal({ isOpen, onClose, onSelect, project
                 </div>
 
                 {/* Search Bar (Dark) */}
-                <div className="p-4 bg-[#1e1e2f] border-b border-gray-800">
+                <div className="p-4 bg-[#2c2c3a] border-b border-gray-800">
                     <div className="relative">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" size={16} />
                         <input
                             type="text"
                             placeholder="공종명, 항목명, 규격 검색..."
-                            className="w-full bg-[#181825] border border-gray-700 text-gray-200 pl-10 pr-4 py-2.5 rounded-xl focus:outline-none focus:border-cyan-500/50 focus:ring-1 focus:ring-cyan-500/50 transition text-sm font-medium placeholder-gray-600"
+                            className="w-full bg-[#1f1f2b] border border-gray-700 text-gray-200 pl-10 pr-4 py-2.5 rounded-xl focus:outline-none focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/50 transition text-sm font-medium placeholder-gray-600"
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
                         />
@@ -124,10 +124,10 @@ export default function StandardImportModal({ isOpen, onClose, onSelect, project
                 </div>
 
                 {/* Content Area (Dark) */}
-                <div className="flex-1 overflow-auto p-4 bg-[#181825] custom-scrollbar">
+                <div className="flex-1 overflow-auto p-4 bg-[#1f1f2b] custom-scrollbar">
                     {loading ? (
                         <div className="flex flex-col justify-center items-center h-64 gap-3">
-                            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-cyan-400"></div>
+                            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-400"></div>
                             <span className="text-gray-500 text-sm">데이터 불러오는 중...</span>
                         </div>
                     ) : Object.keys(groupedItems).length === 0 ? (
@@ -144,10 +144,10 @@ export default function StandardImportModal({ isOpen, onClose, onSelect, project
                                     count={categoryItems.length}
                                     defaultOpen={true}
                                 >
-                                    <div className="overflow-x-auto bg-[#1e1e2f]">
+                                    <div className="overflow-x-auto bg-[#2c2c3a]">
                                         <table className="w-full text-sm text-left">
                                             <thead>
-                                                <tr className="bg-[#181825] text-gray-400 border-b border-gray-700/50 text-xs uppercase tracking-wider">
+                                                <tr className="bg-[#1f1f2b] text-gray-400 border-b border-gray-700/50 text-xs uppercase tracking-wider">
                                                     <th className="py-2 px-4 font-medium w-32">공종</th>
                                                     <th className="py-2 px-4 font-medium">항목명</th>
                                                     <th className="py-2 px-4 font-medium">규격</th>
@@ -161,12 +161,12 @@ export default function StandardImportModal({ isOpen, onClose, onSelect, project
                                                     <tr
                                                         key={item.id}
                                                         onClick={() => onSelect(item)}
-                                                        className="group hover:bg-cyan-900/10 border-b border-gray-800 last:border-0 cursor-pointer transition-colors"
+                                                        className="group hover:bg-blue-900/10 border-b border-gray-800 last:border-0 cursor-pointer transition-colors"
                                                     >
                                                         <td className="py-3 px-4 text-gray-500 font-medium">
                                                             {item.category}
                                                         </td>
-                                                        <td className="py-3 px-4 text-gray-200 font-bold group-hover:text-cyan-400 transition-colors">
+                                                        <td className="py-3 px-4 text-gray-200 font-bold group-hover:text-blue-400 transition-colors">
                                                             {item.item_name}
                                                         </td>
                                                         <td className="py-3 px-4 text-gray-500">
@@ -176,13 +176,13 @@ export default function StandardImportModal({ isOpen, onClose, onSelect, project
                                                             {item.unit}
                                                         </td>
                                                         <td className="py-3 px-4 text-right">
-                                                            <span className="font-mono font-bold text-yellow-500">
+                                                            <span className="font-mono font-bold text-blue-400">
                                                                 {(item.pumsam_workload || 0).toLocaleString()}
                                                             </span>
                                                         </td>
                                                         <td className="py-3 px-4 text-right" >
                                                             <button
-                                                                className="px-3 py-1.5 bg-cyan-500/10 text-cyan-400 rounded text-xs font-bold border border-cyan-500/20 hover:bg-cyan-500 hover:text-white transition opacity-0 group-hover:opacity-100"
+                                                                className="px-3 py-1.5 bg-blue-500/10 text-blue-300 rounded text-xs font-bold border border-blue-500/20 hover:bg-blue-500 hover:text-white transition opacity-0 group-hover:opacity-100"
                                                                 onClick={(e) => {
                                                                     e.stopPropagation();
                                                                     onSelect(item);
