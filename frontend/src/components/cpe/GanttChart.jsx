@@ -26,6 +26,7 @@ export default function GanttChart({ items, links, startDate, onResize, onSmartR
     // eslint-disable-next-line no-unused-vars
     const [draggedItem, setDraggedItem] = useState(null);
     const [dateScale, setDateScale] = useState(1);
+    const [hasUserScaled, setHasUserScaled] = useState(false);
     const [selectedItemId, setSelectedItemId] = useState(null);
     const [selectedLinkId, setSelectedLinkId] = useState(null);
     const [linkMode, setLinkMode] = useState(false);
@@ -193,6 +194,27 @@ export default function GanttChart({ items, links, startDate, onResize, onSmartR
     }, [items]);
 
     const timeline = useMemo(() => generateTimeline(startDate, totalDays, dateScale), [startDate, totalDays, dateScale]);
+
+    const handleSetScale = useCallback((scale) => {
+        setHasUserScaled(true);
+        setDateScale(scale);
+    }, []);
+
+    React.useEffect(() => {
+        if (hasUserScaled) return;
+        if (!chartRef.current || totalDays <= 0) return;
+
+        const containerWidth = chartRef.current.clientWidth;
+        if (!containerWidth) return;
+
+        const requiredScale = (totalDays * pixelsPerUnit) / containerWidth;
+        const scaleOptions = [1, 5, 10, 30];
+        const nextScale = scaleOptions.find((s) => s >= requiredScale) || scaleOptions[scaleOptions.length - 1];
+
+        if (nextScale !== dateScale) {
+            setDateScale(nextScale);
+        }
+    }, [hasUserScaled, totalDays, pixelsPerUnit, dateScale]);
 
     const addLink = useScheduleStore((state) => state.addLink);
     const updateLink = useScheduleStore((state) => state.updateLink);
@@ -505,7 +527,7 @@ export default function GanttChart({ items, links, startDate, onResize, onSmartR
                                     {[1, 5, 10, 30].map(scale => (
                                         <button
                                             key={scale}
-                                            onClick={() => setDateScale(scale)}
+                                            onClick={() => handleSetScale(scale)}
                                             className={`px-2 py-0.5 text-xs rounded transition-all ${dateScale === scale
                                                 ? 'bg-violet-500 text-white font-bold'
                                                 : 'bg-gray-50 text-gray-600 hover:bg-gray-100'
@@ -519,15 +541,15 @@ export default function GanttChart({ items, links, startDate, onResize, onSmartR
                                     <button
                                         type="button"
                                         onClick={() => setLinkMode((prev) => !prev)}
-                                        className={`px-2 py-0.5 text-xs rounded transition-all font-semibold ${linkMode
-                                            ? 'bg-blue-600 text-white'
-                                            : 'bg-gray-50 text-gray-600 hover:bg-gray-100'
+                                        className={`px-3 py-1 text-xs rounded-full transition-all font-semibold border ${linkMode
+                                            ? 'bg-slate-900 text-amber-300 border-amber-400/60 shadow-[0_0_12px_rgba(251,191,36,0.25)]'
+                                            : 'bg-gray-50 text-gray-600 hover:bg-gray-100 border-gray-200'
                                             }`}
                                     >
                                         링크 편집
                                     </button>
                                     {linkDraft && (
-                                        <span className="text-[10px] text-blue-600 font-semibold">대상 선택</span>
+                                        <span className="text-[10px] text-amber-600 font-semibold tracking-wide">대상 선택</span>
                                     )}
                                 </div>
                             </div>
@@ -539,7 +561,7 @@ export default function GanttChart({ items, links, startDate, onResize, onSmartR
                     {[1, 5, 10, 30].map(scale => (
                         <button
                             key={scale}
-                            onClick={() => setDateScale(scale)}
+                            onClick={() => handleSetScale(scale)}
                             className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-all ${dateScale === scale
                                 ? "bg-white text-blue-600 shadow-sm ring-1 ring-gray-100"
                                 : "text-gray-500 hover:text-gray-900"
@@ -572,6 +594,7 @@ export default function GanttChart({ items, links, startDate, onResize, onSmartR
                         <GanttTimelineHeader
                             timeline={timeline}
                             pixelsPerUnit={pixelsPerUnit}
+                            dateScale={dateScale}
                         />
 
                         {/* Chart Area */}
@@ -605,28 +628,28 @@ export default function GanttChart({ items, links, startDate, onResize, onSmartR
                             initial={{ opacity: 0, y: 10, scale: 0.95 }}
                             animate={{ opacity: 1, y: 0, scale: 1 }}
                             exit={{ opacity: 0, y: 10 }}
-                            className="fixed z-[100] bg-white/90 backdrop-blur-xl border border-violet-100 shadow-xl rounded-xl p-3 w-64 pointer-events-none ring-1 ring-black/5"
+                            className="fixed z-[100] bg-white/90 backdrop-blur-xl border border-violet-100 shadow-xl rounded-2xl p-5 w-96 pointer-events-none ring-1 ring-black/5"
                             style={{ left: simulation.x + 20, top: simulation.y }}
                         >
                             <div className="flex justify-between items-center mb-2 border-b border-gray-100 pb-2">
-                                <div className="text-[10px] uppercase font-bold text-gray-400 tracking-wider">New Duration</div>
-                                <div className="text-xl font-black text-slate-800">
-                                    {simulation.newDuration.toFixed(1)}<span className="text-sm font-medium text-gray-400 ml-0.5">d</span>
+                                <div className="text-[11px] uppercase font-bold text-gray-400 tracking-wider">New Duration</div>
+                                <div className="text-3xl font-black text-slate-800">
+                                    {simulation.newDuration.toFixed(1)}<span className="text-lg font-medium text-gray-400 ml-0.5">d</span>
                                 </div>
                             </div>
 
-                            <div className="grid grid-cols-2 gap-2">
-                                <div className="bg-violet-50 rounded-lg p-2">
-                                    <div className="text-[9px] text-violet-600 mb-0.5">If Crew Adjust</div>
-                                    <div className="flex items-center gap-1 font-bold text-violet-900">
-                                        <Users size={12} />
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="bg-violet-50 rounded-2xl p-4">
+                                    <div className="text-[11px] text-violet-600 mb-1">If Crew Adjust</div>
+                                    <div className="flex items-center gap-2 font-bold text-violet-900">
+                                        <Users size={16} />
                                         <span>{simulation.impact.crew}</span>
                                     </div>
                                 </div>
-                                <div className="bg-blue-50 rounded-lg p-2">
-                                    <div className="text-[9px] text-blue-600 mb-0.5">If Prod Adjust</div>
-                                    <div className="flex items-center gap-1 font-bold text-blue-900">
-                                        <Zap size={12} />
+                                <div className="bg-blue-50 rounded-2xl p-4">
+                                    <div className="text-[11px] text-blue-600 mb-1">If Prod Adjust</div>
+                                    <div className="flex items-center gap-2 font-bold text-blue-900">
+                                        <Zap size={16} />
                                         <span>{simulation.impact.prod}</span>
                                     </div>
                                 </div>
@@ -712,38 +735,52 @@ export default function GanttChart({ items, links, startDate, onResize, onSmartR
 
                 {linkEditor && (
                     <div
-                        className="fixed z-[120] bg-white border border-gray-200 rounded-lg shadow-xl p-3 w-52"
-                        style={{ left: linkEditor.x + 10, top: linkEditor.y + 10 }}
+                        className="fixed z-[120] rounded-2xl p-6 w-80 backdrop-blur-xl border border-amber-300/40 shadow-[0_20px_60px_rgba(15,23,42,0.35)] bg-gradient-to-br from-slate-950/95 via-slate-900/95 to-slate-800/95"
+                        style={{ left: linkEditor.x + 12, top: linkEditor.y + 12 }}
                     >
-                        <div className="text-xs font-bold text-slate-700 mb-2">링크 편집</div>
-                        <div className="space-y-2">
+                        <div className="flex items-center justify-between mb-3">
+                            <div className="text-[12px] uppercase tracking-[0.2em] text-amber-300/80 font-semibold">Link Editor</div>
+                            <div className="w-3 h-3 rounded-full bg-amber-400 shadow-[0_0_12px_rgba(251,191,36,0.6)]"></div>
+                        </div>
+                        <div className="space-y-3">
                             <div>
-                                <label className="block text-[10px] text-gray-500 mb-1">유형</label>
-                                <select
-                                    className="w-full border border-gray-200 rounded px-2 py-1 text-xs"
-                                    value={(links || []).find(l => l.id === linkEditor.id)?.type || "FS"}
-                                    onChange={(e) => updateLink(linkEditor.id, { type: e.target.value })}
-                                >
-                                    <option value="FS">FS</option>
-                                    <option value="SS">SS</option>
-                                    <option value="FF">FF</option>
-                                    <option value="SF">SF</option>
-                                </select>
+                                <label className="block text-[12px] text-slate-300 mb-1">유형</label>
+                                <div className="grid grid-cols-4 gap-1 bg-slate-900/60 rounded-full p-1 border border-slate-700/60">
+                                    {["FS", "SS", "FF", "SF"].map((type) => {
+                                        const isActive = (links || []).find(l => l.id === linkEditor.id)?.type === type;
+                                        return (
+                                            <button
+                                                key={type}
+                                                type="button"
+                                                onClick={() => updateLink(linkEditor.id, { type })}
+                                                className={`text-[12px] py-1.5 rounded-full transition-all ${isActive
+                                                    ? "bg-amber-400 text-slate-900 font-bold shadow-[0_0_10px_rgba(251,191,36,0.45)]"
+                                                    : "text-slate-300 hover:text-white"
+                                                    }`}
+                                            >
+                                                {type}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
                             </div>
                             <div>
-                                <label className="block text-[10px] text-gray-500 mb-1">Lag(일)</label>
-                                <input
-                                    className="w-full border border-gray-200 rounded px-2 py-1 text-xs"
-                                    type="number"
-                                    value={(links || []).find(l => l.id === linkEditor.id)?.lag ?? 0}
-                                    onChange={(e) => updateLink(linkEditor.id, { lag: parseFloat(e.target.value) || 0 })}
-                                />
+                                <label className="block text-[12px] text-slate-300 mb-1">Lag(일)</label>
+                                <div className="flex items-center gap-2">
+                                    <input
+                                        className="w-full bg-slate-900/70 border border-slate-700/60 rounded-lg px-3 py-2.5 text-base text-amber-100 focus:outline-none focus:ring-2 focus:ring-amber-400/50"
+                                        type="number"
+                                        value={(links || []).find(l => l.id === linkEditor.id)?.lag ?? 0}
+                                        onChange={(e) => updateLink(linkEditor.id, { lag: parseFloat(e.target.value) || 0 })}
+                                    />
+                                    <span className="text-[12px] text-slate-400">d</span>
+                                </div>
                             </div>
                         </div>
-                        <div className="flex justify-between mt-3">
+                        <div className="flex justify-between mt-4">
                             <button
                                 type="button"
-                                className="text-xs text-red-600 font-semibold"
+                                className="text-[13px] text-rose-300 hover:text-rose-200 font-semibold"
                                 onClick={() => {
                                     deleteLink(linkEditor.id);
                                     handleLinkEditorClose();
@@ -753,7 +790,7 @@ export default function GanttChart({ items, links, startDate, onResize, onSmartR
                             </button>
                             <button
                                 type="button"
-                                className="text-xs text-gray-500 font-semibold"
+                                className="text-[13px] text-slate-300 hover:text-white font-semibold"
                                 onClick={handleLinkEditorClose}
                             >
                                 닫기

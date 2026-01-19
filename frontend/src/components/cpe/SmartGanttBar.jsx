@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import { motion } from "framer-motion";
 import { getCategoryColor } from "./ganttUtils";
 
@@ -25,6 +25,7 @@ const SmartGanttBar = ({
 
     // Temp states for live preview
     const [tempDuration, setTempDuration] = useState(null);
+    const tempDurationRef = useRef(null);
     const [tempStartDay, setTempStartDay] = useState(null);
 
     const effectiveStartDay = tempStartDay !== null ? tempStartDay : startDay;
@@ -85,6 +86,7 @@ const SmartGanttBar = ({
             const newWidthPx = Math.max(20, startWidth + deltaX);
             const newDuration = Math.max(1, Math.round((newWidthPx / pixelsPerUnit) * dateScale));
             setTempDuration(newDuration);
+            tempDurationRef.current = newDuration;
             if (onResizing) {
                 onResizing(item.id, newDuration, moveEvent.clientX, moveEvent.clientY);
             }
@@ -92,11 +94,13 @@ const SmartGanttBar = ({
 
         const handleMouseUp = (moveEvent) => {
             setIsResizing(false);
-            if (tempDuration !== null) {
+            const finalDuration = tempDurationRef.current ?? tempDuration;
+            if (finalDuration !== null) {
                 // Pass coordinates to parent for Popover positioning
-                onBarResize(item.id, tempDuration, moveEvent.clientX, moveEvent.clientY);
+                onBarResize(item.id, finalDuration, moveEvent.clientX, moveEvent.clientY);
 
                 setTempDuration(null);
+                tempDurationRef.current = null;
             }
             document.removeEventListener('mousemove', handleMouseMove);
             document.removeEventListener('mouseup', handleMouseUp);
@@ -176,7 +180,7 @@ const SmartGanttBar = ({
                 <>
                     <button
                         type="button"
-                        className="absolute top-0 left-0 -translate-x-1/2 -translate-y-1/2 w-3 h-3 rounded-full bg-blue-500 ring-2 ring-white shadow-sm z-30"
+                        className="absolute top-0 left-0 -translate-x-1/2 -translate-y-1/2 w-2.5 h-2.5 rounded-full bg-amber-400 ring-2 ring-white shadow-[0_0_6px_rgba(251,191,36,0.45)] z-30 opacity-0 group-hover/row:opacity-100 transition-opacity"
                         style={{ left: `${leftPx}px` }}
                         onClick={(e) => {
                             e.stopPropagation();
@@ -186,7 +190,7 @@ const SmartGanttBar = ({
                     />
                     <button
                         type="button"
-                        className="absolute top-0 -translate-y-1/2 w-3 h-3 rounded-full bg-blue-500 ring-2 ring-white shadow-sm z-30"
+                        className="absolute top-0 -translate-y-1/2 w-2.5 h-2.5 rounded-full bg-amber-400 ring-2 ring-white shadow-[0_0_6px_rgba(251,191,36,0.45)] z-30 opacity-0 group-hover/row:opacity-100 transition-opacity"
                         style={{ left: `${leftPx + widthPx}px` }}
                         onClick={(e) => {
                             e.stopPropagation();

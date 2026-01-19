@@ -43,18 +43,18 @@ const GanttChartArea = ({
                 return { from: "end", to: "start" };
         }
     };
-    const buildLinkPath = (fromX, fromY, toX, toY, fromAnchor) => {
+    const buildLinkPath = (fromX, fromY, toX, toY, fromAnchor, offset) => {
+        const offsetFromY = fromY + offset;
+        const offsetToY = toY + offset;
         // 앵커 기준 판단:
         // - start에서 시작: 그래프 시작 지점 → Y축 먼저 (세로→가로)
         // - end에서 시작: 그래프 끝 지점 → X축 먼저 (가로→세로)
-
         if (fromAnchor === "start") {
             // 그래프 시작에서 출발: Y축 먼저
-            return `M ${fromX} ${fromY} L ${fromX} ${toY} L ${toX} ${toY}`;
-        } else {
-            // 그래프 끝(end)에서 출발: X축 먼저
-            return `M ${fromX} ${fromY} L ${toX} ${fromY} L ${toX} ${toY}`;
+            return `M ${fromX} ${offsetFromY} L ${fromX} ${offsetToY} L ${toX} ${offsetToY}`;
         }
+        // 그래프 끝(end)에서 출발: X축 먼저
+        return `M ${fromX} ${offsetFromY} L ${toX} ${offsetFromY} L ${toX} ${offsetToY}`;
     };
     return (
         <div className="relative">
@@ -75,7 +75,7 @@ const GanttChartArea = ({
 
             {/* Dependency Links */}
             <svg
-                className={`absolute inset-0 z-20 ${linkMode ? "pointer-events-auto" : "pointer-events-none"}`}
+                className="absolute inset-0 z-20 pointer-events-none"
                 style={{ width: '100%', height: itemsWithTiming.length * rowH }}
             >
                 <defs>
@@ -102,23 +102,26 @@ const GanttChartArea = ({
                     const toX = getAnchorX(toData.item, anchors.to) + (lagValue * pxFactor);
                     const fromY = getAnchorY(fromData.index);
                     const toY = getAnchorY(toData.index);
-                    const path = buildLinkPath(fromX, fromY, toX, toY, anchors.from);
+                    const linkOffset = anchors.from === "start" ? -10 : 10;
+                    const path = buildLinkPath(fromX, fromY, toX, toY, anchors.from, linkOffset);
                     const isSelected = link.id === selectedLinkId;
                     return (
                         <g key={link.id}>
                             <path
                                 d={path}
                                 fill="none"
-                                stroke={isSelected ? "#2563eb" : "#94a3b8"}
-                                strokeWidth={isSelected ? 2.5 : 2}
+                                stroke={isSelected ? "#f59e0b" : "#94a3b8"}
+                                strokeWidth={isSelected ? 2.6 : 2}
                                 markerEnd="url(#arrowhead-link)"
                                 className="opacity-90 gantt-link-path"
+                                pointerEvents="none"
                             />
                             <path
                                 d={path}
                                 fill="none"
                                 stroke="transparent"
                                 strokeWidth="10"
+                                pointerEvents="stroke"
                                 onClick={(e) => {
                                     e.stopPropagation();
                                     if (onLinkClick) onLinkClick(link.id, e.clientX, e.clientY);
