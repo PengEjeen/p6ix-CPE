@@ -7,12 +7,14 @@ import {
 import PageHeader from "../components/cpe/PageHeader";
 import DataTable from "../components/cpe/DataTable";
 import SaveButton from "../components/cpe/SaveButton";
+import { useConfirm } from "../contexts/ConfirmContext";
 
 export default function OperatingRate() {
   const { id: projectId } = useParams();
   const [weights, setWeights] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const { alert } = useConfirm();
 
   // 데이터 로드
   useEffect(() => {
@@ -47,11 +49,11 @@ export default function OperatingRate() {
       await updateOperatingRate(projectId, payload);
     } catch (error) {
       console.error("가동률 저장 실패:", error);
-      alert("저장 중 오류가 발생했습니다.");
+      await alert("저장 중 오류가 발생했습니다.");
     } finally {
       setSaving(false);
     }
-  }, [projectId, weights]);
+  }, [alert, projectId, weights]);
 
   if (loading) {
     return <p className="p-6 text-gray-400">불러오는 중...</p>;

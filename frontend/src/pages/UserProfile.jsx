@@ -10,11 +10,13 @@ import {
   FiCalendar,
   FiSave,
 } from "react-icons/fi";
+import { useConfirm } from "../contexts/ConfirmContext";
 
 export default function ProfilePage() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const { alert } = useConfirm();
 
   useEffect(() => {
     const loadProfile = async () => {
@@ -41,9 +43,9 @@ export default function ProfilePage() {
         phone: user.phone,
       });
       setUser(updated);
-      alert("정보가 수정되었습니다");
+      await alert("정보가 수정되었습니다");
     } catch (err) {
-      alert("정보 수정 실패");
+      await alert("정보 수정 실패");
       console.error(err);
     } finally {
       setSaving(false);

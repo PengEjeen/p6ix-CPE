@@ -7,6 +7,7 @@ import SaveButton from "../components/cpe/SaveButton";
 import AccordionSection from "../components/cpe/AccordionSection";
 import { Plus } from "lucide-react";
 import toast from "react-hot-toast";
+import { useConfirm } from "../contexts/ConfirmContext";
 
 /**
  * EditableTitle Component
@@ -68,6 +69,7 @@ export default function TotalCalc() {
     const [saving, setSaving] = useState(false);
     const [rows, setRows] = useState([]);
     const [originalRows, setOriginalRows] = useState([]);
+    const { confirm } = useConfirm();
 
     // Trigger for auto-save (used for potential future features, currently Rename uses explicit save)
     const [triggerAutoSave, setTriggerAutoSave] = useState(false);
@@ -176,7 +178,8 @@ export default function TotalCalc() {
 
     // Delete Item
     const handleDelete = async (rowId) => {
-        if (!window.confirm("정말 삭제하시겠습니까?")) return;
+        const ok = await confirm("정말 삭제하시겠습니까?");
+        if (!ok) return;
         try {
             await deleteProductivity(rowId);
             setRows(prev => prev.filter(r => r.id !== rowId));

@@ -14,6 +14,7 @@ import CIPBasisList from "./pages/CIPBasisList";
 import PileBasisList from "./pages/PileBasisList";
 import BoredPileBasisList from "./pages/BoredPileBasisList";
 import ScheduleMasterList from "./pages/ScheduleMasterList";
+import { ConfirmProvider } from "./contexts/ConfirmContext";
 
 const router = createBrowserRouter(
   createRoutesFromElements(
@@ -39,10 +40,10 @@ const router = createBrowserRouter(
 
 function App() {
   return (
-    <>
+    <ConfirmProvider>
       <Toaster position="top-right" reverseOrder={false} />
       <RouterProvider router={router} />
-    </>
+    </ConfirmProvider>
   );
 }
 

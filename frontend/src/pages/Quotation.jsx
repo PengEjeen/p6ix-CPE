@@ -6,6 +6,7 @@ import { useParams } from "react-router-dom";
 import PageHeader from "../components/cpe/PageHeader";
 import DataTable from "../components/cpe/DataTable";
 import { detailQuotation, updateQuotation, updateQuotationAi } from "../api/cpe/quotation";
+import { useConfirm } from "../contexts/ConfirmContext";
 
 export default function Quotation() {
   const { id: projectId } = useParams();
@@ -21,6 +22,7 @@ export default function Quotation() {
   const [syncing, setSyncing] = useState(false);
   const hasInitialSyncRef = useRef(false);
   const syncTimerRef = useRef(null);
+  const { alert } = useConfirm();
 
   // 데이터 로드
   useEffect(() => {
@@ -137,7 +139,7 @@ export default function Quotation() {
 
     } catch (err) {
       console.error("AI 분석 생성 실패:", err);
-      alert("AI 분석 생성 중 오류가 발생했습니다.");
+      await alert("AI 분석 생성 중 오류가 발생했습니다.");
       setAiLoading(false);
     }
   };

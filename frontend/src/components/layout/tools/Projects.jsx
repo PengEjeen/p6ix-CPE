@@ -9,6 +9,7 @@ import {
 import { FiFilePlus, FiSearch } from "react-icons/fi";
 import { createPortal } from "react-dom";
 import { MoreVertical } from "lucide-react";
+import { useConfirm } from "../../../contexts/ConfirmContext";
 
 function Projects() {
   const [projects, setProjects] = useState([]);
@@ -25,6 +26,7 @@ function Projects() {
   const [menuPosition, setMenuPosition] = useState({ top: 0, left: 0 });
   const descRef = useRef(null);
   const navigate = useNavigate();
+  const { alert, confirm } = useConfirm();
 
   // === 프로젝트 목록 불러오기 ===
   useEffect(() => {
@@ -57,7 +59,10 @@ function Projects() {
 
   // === 새 갑지 생성 ===
   const handleCreateProject = async () => {
-    if (!title.trim()) return alert("프로젝트명을 입력해주세요.");
+    if (!title.trim()) {
+      await alert("프로젝트명을 입력해주세요.");
+      return;
+    }
     try {
       const res = await createProjects({ title, description, calc_type: calcType });
       setProjects((prev) => [...prev, res]);
@@ -77,7 +82,8 @@ function Projects() {
 
   // === 삭제 ===
   const handleDelete = async (id) => {
-    if (!window.confirm("정말 삭제하시겠습니까?")) return;
+    const ok = await confirm("정말 삭제하시겠습니까?");
+    if (!ok) return;
     try {
       await deleteProject(id);
       setProjects((prev) => prev.filter((p) => p.id !== id));

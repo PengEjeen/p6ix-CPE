@@ -24,6 +24,7 @@ import ScheduleGanttPanel from "../components/cpe/schedule/ScheduleGanttPanel";
 
 import { useScheduleStore } from "../stores/scheduleStore";
 import { calculateItem } from "../utils/solver";
+import { useConfirm } from "../contexts/ConfirmContext";
 
 const SortableRow = ({ item, isLinked, handleChange, handleDeleteItem, handleAddItem, handleOpenImport, spanInfo, isOverlay }) => {
     const {
@@ -190,6 +191,7 @@ const SnapshotManager = ({ isOpen, onClose }) => {
     const restoreSnapshot = useScheduleStore((state) => state.restoreSnapshot);
     const deleteSnapshot = useScheduleStore((state) => state.deleteSnapshot);
     const [label, setLabel] = useState("");
+    const { confirm } = useConfirm();
 
     if (!isOpen) return null;
 
@@ -200,12 +202,12 @@ const SnapshotManager = ({ isOpen, onClose }) => {
         toast.success("스냅샷 저장 완료");
     };
 
-    const handleRestore = (id) => {
-        if (window.confirm("현재 작업 내용이 스냅샷 내용으로 대체됩니다. 계속하시겠습니까?")) {
-            restoreSnapshot(id);
-            toast.success("복구 완료");
-            onClose();
-        }
+    const handleRestore = async (id) => {
+        const ok = await confirm("현재 작업 내용이 스냅샷 내용으로 대체됩니다. 계속하시겠습니까?");
+        if (!ok) return;
+        restoreSnapshot(id);
+        toast.success("복구 완료");
+        onClose();
     };
 
     return (
@@ -337,6 +339,7 @@ export default function ScheduleMasterList() {
     const [aiActiveItemId, setAiActiveItemId] = useState(null);
     const [aiSummary, setAiSummary] = useState({ savedDays: 0, remainingDays: 0 });
     const [aiShowCompare, setAiShowCompare] = useState(false);
+    const { confirm } = useConfirm();
 
     const totalCalendarDays = useMemo(() => {
         let cumulativeCPEnd = 0;
@@ -545,13 +548,13 @@ export default function ScheduleMasterList() {
         setAiShowCompare(false);
     }, []);
 
-    const handleAiApply = useCallback(() => {
+    const handleAiApply = useCallback(async () => {
         if (!aiPreviewItems || aiPreviewItems.length === 0) return;
-        const ok = window.confirm("AI 조정안을 적용하시겠습니까?");
+        const ok = await confirm("AI 조정안을 적용하시겠습니까?");
         if (!ok) return;
         setStoreItems(aiPreviewItems);
         handleAiCancel();
-    }, [aiPreviewItems, handleAiCancel, setStoreItems]);
+    }, [aiPreviewItems, confirm, handleAiCancel, setStoreItems]);
 
     const aiDisplayItems = aiPreviewItems || items;
 
@@ -819,8 +822,9 @@ export default function ScheduleMasterList() {
         setActiveId(event.active.id);
     };
 
-    const handleDeleteItem = (id) => {
-        if (!window.confirm("삭제하시겠습니까?")) return;
+    const handleDeleteItem = async (id) => {
+        const ok = await confirm("삭제하시겠습니까?");
+        if (!ok) return;
         deleteItem(id);
     };
 
