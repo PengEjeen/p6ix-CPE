@@ -25,6 +25,7 @@ import ScheduleGanttPanel from "../components/cpe/schedule/ScheduleGanttPanel";
 import { useScheduleStore } from "../stores/scheduleStore";
 import { calculateItem } from "../utils/solver";
 import { useConfirm } from "../contexts/ConfirmContext";
+import { summarizeScheduleAiLog } from "../api/cpe/schedule_ai";
 
 const SortableRow = ({ item, isLinked, handleChange, handleDeleteItem, handleAddItem, handleOpenImport, spanInfo, isOverlay }) => {
     const {
@@ -55,9 +56,9 @@ const SortableRow = ({ item, isLinked, handleChange, handleDeleteItem, handleAdd
     }
 
     return (
-        <tr ref={setNodeRef} style={style} className={`hover:bg-gray-50 transition-colors ${isDragging && !isOverlay ? "bg-blue-50" : ""}`}>
+        <tr ref={setNodeRef} style={style} className={`hover:bg-white/5 transition-colors ${isDragging && !isOverlay ? "bg-blue-900/20" : ""}`}>
             {/* Drag Handle */}
-            <td className="border-r border-gray-200 text-center text-gray-400 cursor-grab active:cursor-grabbing p-1" {...attributes} {...listeners}>
+            <td className="border-r border-gray-700 text-center text-gray-400 cursor-grab active:cursor-grabbing p-1" {...attributes} {...listeners}>
                 <GripVertical size={14} className="mx-auto" />
             </td>
 
@@ -68,16 +69,16 @@ const SortableRow = ({ item, isLinked, handleChange, handleDeleteItem, handleAdd
             {(spanInfo.isProcFirst || isOverlay) && (
                 <td
                     rowSpan={isOverlay ? 1 : spanInfo.procRowSpan}
-                    className="border-r border-gray-300 bg-white p-1 align-top relative group"
+                    className="border-r border-gray-700 bg-[#2c2c3a] p-1 align-top relative group"
                 >
                     <div className="flex flex-col h-full min-h-[40px] justify-between">
                         <input
-                            className="w-full bg-transparent outline-none font-medium text-gray-700 text-center text-xs mb-1"
+                            className="w-full bg-transparent outline-none font-medium text-gray-200 text-center text-sm mb-1"
                             value={item.process}
                             onChange={(e) => handleChange(item.id, 'process', e.target.value)}
                         />
                         {/* Hover Actions */}
-                        <div className="flex justify-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity z-20 bg-white/90 backdrop-blur-sm p-1 rounded border border-gray-100 shadow-sm mx-auto">
+                        <div className="flex justify-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity z-20 bg-[#1f1f2b]/90 backdrop-blur-sm p-1 rounded border border-gray-700 shadow-sm mx-auto">
                             <button
                                 className="text-[10px] p-1 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded flex items-center gap-1"
                                 onClick={() => handleAddItem(item)}
@@ -103,7 +104,7 @@ const SortableRow = ({ item, isLinked, handleChange, handleDeleteItem, handleAdd
                     {isLinked && <Link size={12} className="text-blue-500" />}
                     <input
                         type="text"
-                        className="w-full bg-transparent outline-none text-gray-700 p-1 rounded hover:bg-gray-100 focus:bg-white focus:ring-1 focus:ring-blue-300 transition text-xs"
+                        className="w-full bg-transparent outline-none text-gray-200 p-1 rounded hover:bg-white/10 focus:bg-[#1f1f2b] focus:ring-1 focus:ring-blue-500/50 transition text-sm"
                         value={item.work_type}
                         onChange={(e) => handleChange(item.id, 'work_type', e.target.value)}
                     />
@@ -112,42 +113,42 @@ const SortableRow = ({ item, isLinked, handleChange, handleDeleteItem, handleAdd
 
             {/* Unit */}
             <td className="border-r border-gray-200 p-1">
-                <input className="w-full text-center outline-none p-1 text-gray-600 bg-transparent text-xs" value={item.unit} onChange={(e) => handleChange(item.id, 'unit', e.target.value)} />
+                <input className="w-full text-center outline-none p-1 text-gray-300 bg-[#1f1f2b] rounded text-sm" value={item.unit} onChange={(e) => handleChange(item.id, 'unit', e.target.value)} />
             </td>
 
             {/* Quantity */}
             <td className="border-r border-gray-200 p-1">
-                <input className="w-full text-right outline-none p-1 font-bold text-gray-900 bg-gray-50 rounded text-xs" value={item.quantity} onChange={(e) => handleChange(item.id, 'quantity', e.target.value)} />
+                <input className="w-full text-right outline-none p-1 font-bold text-gray-100 bg-[#1f1f2b] rounded text-sm" value={item.quantity} onChange={(e) => handleChange(item.id, 'quantity', e.target.value)} />
             </td>
 
             {/* Formula */}
             <td className="border-r border-gray-200 p-1">
-                <input className="w-full text-right outline-none p-1 text-[10px] text-gray-400" value={item.quantity_formula || ''} placeholder="-" onChange={(e) => handleChange(item.id, 'quantity_formula', e.target.value)} />
+                <input className="w-full text-right outline-none p-1 text-xs text-gray-400 bg-[#1f1f2b] rounded" value={item.quantity_formula || ''} placeholder="-" onChange={(e) => handleChange(item.id, 'quantity_formula', e.target.value)} />
             </td>
 
             {/* Productivity */}
-            <td className={`border-r border-gray-200 p-1 ${isLinked ? 'bg-blue-50' : ''}`}>
-                <input className={`w-full text-right outline-none p-1 text-xs ${isLinked ? 'text-blue-600 font-bold' : 'text-gray-700'}`} value={item.productivity} disabled={isLinked} onChange={(e) => handleChange(item.id, 'productivity', e.target.value)} />
+            <td className={`border-r border-gray-700 p-1 ${isLinked ? 'bg-blue-900/20' : ''}`}>
+                <input className={`w-full text-right outline-none p-1 text-sm bg-[#1f1f2b] rounded ${isLinked ? 'text-blue-300 font-bold' : 'text-gray-200'}`} value={item.productivity} disabled={isLinked} onChange={(e) => handleChange(item.id, 'productivity', e.target.value)} />
             </td>
 
             {/* Crew */}
             <td className="border-r border-gray-200 p-1">
-                <input className="w-full text-center outline-none p-1 text-gray-600 text-xs" value={item.crew_size} onChange={(e) => handleChange(item.id, 'crew_size', e.target.value)} />
+                <input className="w-full text-center outline-none p-1 text-gray-200 bg-[#1f1f2b] rounded text-sm" value={item.crew_size} onChange={(e) => handleChange(item.id, 'crew_size', e.target.value)} />
             </td>
 
             {/* Daily Prod */}
-            <td className="border-r border-gray-200 px-2 py-1 text-right text-gray-500 font-mono bg-gray-50/50 text-xs">
+            <td className="border-r border-gray-700 px-2 py-1 text-right text-gray-300 font-mono bg-[#1f1f2b] text-sm">
                 {item.daily_production?.toLocaleString()}
             </td>
 
             {/* Working Days */}
-            <td className="border-r border-gray-200 px-2 py-1 text-right text-blue-600 font-bold font-mono text-xs">
+            <td className="border-r border-gray-700 px-2 py-1 text-right text-blue-300 font-bold font-mono text-sm">
                 {parseFloat(item.working_days || 0).toFixed(1)}
             </td>
 
             {/* Op Rate */}
             <td className="border-r border-gray-200 p-1">
-                <select className="w-full bg-transparent text-[10px] text-center outline-none text-gray-600" value={item.operating_rate_type} onChange={(e) => handleChange(item.id, 'operating_rate_type', e.target.value)}>
+                <select className="w-full bg-[#1f1f2b] text-sm text-center outline-none text-gray-200 rounded" value={item.operating_rate_type} onChange={(e) => handleChange(item.id, 'operating_rate_type', e.target.value)}>
                     <option value="EARTH">토목</option>
                     <option value="FRAME">골조</option>
                     <option value="EXT_FIN">외부</option>
@@ -156,23 +157,23 @@ const SortableRow = ({ item, isLinked, handleChange, handleDeleteItem, handleAdd
             </td>
 
             {/* Cal Days */}
-            <td className="border-r border-gray-200 px-2 py-1 text-right text-blue-700 font-bold font-mono bg-blue-50 text-xs">
+            <td className="border-r border-gray-700 px-2 py-1 text-right text-blue-300 font-bold font-mono bg-blue-900/20 text-sm">
                 {item.calendar_days}
             </td>
 
             {/* Cal Months */}
-            <td className="border-r border-gray-200 px-2 py-1 text-right text-gray-600 font-mono bg-blue-50/30 text-xs">
+            <td className="border-r border-gray-700 px-2 py-1 text-right text-gray-300 font-mono bg-blue-900/10 text-sm">
                 {item.calendar_months}
             </td>
 
             {/* Code */}
-            <td className="border-r border-gray-200 px-2 py-1 text-[10px] text-gray-400 truncate" title={item.standard_code}>
+            <td className="border-r border-gray-700 px-2 py-1 text-xs text-gray-400 truncate" title={item.standard_code}>
                 {item.standard_code}
             </td>
 
             {/* Remarks */}
             <td className="border-r border-gray-200 p-1">
-                <input className="w-full text-[10px] outline-none p-1 text-gray-500" value={item.remarks} onChange={(e) => handleChange(item.id, 'remarks', e.target.value)} />
+                <input className="w-full text-xs outline-none p-1 text-gray-300 bg-[#1f1f2b] rounded" value={item.remarks} onChange={(e) => handleChange(item.id, 'remarks', e.target.value)} />
             </td>
 
             {/* Action */}
@@ -339,6 +340,7 @@ export default function ScheduleMasterList() {
     const [aiActiveItemId, setAiActiveItemId] = useState(null);
     const [aiSummary, setAiSummary] = useState({ savedDays: 0, remainingDays: 0 });
     const [aiShowCompare, setAiShowCompare] = useState(false);
+    const [projectName, setProjectName] = useState("");
     const { confirm } = useConfirm();
 
     const totalCalendarDays = useMemo(() => {
@@ -435,12 +437,27 @@ export default function ScheduleMasterList() {
         let currentTotal = totalDaysForItems(aiItems);
         const initialTotal = currentTotal;
         let stepCount = 0;
+        const stepSummaries = [];
+        let lowSavedStreak = 0;
+        const mode = "balanced";
+        const weightPresets = {
+            balanced: { saved: 1.0, crew: 0.4, prod: 0.2, congestion: 0.8 },
+            min: { saved: 0.7, crew: 0.8, prod: 0.5, congestion: 1.0 },
+            max: { saved: 1.4, crew: 0.2, prod: 0.1, congestion: 0.6 }
+        };
+        const weights = weightPresets[mode] || weightPresets.balanced;
+        const optionMinSavedBase = Math.max(0.05, initialTotal * 0.002);
+        const stopSavedBase = Math.max(0.02, initialTotal * 0.001);
+        const optionMinSaved = Math.max(optionMinSavedBase, stopSavedBase * 1.5);
+        const stopSaved = stopSavedBase;
 
         const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
         while (currentTotal > target && stepCount < 40) {
             const criticalIds = getCriticalIds(aiItems);
             let best = null;
+            const failedItems = [];
+            let anyOptionTested = false;
 
             for (const id of criticalIds) {
                 const idx = aiItems.findIndex((i) => i.id === id);
@@ -451,9 +468,31 @@ export default function ScheduleMasterList() {
                 const baseProd = parseFloat(originalItem.base_productivity) || parseFloat(originalItem.productivity) || 0;
                 if (!baseProd) continue;
 
-                for (let c = 1; c <= MAX_CREW_INCREASE; c += 1) {
-                    const newCrew = baseCrew + c;
+                const testedRanges = { crew: [], prod: [] };
+                let maxSaved = 0;
+                let maxSavedInCp = false;
+                let congestionLimited = true;
+                let productivityCap = true;
+                let constraintBlocked = false;
+
+                const scoreOption = (saved, crewDelta, prodDelta, congestionHit) => {
+                    return saved * weights.saved
+                        - crewDelta * weights.crew
+                        - prodDelta * weights.prod
+                        - (congestionHit ? weights.congestion : 0);
+                };
+
+                const tryCrew = (delta) => {
+                    if (delta > MAX_CREW_INCREASE) {
+                        constraintBlocked = true;
+                        return;
+                    }
+                    const newCrew = baseCrew + delta;
                     const eff = efficiency(newCrew, baseCrew);
+                    if (eff <= MIN_EFF + 0.0001) {
+                        return;
+                    }
+                    congestionLimited = false;
                     const newProd = baseProd * eff;
                     const candidate = calculateItem(
                         { ...originalItem, crew_size: newCrew, productivity: newProd, base_productivity: baseProd },
@@ -463,13 +502,24 @@ export default function ScheduleMasterList() {
                     const testItems = aiItems.map((item, i) => (i === idx ? candidate : item));
                     const total = totalDaysForItems(testItems);
                     const saved = currentTotal - total;
-                    if (saved > 0.1 && (!best || saved > best.saved)) {
-                        best = { type: "crew", delta: c, saved, total, item: candidate, itemIndex: idx };
+                    maxSaved = Math.max(maxSaved, saved);
+                    maxSavedInCp = maxSavedInCp || saved > 0;
+                    anyOptionTested = true;
+                    if (saved >= optionMinSaved) {
+                        const score = scoreOption(saved, delta, 0, eff <= MIN_EFF + 0.0001);
+                        if (!best || score > best.score || (Math.abs(score - best.score) < 0.0001 && saved > best.saved)) {
+                            best = { type: "crew", delta, saved, total, item: candidate, itemIndex: idx, score };
+                        }
                     }
-                }
+                };
 
-                for (let p = PROD_STEP; p <= MAX_PROD; p += PROD_STEP) {
-                    const newProd = baseProd * (1 + p / 100);
+                const tryProd = (delta) => {
+                    if (delta > MAX_PROD) {
+                        constraintBlocked = true;
+                        return;
+                    }
+                    productivityCap = false;
+                    const newProd = baseProd * (1 + delta / 100);
                     const candidate = calculateItem(
                         { ...originalItem, productivity: newProd, base_productivity: baseProd },
                         operatingRates,
@@ -478,24 +528,83 @@ export default function ScheduleMasterList() {
                     const testItems = aiItems.map((item, i) => (i === idx ? candidate : item));
                     const total = totalDaysForItems(testItems);
                     const saved = currentTotal - total;
-                    if (saved > 0.1 && (!best || saved > best.saved)) {
-                        best = { type: "prod", delta: p, saved, total, item: candidate, itemIndex: idx };
+                    maxSaved = Math.max(maxSaved, saved);
+                    maxSavedInCp = maxSavedInCp || saved > 0;
+                    anyOptionTested = true;
+                    if (saved >= optionMinSaved) {
+                        const score = scoreOption(saved, 0, delta, false);
+                        if (!best || score > best.score || (Math.abs(score - best.score) < 0.0001 && saved > best.saved)) {
+                            best = { type: "prod", delta, saved, total, item: candidate, itemIndex: idx, score };
+                        }
                     }
+                };
+
+                const crewSteps = [1];
+                const prodSteps = [PROD_STEP];
+                crewSteps.forEach((delta) => {
+                    testedRanges.crew.push(delta);
+                    tryCrew(delta);
+                });
+                prodSteps.forEach((delta) => {
+                    testedRanges.prod.push(delta);
+                    tryProd(delta);
+                });
+
+                if (!best || best.itemIndex !== idx) {
+                    [2, 3].forEach((delta) => {
+                        if (delta <= MAX_CREW_INCREASE) {
+                            testedRanges.crew.push(delta);
+                            tryCrew(delta);
+                        }
+                    });
+                    [10, 15].forEach((delta) => {
+                        if (delta <= MAX_PROD) {
+                            testedRanges.prod.push(delta);
+                            tryProd(delta);
+                        }
+                    });
+                }
+
+                if (!best || best.itemIndex !== idx) {
+                    const reasons = [];
+                    if (!maxSavedInCp) reasons.push("NOT_CRITICAL_AFTER_RECALC");
+                    if (maxSaved < optionMinSaved) reasons.push("MICRO_SAVING");
+                    if (congestionLimited) reasons.push("CONGESTION_LIMIT");
+                    if (productivityCap) reasons.push("PRODUCTIVITY_CAP");
+                    if (constraintBlocked) reasons.push("CONSTRAINT_BLOCKED");
+                    if (reasons.length === 0) reasons.push("MICRO_SAVING");
+
+                    appendAiLog(
+                        `${originalItem.process || "공정"}: 유효 옵션 없음 (${reasons.join(", ")})`,
+                        "status"
+                    );
+                    appendAiLog(
+                        `테스트 범위: 인력 +${testedRanges.crew.join("/") || "없음"}, 생산성 +${testedRanges.prod.join("/") || "없음"}%. 최대 saved ${maxSaved.toFixed(2)}일, CP 반영 ${maxSavedInCp ? "있음" : "없음"}.`,
+                        "reason"
+                    );
+                    failedItems.push(originalItem.id);
                 }
             }
 
-            if (!best || best.saved <= 0.1) {
-                appendAiLog("현재 크리티컬 공정에서 유효한 단축 옵션이 없습니다. 다음 공정으로 이동합니다.", "status");
-                appendAiLog(
-                    `한계효용 임계치(효율계수 최소 ${MIN_EFF.toFixed(2)}) 또는 제한 조건에 도달했습니다.`,
-                    "status"
-                );
-                break;
+            if (!best || best.saved < optionMinSaved) {
+                if (!anyOptionTested || failedItems.length === criticalIds.length) {
+                    appendAiLog("크리티컬 공정에서 유효한 단축 옵션이 더 이상 없습니다.", "status");
+                    break;
+                }
+                appendAiLog("현재 크리티컬 공정 중 일부는 유효 옵션이 없어 다음 공정으로 이동합니다.", "status");
+                lowSavedStreak += 1;
+                if (lowSavedStreak >= 3) {
+                    appendAiLog(`최근 ${lowSavedStreak}회 연속 단축 효과가 미미합니다.`, "status");
+                    break;
+                }
+                await wait(200);
+                continue;
             }
 
             aiItems[best.itemIndex] = best.item;
             currentTotal = best.total;
             stepCount += 1;
+            lowSavedStreak = best.saved < stopSaved ? lowSavedStreak + 1 : 0;
             setAiPreviewItems([...aiItems]);
             setAiActiveItemId(best.item.id);
             setAiSummary({ savedDays: initialTotal - currentTotal, remainingDays: Math.max(0, currentTotal - target) });
@@ -504,6 +613,7 @@ export default function ScheduleMasterList() {
                 ? `인력 +${best.delta}`
                 : `생산성 +${best.delta}%`;
             appendAiLog(`${best.item.process || "공정"} ${label} → -${best.saved.toFixed(1)}일`, "step");
+            stepSummaries.push(`${best.item.process || "공정"} ${label} → -${best.saved.toFixed(1)}일`);
             if (best.type === "crew") {
                 appendAiLog(
                     `근거: 크리티컬 공정의 병목을 해소하기 위해 인력 증원을 우선 적용했습니다. 인원 증가에 따른 효율계수(최소 ${MIN_EFF.toFixed(2)})를 고려해 단축 효과가 유효한 구간에서만 조정합니다.`,
@@ -537,7 +647,31 @@ export default function ScheduleMasterList() {
                 "reason"
             );
         }
-    }, [aiTargetDays, appendAiLog, getCriticalIds, items, operatingRates, totalDaysForItems, workDayType]);
+        try {
+            const response = await summarizeScheduleAiLog({
+                project_name: projectName || "프로젝트",
+                target_days: target,
+                current_days: Number.isFinite(currentTotal) ? currentTotal.toFixed(1) : "",
+                saved_days: Number.isFinite(initialTotal - currentTotal)
+                    ? (initialTotal - currentTotal).toFixed(1)
+                    : "",
+                remaining_days: Math.max(0, currentTotal - target).toFixed(1),
+                status: currentTotal <= target ? "success" : "fail",
+                critical_steps: stepSummaries.join(" / "),
+                constraints:
+                    currentTotal <= target
+                        ? `효율계수 최소 ${MIN_EFF.toFixed(2)} 기준`
+                        : `효율계수 최소 ${MIN_EFF.toFixed(2)} 기준 및 추가 단축 한계`,
+                cp_notes: "크리티컬 패스 기반 조정 결과입니다."
+            });
+            const summaryText = response?.data?.summary;
+            if (summaryText) {
+                appendAiLog(summaryText, "summary");
+            }
+        } catch (error) {
+            console.error("AI 요약 생성 실패:", error);
+        }
+    }, [aiTargetDays, appendAiLog, getCriticalIds, items, operatingRates, projectName, totalDaysForItems, workDayType]);
 
     const handleAiCancel = useCallback(() => {
         setAiMode("cancelled");
@@ -633,6 +767,7 @@ export default function ScheduleMasterList() {
             // User said "remove star_date and working condition and Change DB completely to JSON". 
             // He might mean store start_date in JSON too. But I'll keep it simple: UI works with Project Date.
             setStartDate(projectData.start_date || "");
+            setProjectName(projectData.title || projectData.name || "");
 
             // Safely fetch Run Rate (WorkCondition)
             try {
@@ -986,7 +1121,7 @@ export default function ScheduleMasterList() {
                         onDragStart={handleDragStart}
                         onDragEnd={handleDragEnd}
                     >
-                        <table className="w-full text-sm box-border table-fixed border-collapse bg-white rounded-lg overflow-hidden">
+                        <table className="w-full text-sm box-border table-fixed border-collapse bg-[#2c2c3a] rounded-lg overflow-hidden text-gray-200">
                             <colgroup>
                                 <col width="30" />  {/* Drag Handle */}
                                 <col width="120" /> {/* Process (Merged) */}
@@ -1005,39 +1140,39 @@ export default function ScheduleMasterList() {
                                 <col width="120" /> {/* Remarks */}
                                 <col width="50" />  {/* Action */}
                             </colgroup>
-                            <thead className="bg-gray-50 text-gray-700 sticky top-0 z-[2] shadow-sm border-b border-gray-300">
+                            <thead className="bg-[#3a3a4a] text-gray-200 sticky top-0 z-[2] shadow-sm border-b border-gray-700">
                                 <tr>
-                                    <th className="border-r border-gray-300 px-2 py-3 bg-gray-100"></th>
-                                    <th className="border-r border-gray-300 px-2 py-3 font-bold bg-gray-100 text-center" colSpan={2}>분류</th>
-                                    <th className="border-r border-gray-300 px-2 py-3 font-bold bg-gray-100 text-center" colSpan={3}>물량</th>
-                                    <th className="border-r border-gray-300 px-2 py-3 font-bold bg-gray-100 text-center text-blue-600" colSpan={4}>산정</th>
-                                    <th className="border-r border-gray-300 px-2 py-3 font-bold bg-gray-100 text-center" colSpan={3}>정보</th>
+                                    <th className="border-r border-gray-700 px-2 py-3 bg-[#343446]"></th>
+                                    <th className="border-r border-gray-700 px-2 py-3 font-bold bg-[#343446] text-center" colSpan={2}>분류</th>
+                                    <th className="border-r border-gray-700 px-2 py-3 font-bold bg-[#343446] text-center" colSpan={3}>물량</th>
+                                    <th className="border-r border-gray-700 px-2 py-3 font-bold bg-[#343446] text-center text-blue-300" colSpan={4}>산정</th>
+                                    <th className="border-r border-gray-700 px-2 py-3 font-bold bg-[#343446] text-center" colSpan={3}>정보</th>
                                 </tr>
-                                <tr className="bg-white text-gray-600 font-medium">
-                                    <th className="border-r border-gray-200 px-1"></th>
-                                    <th className="border-r border-gray-200 px-2 py-2">공종</th>
-                                    <th className="border-r border-gray-200 px-2 py-2">세부공종</th>
+                                <tr className="bg-[#2c2c3a] text-gray-300 font-medium">
+                                    <th className="border-r border-gray-700 px-1"></th>
+                                    <th className="border-r border-gray-700 px-2 py-2">공종</th>
+                                    <th className="border-r border-gray-700 px-2 py-2">세부공종</th>
 
-                                    <th className="border-r border-gray-200 px-2 py-2">단위</th>
-                                    <th className="border-r border-gray-200 px-2 py-2">물량</th>
-                                    <th className="border-r border-gray-200 px-2 py-2">산출식</th>
+                                    <th className="border-r border-gray-700 px-2 py-2">단위</th>
+                                    <th className="border-r border-gray-700 px-2 py-2">물량</th>
+                                    <th className="border-r border-gray-700 px-2 py-2">산출식</th>
 
-                                    <th className="border-r border-gray-200 px-2 py-2">일생산성</th>
-                                    <th className="border-r border-gray-200 px-2 py-2">작업조</th>
-                                    <th className="border-r border-gray-200 px-2 py-2">일작업량</th>
+                                    <th className="border-r border-gray-700 px-2 py-2">일생산성</th>
+                                    <th className="border-r border-gray-700 px-2 py-2">작업조</th>
+                                    <th className="border-r border-gray-700 px-2 py-2">일작업량</th>
 
-                                    <th className="border-r border-gray-200 px-2 py-2 text-blue-500">작업일수</th>
-                                    <th className="border-r border-gray-200 px-2 py-2">가동율</th>
-                                    <th className="border-r border-gray-200 px-2 py-2 text-blue-700 font-bold bg-blue-50">공사기간</th>
-                                    <th className="border-r border-gray-200 px-2 py-2 text-blue-700 font-bold bg-blue-50">개월수</th>
+                                    <th className="border-r border-gray-700 px-2 py-2 text-blue-300">작업일수</th>
+                                    <th className="border-r border-gray-700 px-2 py-2">가동율</th>
+                                    <th className="border-r border-gray-700 px-2 py-2 text-blue-200 font-bold bg-blue-900/20">공사기간</th>
+                                    <th className="border-r border-gray-700 px-2 py-2 text-blue-200 font-bold bg-blue-900/20">개월수</th>
 
-                                    <th className="border-r border-gray-200 px-2 py-2">표준코드</th>
-                                    <th className="border-r border-gray-200 px-2 py-2">비고</th>
-                                    <th className="border-r border-gray-200 px-2 py-2">기능</th>
+                                    <th className="border-r border-gray-700 px-2 py-2">표준코드</th>
+                                    <th className="border-r border-gray-700 px-2 py-2">비고</th>
+                                    <th className="border-r border-gray-700 px-2 py-2">기능</th>
                                 </tr>
                             </thead>
                             <SortableContext items={items} strategy={verticalListSortingStrategy}>
-                                <tbody className="divide-y divide-gray-200">
+                                <tbody className="divide-y divide-gray-700">
                                     {(() => {
                                         // Group items by main_category
                                         const groupedItems = items.reduce((acc, item) => {
@@ -1051,15 +1186,15 @@ export default function ScheduleMasterList() {
                                         return Object.entries(groupedItems).map(([category, categoryItems]) => (
                                             <React.Fragment key={category}>
                                                 {/* Section Header */}
-                                                <tr className="bg-gradient-to-r from-slate-100 to-slate-50 border-t-2 border-slate-300">
+                                                <tr className="bg-gradient-to-r from-[#2c2c3a] to-[#242433] border-t border-gray-700">
                                                     <td colSpan="16" className="px-4 py-2.5">
                                                         <div className="flex items-center justify-between gap-2">
                                                             <div className="flex items-center gap-2">
-                                                                <div className="w-1 h-5 bg-blue-500 rounded-full"></div>
-                                                                <h3 className="font-bold text-gray-800 text-base tracking-tight">
+                                                                <div className="w-1 h-5 bg-blue-400 rounded-full"></div>
+                                                                <h3 className="font-bold text-gray-100 text-base tracking-tight">
                                                                     {category}
                                                                 </h3>
-                                                                <span className="text-xs text-gray-500 bg-white px-2 py-0.5 rounded-full border border-gray-200">
+                                                                <span className="text-xs text-gray-400 bg-[#1f1f2b] px-2 py-0.5 rounded-full border border-gray-700">
                                                                     {categoryItems.length}개 항목
                                                                 </span>
                                                             </div>
@@ -1124,7 +1259,7 @@ export default function ScheduleMasterList() {
 
                             <DragOverlay>
                                 {activeItem ? (
-                                    <table className="w-full text-sm box-border table-fixed border-collapse bg-white shadow-2xl skew-y-1 origin-top-left opacity-95">
+                                    <table className="w-full text-sm box-border table-fixed border-collapse bg-[#2c2c3a] shadow-2xl skew-y-1 origin-top-left opacity-95">
                                         <colgroup>
                                             <col width="30" />
                                             <col width="120" />

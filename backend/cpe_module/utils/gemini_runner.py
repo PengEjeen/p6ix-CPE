@@ -165,3 +165,28 @@ def gemini_runner(
 
     except Exception as e:
         return f"(AI 분석 중 오류 발생: {e})"
+
+
+def gantt_ai_log_runner(payload: dict) -> str:
+    """
+    Gemini AI 간트 공기 단축 요약 실행
+    """
+    try:
+        safe_data = {k: (v if v is not None else "") for k, v in (payload or {}).items()}
+
+        with open("cpe_module/utils/templates/gantt_ai_log_prompt.yaml", "r", encoding="utf-8") as f:
+            config = yaml.safe_load(f)
+
+        base_prompt = config["prompt"]
+        prompt_filled = base_prompt.format(**safe_data)
+
+        client = genai.Client(api_key=GEMINI_KEY)
+        response = client.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=prompt_filled,
+        )
+
+        result_text = response.text or "(AI 요약 실패: 응답 없음)"
+        return result_text
+    except Exception as e:
+        return f"(AI 요약 중 오류 발생: {e})"

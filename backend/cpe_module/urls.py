@@ -1,5 +1,5 @@
 from django.urls import path
-from .views import operating_rate, project, criteria, calc, quotation
+from .views import operating_rate, project, criteria, calc, quotation, schedule_ai
 
 app_name = 'cpe_module'
 
@@ -54,6 +54,9 @@ urlpatterns = [
     #quotation
     path("quotation/<str:project_id>/", quotation.detail_quotation),
     path("quotation/<str:project_id>/update/", quotation.update_quotation),
-    path("quotation/<str:project_id>/ai_update/", quotation.update_ai_quotation)
+    path("quotation/<str:project_id>/ai_update/", quotation.update_ai_quotation),
+
+    # schedule ai
+    path("schedule-ai/summary/", schedule_ai.summarize_schedule_ai_log)
 
     ]

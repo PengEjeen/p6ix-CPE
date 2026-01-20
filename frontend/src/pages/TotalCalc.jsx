@@ -100,6 +100,9 @@ export default function TotalCalc() {
     // Sanitize row data for API
     const sanitizeRow = (row) => {
         const clean = { ...row };
+        // Remove computed-only fields
+        delete clean.average_workload;
+        delete clean.total_pum;
         // Ensure required fields
         if (!clean.project) clean.project = id;
         if (!clean.crew_composition_text) clean.crew_composition_text = "-";
@@ -246,10 +249,30 @@ export default function TotalCalc() {
         }
     };
 
+    const rowsWithDerived = useMemo(() => {
+        return rows.map((row) => {
+            const pumsam = Number(row.pumsam_workload || 0);
+            const molit = Number(row.molit_workload || 0);
+            const average =
+                pumsam && molit ? (pumsam + molit) / 2 : (pumsam || molit || 0);
+            const totalPum =
+                Number(row.skill_worker_1_pum || 0) +
+                Number(row.skill_worker_2_pum || 0) +
+                Number(row.special_worker_pum || 0) +
+                Number(row.common_worker_pum || 0) +
+                Number(row.equipment_pum || 0);
+            return {
+                ...row,
+                average_workload: Number(average.toFixed(3)),
+                total_pum: Number(totalPum.toFixed(3))
+            };
+        });
+    }, [rows]);
+
     // Group rows by main_category then category
     const groupedRows = useMemo(() => {
         const groups = {};
-        rows.forEach(row => {
+        rowsWithDerived.forEach(row => {
             const main = row.main_category || "기타";
             const sub = row.category || "기타";
             if (!groups[main]) groups[main] = {};
@@ -257,15 +280,24 @@ export default function TotalCalc() {
             groups[main][sub].push(row);
         });
         return groups;
-    }, [rows]);
+    }, [rowsWithDerived]);
 
     const columns = [
-        { key: "sub_category", label: "세부공종", editable: true, width: "w-32" },
+        { key: "main_category", label: "구분", editable: false, width: "w-32" },
+        { key: "category", label: "공종", editable: false, width: "w-32" },
         { key: "item_name", label: "목차", editable: true, width: "w-60" },
         { key: "standard", label: "규격", editable: true, width: "w-40" },
-        { key: "unit", label: "단위", editable: true, width: "w-16 text-center" },
+        { key: "unit", label: "단위(표준품셈 기준)", editable: true, width: "w-28 text-center" },
+        { key: "crew_composition_text", label: "산출근거(작업조 1팀당 인원 및 장비구성)", editable: true, width: "w-72" },
+        { key: "skill_worker_1_count", label: "기능공1", editable: true, type: "number", width: "w-20" },
+        { key: "skill_worker_2_count", label: "기능공2", editable: true, type: "number", width: "w-20" },
+        { key: "special_worker_count", label: "특별인부", editable: true, type: "number", width: "w-20" },
+        { key: "common_worker_count", label: "보통인부", editable: true, type: "number", width: "w-20" },
+        { key: "equipment_count", label: "장비", editable: true, type: "number", width: "w-20" },
+        { key: "total_pum", label: "투입 품", editable: false, width: "w-20" },
         { key: "pumsam_workload", label: "표준품셈", editable: true, type: "number", width: "w-24" },
-        { key: "molit_workload", label: "국토부", editable: true, type: "number", width: "w-24" },
+        { key: "molit_workload", label: "국토부 가이드라인", editable: true, type: "number", width: "w-32" },
+        { key: "average_workload", label: "평균", editable: false, width: "w-20" }
     ];
 
     if (loading) return <div className="p-6 text-gray-400">데이터를 불러오는 중...</div>;
