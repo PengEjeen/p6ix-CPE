@@ -134,7 +134,6 @@ export default function ScheduleHeader({
                         취소/되돌리기
                     </button>
                 )}
-
                 <SaveButton onSave={onSave} saving={saving} />
                 <div className="ml-2 px-4 py-2 rounded-xl bg-[#181825] border border-gray-700 text-sm text-gray-300">
                     <span className="text-gray-400 mr-2">전체 기간</span>

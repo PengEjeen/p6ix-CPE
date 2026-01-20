@@ -6,9 +6,9 @@ import {
     initializeDefaultItems
 } from "../api/cpe_all/construction_schedule";
 import { detailOperatingRate } from "../api/cpe/operating_rate";
-import { fetchCIPResults } from "../api/cpe_all/cip_basis";
-import { fetchPileResults } from "../api/cpe_all/pile_basis";
-import { fetchBoredPileResults } from "../api/cpe_all/bored_pile_basis";
+import { fetchCIPResults, fetchCIPStandard } from "../api/cpe_all/cip_basis";
+import { fetchPileResults, fetchPileStandard } from "../api/cpe_all/pile_basis";
+import { fetchBoredPileResults, fetchBoredPileStandard } from "../api/cpe_all/bored_pile_basis";
 import { detailProject } from "../api/cpe/project";
 import { detailWorkCondition, updateWorkCondition } from "../api/cpe/calc";
 import toast from "react-hot-toast";
@@ -19,15 +19,25 @@ import { arrayMove, SortableContext, verticalListSortingStrategy, useSortable } 
 import { CSS } from '@dnd-kit/utilities';
 
 import StandardImportModal from "../components/cpe/StandardImportModal";
+import TableToolbarRow from "../components/cpe/schedule/TableToolbarRow";
 import ScheduleHeader from "../components/cpe/schedule/ScheduleHeader";
 import ScheduleGanttPanel from "../components/cpe/schedule/ScheduleGanttPanel";
+import EvidenceResultModal from "../components/cpe/schedule/EvidenceResultModal";
 
 import { useScheduleStore } from "../stores/scheduleStore";
 import { calculateItem } from "../utils/solver";
 import { useConfirm } from "../contexts/ConfirmContext";
 import { summarizeScheduleAiLog } from "../api/cpe/schedule_ai";
 
-const SortableRow = ({ item, isLinked, handleChange, handleDeleteItem, handleAddItem, handleOpenImport, spanInfo, isOverlay }) => {
+const SortableRow = ({ item, isLinked, handleChange, handleDeleteItem, handleAddItem, handleOpenImport, spanInfo, isOverlay, rowClassName = "", operatingRates = [], workDayType = "6d" }) => {
+    const [rateOpen, setRateOpen] = useState(false);
+    const rateObj = operatingRates.find((rate) => rate.type === item.operating_rate_type);
+    let rateValue = item.operating_rate_value ?? 100;
+    if (rateObj) {
+        if (workDayType === "7d") rateValue = rateObj.pct_7d;
+        else if (workDayType === "5d") rateValue = rateObj.pct_5d;
+        else rateValue = rateObj.pct_6d;
+    }
     const {
         attributes,
         listeners,
@@ -56,14 +66,16 @@ const SortableRow = ({ item, isLinked, handleChange, handleDeleteItem, handleAdd
     }
 
     return (
-        <tr ref={setNodeRef} style={style} className={`hover:bg-white/5 transition-colors ${isDragging && !isOverlay ? "bg-blue-900/20" : ""}`}>
+        <tr ref={setNodeRef} style={style} className={`hover:bg-white/5 transition-colors text-base ${rowClassName} ${isDragging && !isOverlay ? "bg-blue-900/20" : ""}`}>
             {/* Drag Handle */}
             <td className="border-r border-gray-700 text-center text-gray-400 cursor-grab active:cursor-grabbing p-1" {...attributes} {...listeners}>
                 <GripVertical size={14} className="mx-auto" />
             </td>
 
-
-            {/* Main Category - Hidden (shown in section header) */}
+            {/* Main Category */}
+            <td className="border-r border-gray-700 px-2 py-1 text-center text-gray-200 text-base font-medium">
+                {item.main_category}
+            </td>
 
             {/* Process */}
             {(spanInfo.isProcFirst || isOverlay) && (
@@ -73,7 +85,7 @@ const SortableRow = ({ item, isLinked, handleChange, handleDeleteItem, handleAdd
                 >
                     <div className="flex flex-col h-full min-h-[40px] justify-between">
                         <input
-                            className="w-full bg-transparent outline-none font-medium text-gray-200 text-center text-sm mb-1"
+                            className="w-full bg-transparent outline-none font-medium text-gray-200 text-center text-base mb-1"
                             value={item.process}
                             onChange={(e) => handleChange(item.id, 'process', e.target.value)}
                         />
@@ -99,87 +111,104 @@ const SortableRow = ({ item, isLinked, handleChange, handleDeleteItem, handleAdd
             )}
 
             {/* Work Type */}
-            <td className="border-r border-gray-200 px-2 py-1">
+            <td className="border-r border-gray-700 px-2 py-1">
                 <div className="flex items-center gap-1">
                     {isLinked && <Link size={12} className="text-blue-500" />}
                     <input
                         type="text"
-                        className="w-full bg-transparent outline-none text-gray-200 p-1 rounded hover:bg-white/10 focus:bg-[#1f1f2b] focus:ring-1 focus:ring-blue-500/50 transition text-sm"
+                        className="w-full bg-transparent outline-none text-gray-200 p-1 rounded hover:bg-white/10 focus:bg-[#1f1f2b] focus:ring-1 focus:ring-blue-500/50 transition text-base font-medium"
                         value={item.work_type}
                         onChange={(e) => handleChange(item.id, 'work_type', e.target.value)}
                     />
                 </div>
             </td>
 
+            {/* Formula */}
+            <td className="border-r border-gray-700 p-1">
+                <input className="w-full text-right outline-none p-1 text-sm text-gray-400 bg-[#1f1f2b] rounded font-medium" value={item.quantity_formula || ''} placeholder="-" onChange={(e) => handleChange(item.id, 'quantity_formula', e.target.value)} />
+            </td>
+
             {/* Unit */}
-            <td className="border-r border-gray-200 p-1">
-                <input className="w-full text-center outline-none p-1 text-gray-300 bg-[#1f1f2b] rounded text-sm" value={item.unit} onChange={(e) => handleChange(item.id, 'unit', e.target.value)} />
+            <td className="border-r border-gray-700 p-1">
+                <input className="w-full text-center outline-none p-1 text-gray-300 bg-[#1f1f2b] rounded text-base font-medium" value={item.unit} onChange={(e) => handleChange(item.id, 'unit', e.target.value)} />
             </td>
 
             {/* Quantity */}
-            <td className="border-r border-gray-200 p-1">
-                <input className="w-full text-right outline-none p-1 font-bold text-gray-100 bg-[#1f1f2b] rounded text-sm" value={item.quantity} onChange={(e) => handleChange(item.id, 'quantity', e.target.value)} />
-            </td>
-
-            {/* Formula */}
-            <td className="border-r border-gray-200 p-1">
-                <input className="w-full text-right outline-none p-1 text-xs text-gray-400 bg-[#1f1f2b] rounded" value={item.quantity_formula || ''} placeholder="-" onChange={(e) => handleChange(item.id, 'quantity_formula', e.target.value)} />
+            <td className="border-r border-gray-700 p-1">
+                <input className="w-full text-right outline-none p-1 font-bold text-gray-100 bg-[#1f1f2b] rounded text-base tracking-tight" value={item.quantity} onChange={(e) => handleChange(item.id, 'quantity', e.target.value)} />
             </td>
 
             {/* Productivity */}
             <td className={`border-r border-gray-700 p-1 ${isLinked ? 'bg-blue-900/20' : ''}`}>
-                <input className={`w-full text-right outline-none p-1 text-sm bg-[#1f1f2b] rounded ${isLinked ? 'text-blue-300 font-bold' : 'text-gray-200'}`} value={item.productivity} disabled={isLinked} onChange={(e) => handleChange(item.id, 'productivity', e.target.value)} />
+                <input className={`w-full text-right outline-none p-1 text-base bg-[#1f1f2b] rounded ${isLinked ? 'text-blue-300 font-bold' : 'text-gray-200 font-semibold'}`} value={item.productivity} disabled={isLinked} onChange={(e) => handleChange(item.id, 'productivity', e.target.value)} />
             </td>
 
             {/* Crew */}
-            <td className="border-r border-gray-200 p-1">
-                <input className="w-full text-center outline-none p-1 text-gray-200 bg-[#1f1f2b] rounded text-sm" value={item.crew_size} onChange={(e) => handleChange(item.id, 'crew_size', e.target.value)} />
+            <td className="border-r border-gray-700 p-1">
+                <input className="w-full text-center outline-none p-1 text-gray-200 bg-[#1f1f2b] rounded text-base font-semibold" value={item.crew_size} onChange={(e) => handleChange(item.id, 'crew_size', e.target.value)} />
             </td>
 
             {/* Daily Prod */}
-            <td className="border-r border-gray-700 px-2 py-1 text-right text-gray-300 font-mono bg-[#1f1f2b] text-sm">
+            <td className="border-r border-gray-700 px-2 py-1 text-right text-gray-200 font-mono bg-[#1f1f2b] text-base font-semibold">
                 {item.daily_production?.toLocaleString()}
             </td>
 
+            {/* Apply Rate */}
+            <td className="border-r border-gray-700 p-1">
+                <div className="w-full text-right text-gray-200 text-base font-semibold bg-[#1f1f2b] rounded px-2 py-1">
+                    {rateValue}%
+                </div>
+            </td>
+
             {/* Working Days */}
-            <td className="border-r border-gray-700 px-2 py-1 text-right text-blue-300 font-bold font-mono text-sm">
+            <td className="border-r border-gray-700 px-2 py-1 text-right text-blue-300 font-bold font-mono text-base">
                 {parseFloat(item.working_days || 0).toFixed(1)}
             </td>
 
             {/* Op Rate */}
-            <td className="border-r border-gray-200 p-1">
-                <select className="w-full bg-[#1f1f2b] text-sm text-center outline-none text-gray-200 rounded" value={item.operating_rate_type} onChange={(e) => handleChange(item.id, 'operating_rate_type', e.target.value)}>
-                    <option value="EARTH">토목</option>
-                    <option value="FRAME">골조</option>
-                    <option value="EXT_FIN">외부</option>
-                    <option value="INT_FIN">내부</option>
-                </select>
+            <td className="border-r border-gray-700 p-1">
+                {rateOpen ? (
+                    <select
+                        className="w-full bg-[#1f1f2b] text-base text-center outline-none text-gray-200 rounded font-medium"
+                        value={item.operating_rate_type}
+                        onChange={(e) => {
+                            handleChange(item.id, 'operating_rate_type', e.target.value);
+                            setRateOpen(false);
+                        }}
+                        onBlur={() => setRateOpen(false)}
+                        autoFocus
+                    >
+                        <option value="EARTH">토목</option>
+                        <option value="FRAME">골조</option>
+                        <option value="EXT_FIN">외부</option>
+                        <option value="INT_FIN">내부</option>
+                    </select>
+                ) : (
+                    <button
+                        type="button"
+                        onClick={() => setRateOpen(true)}
+                        className="w-full text-base text-center text-gray-200 bg-[#1f1f2b] rounded font-medium py-1 hover:bg-white/10 transition"
+                    >
+                        {rateValue}%
+                    </button>
+                )}
             </td>
 
             {/* Cal Days */}
-            <td className="border-r border-gray-700 px-2 py-1 text-right text-blue-300 font-bold font-mono bg-blue-900/20 text-sm">
+            <td className="border-r border-gray-700 px-2 py-1 text-right text-blue-300 font-bold font-mono bg-blue-900/20 text-base">
                 {item.calendar_days}
-            </td>
-
-            {/* Cal Months */}
-            <td className="border-r border-gray-700 px-2 py-1 text-right text-gray-300 font-mono bg-blue-900/10 text-sm">
-                {item.calendar_months}
-            </td>
-
-            {/* Code */}
-            <td className="border-r border-gray-700 px-2 py-1 text-xs text-gray-400 truncate" title={item.standard_code}>
-                {item.standard_code}
+                <span className="ml-1 text-sm text-blue-200 font-semibold">일</span>
             </td>
 
             {/* Remarks */}
-            <td className="border-r border-gray-200 p-1">
-                <input className="w-full text-xs outline-none p-1 text-gray-300 bg-[#1f1f2b] rounded" value={item.remarks} onChange={(e) => handleChange(item.id, 'remarks', e.target.value)} />
+            <td className="border-r border-gray-700 p-1">
+                <input className="w-full text-sm outline-none p-1 text-gray-200 bg-[#1f1f2b] rounded font-medium" value={item.remarks} onChange={(e) => handleChange(item.id, 'remarks', e.target.value)} />
             </td>
 
             {/* Action */}
             <td className="p-1 text-center">
                 <button className="text-gray-400 hover:text-red-500 transition-colors" onClick={() => handleDeleteItem(item.id)}>
-                    <Trash2 size={12} />
+                    <Trash2 size={16} />
                 </button>
             </td>
         </tr>
@@ -692,10 +721,15 @@ export default function ScheduleMasterList() {
 
     const aiDisplayItems = aiPreviewItems || items;
 
-    const [cipResult, setCipResult] = useState(null);
-    const [pileResult, setPileResult] = useState(null);
-    const [boredResult, setBoredResult] = useState(null);
+    const [cipResult, setCipResult] = useState([]);
+    const [pileResult, setPileResult] = useState([]);
+    const [boredResult, setBoredResult] = useState([]);
+    const [cipStandards, setCipStandards] = useState([]);
+    const [pileStandards, setPileStandards] = useState([]);
+    const [boredStandards, setBoredStandards] = useState([]);
     const [startDate, setStartDate] = useState("");
+    const [evidenceModalOpen, setEvidenceModalOpen] = useState(false);
+    const [evidenceTargetParent, setEvidenceTargetParent] = useState(null);
 
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
@@ -714,13 +748,26 @@ export default function ScheduleMasterList() {
     const loadData = useCallback(async () => {
         try {
             setLoading(true);
-            const [fetchedData, rateData, cipData, pileData, boredData, projectData] = await Promise.all([
+            const [
+                fetchedData,
+                rateData,
+                cipData,
+                pileData,
+                boredData,
+                projectData,
+                cipStdData,
+                pileStdData,
+                boredStdData
+            ] = await Promise.all([
                 fetchScheduleItems(projectId),
                 detailOperatingRate(projectId),
                 fetchCIPResults(projectId),
                 fetchPileResults(projectId),
                 fetchBoredPileResults(projectId),
-                detailProject(projectId)
+                detailProject(projectId),
+                fetchCIPStandard(),
+                fetchPileStandard(),
+                fetchBoredPileStandard()
             ]);
 
             // Handle Initial Init
@@ -760,9 +807,15 @@ export default function ScheduleMasterList() {
             setStoreItems(scheduleItems); // Will calculate in store
             setStoreLinks(scheduleLinks);
 
-            setCipResult(Array.isArray(cipData) ? cipData[0] : (cipData.results?.[0] || null));
-            setPileResult(Array.isArray(pileData) ? pileData[0] : (pileData.results?.[0] || null));
-            setBoredResult(Array.isArray(boredData) ? boredData[0] : (boredData.results?.[0] || null));
+            const cipList = Array.isArray(cipData) ? cipData : (cipData.results || []);
+            const pileList = Array.isArray(pileData) ? pileData : (pileData.results || []);
+            const boredList = Array.isArray(boredData) ? boredData : (boredData.results || []);
+            setCipResult(cipList);
+            setPileResult(pileList);
+            setBoredResult(boredList);
+            setCipStandards(Array.isArray(cipStdData) ? cipStdData : (cipStdData.results || []));
+            setPileStandards(Array.isArray(pileStdData) ? pileStdData : (pileStdData.results || []));
+            setBoredStandards(Array.isArray(boredStdData) ? boredStdData : (boredStdData.results || []));
             // Start Date is NOT in Items JSON for now, assuming Project Model still holds it as metadata (User said remove from DB, but actually meaning remove from ITEM TABLE. Project table still has it? Or do we store it in JSON meta? For now let's stick to Project Start Date as it is working.)
             // User said "remove star_date and working condition and Change DB completely to JSON". 
             // He might mean store start_date in JSON too. But I'll keep it simple: UI works with Project Date.
@@ -799,6 +852,36 @@ export default function ScheduleMasterList() {
     useEffect(() => {
         loadData();
     }, [loadData]);
+
+    const handleAddEvidenceItem = useCallback((type, row) => {
+        const parent = evidenceTargetParent || items[0];
+        if (!parent) {
+            toast.error("추가할 위치를 찾을 수 없습니다.");
+            return;
+        }
+        const label = row.label || (type === "cip" ? "CIP" : type === "pile" ? "Pile" : "Bored");
+        const newItem = {
+            id: `evidence-${type}-${row.id}-${Date.now()}`,
+            main_category: parent.main_category || "근거 데이터",
+            process: parent.process || `${label} 결과`,
+            work_type: label,
+            unit: parent.unit || "",
+            quantity: row.total_depth ?? 0,
+            quantity_formula: row.calculation_formula || "",
+            productivity: row.daily_production_count ?? 0,
+            crew_size: parent.crew_size || 1,
+            remarks: row.description || row.remark || "",
+            operating_rate_type: parent.operating_rate_type || "EARTH",
+            operating_rate_value: parent.operating_rate_value || 0
+        };
+        const index = items.findIndex((item) => item.id === parent.id);
+        if (index >= 0) {
+            addItemAtIndex(newItem, index + 1);
+        } else {
+            addItem(newItem);
+        }
+        toast.success("근거 결과 항목이 추가되었습니다.");
+    }, [addItem, addItemAtIndex, evidenceTargetParent, items]);
 
     // --- Store Actions Wrapper ---
 
@@ -873,7 +956,8 @@ export default function ScheduleMasterList() {
                 crew_size: 1,
                 operating_rate_type: "EARTH",
                 operating_rate_value: 0,
-                standard_code: std.code || std.standard
+                standard_code: std.code || std.standard,
+                remarks: std.item_name || ""
             };
 
             if (importTargetParent) {
@@ -1121,54 +1205,54 @@ export default function ScheduleMasterList() {
                         onDragStart={handleDragStart}
                         onDragEnd={handleDragEnd}
                     >
-                        <table className="w-full text-sm box-border table-fixed border-collapse bg-[#2c2c3a] rounded-lg overflow-hidden text-gray-200">
+                        <table className="w-full text-m box-border table-fixed border-collapse bg-[#2c2c3a] rounded-lg overflow-hidden text-gray-200">
                             <colgroup>
                                 <col width="30" />  {/* Drag Handle */}
-                                <col width="120" /> {/* Process (Merged) */}
-                                <col width="180" /> {/* Work Type */}
+                                <col width="120" /> {/* Main Category */}
+                                <col width="140" /> {/* Process (Merged) */}
+                                <col width="240" /> {/* Work Type */}
+                                <col width="140" /> {/* Quantity Formula */}
                                 <col width="60" />  {/* Unit */}
                                 <col width="90" />  {/* Quantity */}
-                                <col width="120" /> {/* Quantity Rate (Cal) */}
                                 <col width="90" />  {/* Productivity */}
-                                <col width="50" />  {/* Crew */}
-                                <col width="90" />  {/* Daily Prod */}
-                                <col width="80" />  {/* Working Days */}
-                                <col width="70" />  {/* Op Rate */}
-                                <col width="80" />  {/* Cal Days */}
-                                <col width="70" />  {/* Cal Months */}
-                                <col width="100" /> {/* Std Code */}
-                                <col width="120" /> {/* Remarks */}
-                                <col width="50" />  {/* Action */}
+                                <col width="60" />  {/* Crew */}
+                                <col width="100" /> {/* Daily Prod */}
+                                <col width="80" />  {/* Apply Rate */}
+                                <col width="90" />  {/* Working Days */}
+                                <col width="80" />  {/* Op Rate */}
+                                <col width="100" /> {/* Cal Days */}
+                                <col width="220" /> {/* Remarks */}
+                                <col width="45" />  {/* Action */}
                             </colgroup>
                             <thead className="bg-[#3a3a4a] text-gray-200 sticky top-0 z-[2] shadow-sm border-b border-gray-700">
                                 <tr>
                                     <th className="border-r border-gray-700 px-2 py-3 bg-[#343446]"></th>
-                                    <th className="border-r border-gray-700 px-2 py-3 font-bold bg-[#343446] text-center" colSpan={2}>분류</th>
-                                    <th className="border-r border-gray-700 px-2 py-3 font-bold bg-[#343446] text-center" colSpan={3}>물량</th>
-                                    <th className="border-r border-gray-700 px-2 py-3 font-bold bg-[#343446] text-center text-blue-300" colSpan={4}>산정</th>
-                                    <th className="border-r border-gray-700 px-2 py-3 font-bold bg-[#343446] text-center" colSpan={3}>정보</th>
+                                    <th className="border-r border-gray-700 px-2 py-3 font-bold bg-[#343446] text-center" colSpan={3}>분류</th>
+                                    <th className="border-r border-gray-700 px-2 py-3 font-bold bg-[#343446] text-center" colSpan={3}>수량</th>
+                                    <th className="border-r border-gray-700 px-2 py-3 font-bold bg-[#343446] text-center text-blue-300" colSpan={6}>산정</th>
+                                    <th className="border-r border-gray-700 px-2 py-3 font-bold bg-[#343446] text-center" colSpan={2}>정보</th>
+                                    <th className="border-r border-gray-700 px-2 py-3 font-bold bg-[#343446] text-center">기능</th>
                                 </tr>
                                 <tr className="bg-[#2c2c3a] text-gray-300 font-medium">
                                     <th className="border-r border-gray-700 px-1"></th>
+                                    <th className="border-r border-gray-700 px-2 py-2">구분</th>
+                                    <th className="border-r border-gray-700 px-2 py-2">공정</th>
                                     <th className="border-r border-gray-700 px-2 py-2">공종</th>
-                                    <th className="border-r border-gray-700 px-2 py-2">세부공종</th>
 
+                                    <th className="border-r border-gray-700 px-2 py-2">수량산출(개산)</th>
                                     <th className="border-r border-gray-700 px-2 py-2">단위</th>
-                                    <th className="border-r border-gray-700 px-2 py-2">물량</th>
-                                    <th className="border-r border-gray-700 px-2 py-2">산출식</th>
+                                    <th className="border-r border-gray-700 px-2 py-2">내역수량</th>
 
-                                    <th className="border-r border-gray-700 px-2 py-2">일생산성</th>
-                                    <th className="border-r border-gray-700 px-2 py-2">작업조</th>
-                                    <th className="border-r border-gray-700 px-2 py-2">일작업량</th>
-
-                                    <th className="border-r border-gray-700 px-2 py-2 text-blue-300">작업일수</th>
+                                    <th className="border-r border-gray-700 px-2 py-2">단위 작업량</th>
+                                    <th className="border-r border-gray-700 px-2 py-2">투입조</th>
+                                    <th className="border-r border-gray-700 px-2 py-2">생산량/일</th>
+                                    <th className="border-r border-gray-700 px-2 py-2">반영율</th>
+                                    <th className="border-r border-gray-700 px-2 py-2 text-blue-300">작업기간(W.D)</th>
                                     <th className="border-r border-gray-700 px-2 py-2">가동율</th>
-                                    <th className="border-r border-gray-700 px-2 py-2 text-blue-200 font-bold bg-blue-900/20">공사기간</th>
-                                    <th className="border-r border-gray-700 px-2 py-2 text-blue-200 font-bold bg-blue-900/20">개월수</th>
 
-                                    <th className="border-r border-gray-700 px-2 py-2">표준코드</th>
+                                    <th className="border-r border-gray-700 px-2 py-2 text-blue-200 font-bold bg-blue-900/20">Calender Day</th>
                                     <th className="border-r border-gray-700 px-2 py-2">비고</th>
-                                    <th className="border-r border-gray-700 px-2 py-2">기능</th>
+                                    <th className="border-r border-gray-700 px-2 py-2"></th>
                                 </tr>
                             </thead>
                             <SortableContext items={items} strategy={verticalListSortingStrategy}>
@@ -1198,51 +1282,44 @@ export default function ScheduleMasterList() {
                                                                     {categoryItems.length}개 항목
                                                                 </span>
                                                             </div>
-                                                            {/* Action Buttons */}
-                                                            <div className="flex items-center gap-2">
-                                                                {/* Standard Import Button */}
-                                                                <button
-                                                                    onClick={() => {
-                                                                        const lastCategoryItem = categoryItems[categoryItems.length - 1] || items[0];
-                                                                        if (lastCategoryItem) {
-                                                                            handleOpenImport({
-                                                                                ...lastCategoryItem,
-                                                                                main_category: category
-                                                                            });
-                                                                        }
-                                                                    }}
-                                                                    className="flex items-center gap-1.5 px-3 py-1.5 bg-green-500 hover:bg-green-600 text-white rounded-lg text-sm font-medium shadow-sm transition-all hover:shadow-md active:scale-95"
-                                                                >
-                                                                    <RefreshCw size={16} />
-                                                                    <span>표준품셈 선택</span>
-                                                                </button>
-
-                                                                {/* Add Item Button */}
-                                                                <button
-                                                                    onClick={() => {
-                                                                        const lastCategoryItem = categoryItems[categoryItems.length - 1] || items[0];
-                                                                        if (lastCategoryItem) {
-                                                                            handleAddItem({
-                                                                                ...lastCategoryItem,
-                                                                                main_category: category,
-                                                                                process: category === lastCategoryItem.main_category ? lastCategoryItem.process : ''
-                                                                            });
-                                                                        }
-                                                                    }}
-                                                                    className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-500 hover:bg-blue-600 text-white rounded-lg text-sm font-medium shadow-sm transition-all hover:shadow-md active:scale-95"
-                                                                >
-                                                                    <Plus size={16} />
-                                                                    <span>항목 추가</span>
-                                                                </button>
-                                                            </div>
                                                         </div>
                                                     </td>
                                                 </tr>
+                                                <TableToolbarRow
+                                                    colSpan={16}
+                                                    onImport={() => {
+                                                        const lastCategoryItem = categoryItems[categoryItems.length - 1] || items[0];
+                                                        if (lastCategoryItem) {
+                                                            handleOpenImport({
+                                                                ...lastCategoryItem,
+                                                                main_category: category
+                                                            });
+                                                        }
+                                                    }}
+                                                    onAdd={() => {
+                                                        const lastCategoryItem = categoryItems[categoryItems.length - 1] || items[0];
+                                                        if (lastCategoryItem) {
+                                                            handleAddItem({
+                                                                ...lastCategoryItem,
+                                                                main_category: category,
+                                                                process: category === lastCategoryItem.main_category ? lastCategoryItem.process : ''
+                                                            });
+                                                        }
+                                                    }}
+                                                    onEvidence={() => {
+                                                        const lastCategoryItem = categoryItems[categoryItems.length - 1] || items[0];
+                                                        setEvidenceTargetParent(lastCategoryItem || null);
+                                                        setEvidenceModalOpen(true);
+                                                    }}
+                                                />
                                                 {/* Category Items */}
-                                                {categoryItems.map((item) => (
+                                                {categoryItems.map((item, rowIndex) => (
                                                     <SortableRow
                                                         key={item.id}
                                                         item={item}
+                                                        rowClassName={rowIndex % 2 === 0 ? "bg-[#232332]" : "bg-[#2c2c3a]"}
+                                                        operatingRates={operatingRates}
+                                                        workDayType={workDayType}
                                                         isLinked={item.link_module_type && item.link_module_type !== 'NONE'}
                                                         handleChange={handleChange}
                                                         handleDeleteItem={handleDeleteItem}
@@ -1263,25 +1340,27 @@ export default function ScheduleMasterList() {
                                         <colgroup>
                                             <col width="30" />
                                             <col width="120" />
-                                            <col width="180" />
+                                            <col width="140" />
+                                            <col width="240" />
+                                            <col width="140" />
                                             <col width="60" />
                                             <col width="90" />
-                                            <col width="120" />
                                             <col width="90" />
-                                            <col width="50" />
-                                            <col width="90" />
-                                            <col width="80" />
-                                            <col width="70" />
-                                            <col width="80" />
-                                            <col width="70" />
+                                            <col width="60" />
                                             <col width="100" />
-                                            <col width="120" />
-                                            <col width="50" />
+                                            <col width="80" />
+                                            <col width="90" />
+                                            <col width="80" />
+                                            <col width="100" />
+                                            <col width="220" />
+                                            <col width="45" />
                                         </colgroup>
                                         <tbody>
                                             <SortableRow
                                                 item={activeItem}
                                                 isLinked={activeItem.link_module_type && activeItem.link_module_type !== 'NONE'}
+                                                operatingRates={operatingRates}
+                                                workDayType={workDayType}
                                                 handleChange={() => { }}
                                                 handleDeleteItem={() => { }}
                                                 handleAddItem={() => { }}
@@ -1303,6 +1382,30 @@ export default function ScheduleMasterList() {
                 onClose={() => setImportModalOpen(false)}
                 onSelect={handleImportSelect}
                 project_id={projectId}
+            />
+
+            <EvidenceResultModal
+                isOpen={evidenceModalOpen}
+                onClose={() => setEvidenceModalOpen(false)}
+                cipResults={cipResult.map((row) => ({
+                    ...row,
+                    key: `cip-${row.id}`,
+                    label: row.diameter_selection ? `D${row.diameter_selection}` : "CIP"
+                }))}
+                pileResults={pileResult.map((row) => ({
+                    ...row,
+                    key: `pile-${row.id}`,
+                    label: row.diameter_selection ? `D${row.diameter_selection}` : "Pile"
+                }))}
+                boredResults={boredResult.map((row) => ({
+                    ...row,
+                    key: `bored-${row.id}`,
+                    label: row.diameter_selection ? `D${row.diameter_selection}` : "Bored"
+                }))}
+                cipStandards={cipStandards}
+                pileStandards={pileStandards}
+                boredStandards={boredStandards}
+                onAddItem={handleAddEvidenceItem}
             />
 
             <SnapshotManager
