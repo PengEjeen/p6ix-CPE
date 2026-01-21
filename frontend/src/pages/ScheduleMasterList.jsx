@@ -739,6 +739,7 @@ export default function ScheduleMasterList() {
     const [snapshotModalOpen, setSnapshotModalOpen] = useState(false);
     const [importTargetParent, setImportTargetParent] = useState(null);
     const [viewMode, setViewMode] = useState("table"); // "table" or "gantt"
+    const [newMainCategory, setNewMainCategory] = useState("");
 
     // Dnd Sensors
     const sensors = useSensors(
@@ -913,6 +914,31 @@ export default function ScheduleMasterList() {
         }
     };
 
+    const handleAddMainCategory = () => {
+        const name = newMainCategory.trim();
+        if (!name) {
+            toast.error("대공종명을 입력해주세요.");
+            return;
+        }
+        const newItem = {
+            id: `main-${Date.now()}`,
+            main_category: name,
+            process: "새 공정",
+            work_type: "새 세부작업",
+            unit: "",
+            quantity: 0,
+            quantity_formula: "",
+            productivity: 0,
+            crew_size: 1,
+            remarks: "",
+            operating_rate_type: "EARTH",
+            operating_rate_value: 0
+        };
+        addItem(newItem);
+        setNewMainCategory("");
+        toast.success("대공종이 추가되었습니다.");
+    };
+
     // --- Gantt to Store Connection ---
     const handleGanttResize = (itemId, newCalendarDays, mode = 'crew') => {
         // Mode-based Resize (Crew Adjustment vs Productivity Adjustment)
@@ -1045,6 +1071,13 @@ export default function ScheduleMasterList() {
         const ok = await confirm("삭제하시겠습니까?");
         if (!ok) return;
         deleteItem(id);
+    };
+
+    const handleDeleteCategory = async (category, categoryItems) => {
+        const ok = await confirm(`${category} 대공종을 삭제하시겠습니까? (항목 ${categoryItems.length}개)`);
+        if (!ok) return;
+        categoryItems.forEach((item) => deleteItem(item.id));
+        toast.success("대공종이 삭제되었습니다.");
     };
 
     const handleDragEnd = (event) => {
@@ -1259,24 +1292,55 @@ export default function ScheduleMasterList() {
                                         }, {});
 
                                         // Render grouped rows
-                                        return Object.entries(groupedItems).map(([category, categoryItems]) => (
+                                        return [
+                                            (
+                                                <tr key="add-main-category" className="bg-[#232332]">
+                                                    <td colSpan="16" className="px-4 py-3">
+                                                        <div className="flex flex-wrap items-center gap-3">
+                                                            <div className="text-sm font-semibold text-gray-200">대공종 추가</div>
+                                                            <input
+                                                                type="text"
+                                                                value={newMainCategory}
+                                                                onChange={(e) => setNewMainCategory(e.target.value)}
+                                                                placeholder="대공종명 입력"
+                                                                className="min-w-[220px] bg-[#1f1f2b] border border-gray-600 rounded px-3 py-1.5 text-sm text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500/40"
+                                                            />
+                                                            <button
+                                                                type="button"
+                                                                onClick={handleAddMainCategory}
+                                                                className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-blue-600 text-white hover:bg-blue-500"
+                                                            >
+                                                                추가
+                                                            </button>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            ),
+                                            ...Object.entries(groupedItems).map(([category, categoryItems]) => (
                                             <React.Fragment key={category}>
                                                 {/* Section Header */}
                                                 <tr className="bg-gradient-to-r from-[#2c2c3a] to-[#242433] border-t border-gray-700">
                                                     <td colSpan="16" className="px-4 py-2.5">
                                                         <div className="flex items-center justify-between gap-2">
-                                                            <div className="flex items-center gap-2">
-                                                                <div className="w-1 h-5 bg-blue-400 rounded-full"></div>
-                                                                <h3 className="font-bold text-gray-100 text-base tracking-tight">
-                                                                    {category}
-                                                                </h3>
-                                                                <span className="text-xs text-gray-400 bg-[#1f1f2b] px-2 py-0.5 rounded-full border border-gray-700">
-                                                                    {categoryItems.length}개 항목
-                                                                </span>
-                                                            </div>
+                                                        <div className="flex items-center gap-2">
+                                                            <div className="w-1 h-5 bg-blue-400 rounded-full"></div>
+                                                            <h3 className="font-bold text-gray-100 text-base tracking-tight">
+                                                                {category}
+                                                            </h3>
+                                                            <span className="text-xs text-gray-400 bg-[#1f1f2b] px-2 py-0.5 rounded-full border border-gray-700">
+                                                                {categoryItems.length}개 항목
+                                                            </span>
                                                         </div>
-                                                    </td>
-                                                </tr>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleDeleteCategory(category, categoryItems)}
+                                                            className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-red-500/40 text-red-200 hover:bg-red-500/10"
+                                                        >
+                                                            대공종 삭제
+                                                        </button>
+                                                    </div>
+                                                </td>
+                                            </tr>
                                                 <TableToolbarRow
                                                     colSpan={16}
                                                     onImport={() => {
@@ -1321,7 +1385,8 @@ export default function ScheduleMasterList() {
                                                     />
                                                 ))}
                                             </React.Fragment>
-                                        ));
+                                            ))
+                                        ];
                                     })()}
                                 </tbody>
                             </SortableContext>
