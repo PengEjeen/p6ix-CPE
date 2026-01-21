@@ -50,7 +50,7 @@ INSTALLED_APPS = [
     "django_json_widget",
 
     "user",
-    "weather",
+    "operatio",
     "cpe_module",
     "cpe_all_module",
 ]

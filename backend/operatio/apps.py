@@ -1,6 +1,7 @@
 from django.apps import AppConfig
 
 
-class WeatherConfig(AppConfig):
+class OperatioConfig(AppConfig):
     default_auto_field = "django.db.models.BigAutoField"
-    name = "weather"
+    name = "operatio"
+    verbose_name = "Operatio"

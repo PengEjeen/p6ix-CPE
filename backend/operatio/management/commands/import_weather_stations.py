@@ -3,22 +3,22 @@ from pathlib import Path
 
 from django.core.management.base import BaseCommand
 
-from weather.models import WeatherStation
+from operatio.models import WeatherStation
 
 
 class Command(BaseCommand):
-    help = "Import weather station list from backend/weather/data/지점목록.csv"
+    help = "Import station list from backend/operatio/data/지점목록.csv"
 
     def add_arguments(self, parser):
         parser.add_argument(
             "--path",
             default=None,
-            help="Optional CSV path. Defaults to backend/weather/data/지점목록.csv",
+            help="Optional CSV path. Defaults to backend/operatio/data/지점목록.csv",
         )
 
     def handle(self, *args, **options):
         base_dir = Path(__file__).resolve().parents[4]
-        csv_path = options["path"] or (base_dir / "backend" / "weather" / "data" / "지점목록.csv")
+        csv_path = options["path"] or (base_dir / "backend" / "operatio" / "data" / "지점목록.csv")
         csv_path = Path(csv_path)
 
         if not csv_path.exists():
