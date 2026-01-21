@@ -120,12 +120,16 @@ api.interceptors.response.use(
         // 세션을 유지(리다이렉트 X)하고 에러만 올려 UI가 재시도할 수 있게 둠.
         const res = await refreshClient.post("users/token/refresh/", { refresh });
         const newAccess = res.data?.access;
+        const newRefresh = res.data?.refresh;
         if (!newAccess) {
           forceLogout();
           return Promise.reject(error);
         }
 
         setAccessToken(newAccess);
+        if (newRefresh) {
+          localStorage.setItem("refresh", newRefresh);
+        }
         processQueue(null, newAccess);
 
         originalRequest.headers.Authorization = `Bearer ${newAccess}`;

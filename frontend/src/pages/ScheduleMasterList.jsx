@@ -1205,7 +1205,7 @@ export default function ScheduleMasterList() {
                         onDragStart={handleDragStart}
                         onDragEnd={handleDragEnd}
                     >
-                        <table className="w-full text-m box-border table-fixed border-collapse bg-[#2c2c3a] rounded-lg overflow-hidden text-gray-200">
+                        <table className="w-full text-m box-border table-fixed border-collapse bg-[#2c2c3a] rounded-lg text-gray-200">
                             <colgroup>
                                 <col width="30" />  {/* Drag Handle */}
                                 <col width="120" /> {/* Main Category */}
@@ -1224,35 +1224,27 @@ export default function ScheduleMasterList() {
                                 <col width="220" /> {/* Remarks */}
                                 <col width="45" />  {/* Action */}
                             </colgroup>
-                            <thead className="bg-[#3a3a4a] text-gray-200 sticky top-0 z-[2] shadow-sm border-b border-gray-700">
-                                <tr>
-                                    <th className="border-r border-gray-700 px-2 py-3 bg-[#343446]"></th>
-                                    <th className="border-r border-gray-700 px-2 py-3 font-bold bg-[#343446] text-center" colSpan={3}>분류</th>
-                                    <th className="border-r border-gray-700 px-2 py-3 font-bold bg-[#343446] text-center" colSpan={3}>수량</th>
-                                    <th className="border-r border-gray-700 px-2 py-3 font-bold bg-[#343446] text-center text-blue-300" colSpan={6}>산정</th>
-                                    <th className="border-r border-gray-700 px-2 py-3 font-bold bg-[#343446] text-center" colSpan={2}>정보</th>
-                                    <th className="border-r border-gray-700 px-2 py-3 font-bold bg-[#343446] text-center">기능</th>
-                                </tr>
-                                <tr className="bg-[#2c2c3a] text-gray-300 font-medium">
-                                    <th className="border-r border-gray-700 px-1"></th>
-                                    <th className="border-r border-gray-700 px-2 py-2">구분</th>
-                                    <th className="border-r border-gray-700 px-2 py-2">공정</th>
-                                    <th className="border-r border-gray-700 px-2 py-2">공종</th>
+                            <thead className="bg-[#3a3a4a] text-gray-200">
+                                <tr className="bg-[#2c2c3a] text-gray-300 font-medium sticky top-0 z-[2] shadow-sm border-b border-gray-700">
+                                    <th className="sticky top-0 bg-[#2c2c3a] border-r border-gray-700 px-1 z-10"></th>
+                                    <th className="sticky top-0 bg-[#2c2c3a] border-r border-gray-700 px-2 py-2 z-10">구분</th>
+                                    <th className="sticky top-0 bg-[#2c2c3a] border-r border-gray-700 px-2 py-2 z-10">공정</th>
+                                    <th className="sticky top-0 bg-[#2c2c3a] border-r border-gray-700 px-2 py-2 z-10">공종</th>
 
-                                    <th className="border-r border-gray-700 px-2 py-2">수량산출(개산)</th>
-                                    <th className="border-r border-gray-700 px-2 py-2">단위</th>
-                                    <th className="border-r border-gray-700 px-2 py-2">내역수량</th>
+                                    <th className="sticky top-0 bg-[#2c2c3a] border-r border-gray-700 px-2 py-2 z-10">수량산출(개산)</th>
+                                    <th className="sticky top-0 bg-[#2c2c3a] border-r border-gray-700 px-2 py-2 z-10">단위</th>
+                                    <th className="sticky top-0 bg-[#2c2c3a] border-r border-gray-700 px-2 py-2 z-10">내역수량</th>
 
-                                    <th className="border-r border-gray-700 px-2 py-2">단위 작업량</th>
-                                    <th className="border-r border-gray-700 px-2 py-2">투입조</th>
-                                    <th className="border-r border-gray-700 px-2 py-2">생산량/일</th>
-                                    <th className="border-r border-gray-700 px-2 py-2">반영율</th>
-                                    <th className="border-r border-gray-700 px-2 py-2 text-blue-300">작업기간(W.D)</th>
-                                    <th className="border-r border-gray-700 px-2 py-2">가동율</th>
+                                    <th className="sticky top-0 bg-[#2c2c3a] border-r border-gray-700 px-2 py-2 z-10">단위 작업량</th>
+                                    <th className="sticky top-0 bg-[#2c2c3a] border-r border-gray-700 px-2 py-2 z-10">투입조</th>
+                                    <th className="sticky top-0 bg-[#2c2c3a] border-r border-gray-700 px-2 py-2 z-10">생산량/일</th>
+                                    <th className="sticky top-0 bg-[#2c2c3a] border-r border-gray-700 px-2 py-2 z-10">반영율</th>
+                                    <th className="sticky top-0 bg-[#2c2c3a] border-r border-gray-700 px-2 py-2 text-blue-300 z-10">작업기간(W.D)</th>
+                                    <th className="sticky top-0 bg-[#2c2c3a] border-r border-gray-700 px-2 py-2 z-10">가동율</th>
 
-                                    <th className="border-r border-gray-700 px-2 py-2 text-blue-200 font-bold bg-blue-900/20">Calender Day</th>
-                                    <th className="border-r border-gray-700 px-2 py-2">비고</th>
-                                    <th className="border-r border-gray-700 px-2 py-2"></th>
+                                    <th className="sticky top-0 bg-blue-900/40 border-r border-gray-700 px-2 py-2 text-blue-200 font-bold z-10">Calender Day</th>
+                                    <th className="sticky top-0 bg-[#2c2c3a] border-r border-gray-700 px-2 py-2 z-10">비고</th>
+                                    <th className="sticky top-0 bg-[#2c2c3a] border-r border-gray-700 px-2 py-2 z-10"></th>
                                 </tr>
                             </thead>
                             <SortableContext items={items} strategy={verticalListSortingStrategy}>
