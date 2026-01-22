@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import WeatherStation, WeatherDailyRecord
+from .models import WeatherStation, WeatherDailyRecord, PublicHoliday
 
 
 @admin.register(WeatherStation)
@@ -195,3 +195,51 @@ class WeatherDailyRecordAdmin(admin.ModelAdmin):
     
     # 레코드 수가 많을 수 있으므로 페이지당 표시 수 설정
     list_per_page = 50
+
+
+@admin.register(PublicHoliday)
+class PublicHolidayAdmin(admin.ModelAdmin):
+    list_display = [
+        "date",
+        "name",
+        "is_private",
+        "date_kind",
+        "is_holiday",
+        "seq",
+    ]
+    list_display_links = ["date", "name"]
+    list_filter = ["is_private", "is_holiday", "date_kind"]
+    search_fields = ["name", "date"]
+    date_hierarchy = "date"
+    ordering = ["-date", "seq"]
+    
+    fieldsets = (
+        (
+            "공휴일 정보",
+            {
+                "fields": (
+                    "date",
+                    "name",
+                    "is_private",
+                    "is_holiday",
+                    "date_kind",
+                    "seq",
+                    "locdate",
+                )
+            },
+        ),
+        (
+            "시스템",
+            {
+                "fields": (
+                    "created_at",
+                    "updated_at",
+                ),
+                "classes": ["collapse"],
+            },
+        ),
+    )
+    
+    readonly_fields = ["created_at", "updated_at"]
+    list_per_page = 100
+

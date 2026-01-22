@@ -1,5 +1,5 @@
 import os
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 
 import requests
 from django.core.management.base import BaseCommand
@@ -17,13 +17,31 @@ class Command(BaseCommand):
         parser.add_argument("--station-ids", default=None, help="Comma-separated station ids")
 
     def handle(self, *args, **options):
-        service_key = options["service_key"] or os.getenv("WEATHER_SERVICE_KEY") or os.getenv("DATA_GO_KR_SERVICE_KEY")
+        service_key = (
+            options.get("service_key")
+            or os.getenv("WEATHER_API_KEY")
+            or os.getenv("WEATHER_SERVICE_KEY")
+            or os.getenv("DATA_GO_KR_SERVICE_KEY")
+        )
         if not service_key:
-            self.stderr.write(self.style.ERROR("Missing service key. Use --service-key or env WEATHER_SERVICE_KEY."))
+            self.stderr.write(self.style.ERROR("Missing service key. Use --service-key or env WEATHER_API_KEY."))
             return
 
         start = options["start"]
         end = options["end"] or date.today().strftime("%Y%m%d")
+        try:
+            end_date = datetime.strptime(end, "%Y%m%d").date()
+        except ValueError:
+            end_date = date.today()
+        max_end_date = date.today() - timedelta(days=1)
+        if end_date > max_end_date:
+            self.stdout.write(
+                self.style.WARNING(
+                    f"End date {end_date} exceeds latest available date {max_end_date}. Capping end date."
+                )
+            )
+            end_date = max_end_date
+            end = end_date.strftime("%Y%m%d")
         station_ids_arg = options["station_ids"]
 
         if station_ids_arg:
@@ -84,12 +102,30 @@ class Command(BaseCommand):
                 response = requests.get(url, params=params, timeout=30)
                 response.raise_for_status()
                 payload = response.json()
+                header = payload.get("response", {}).get("header", {})
+                result_code = header.get("resultCode")
+                result_msg = header.get("resultMsg")
+                if result_code and result_code != "00":
+                    self.stderr.write(
+                        self.style.ERROR(
+                            f"Station {station_id}: API error {result_code} {result_msg}"
+                        )
+                    )
+                    break
                 body = payload.get("response", {}).get("body", {})
                 items = body.get("items", {}).get("item", [])
+                if isinstance(items, dict):
+                    items = [items]
                 if total_count is None:
                     total_count = int(body.get("totalCount") or 0)
 
                 if not items:
+                    if total_count and page == 1:
+                        self.stderr.write(
+                            self.style.WARNING(
+                                f"Station {station_id}: totalCount={total_count} but no items returned."
+                            )
+                        )
                     break
 
                 for item in items:

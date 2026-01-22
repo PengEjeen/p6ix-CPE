@@ -1273,7 +1273,7 @@ export default function ScheduleMasterList() {
                                     <th className="sticky top-0 bg-[#2c2c3a] border-r border-gray-700 px-2 py-2 z-10">생산량/일</th>
                                     <th className="sticky top-0 bg-[#2c2c3a] border-r border-gray-700 px-2 py-2 z-10">반영율</th>
                                     <th className="sticky top-0 bg-[#2c2c3a] border-r border-gray-700 px-2 py-2 text-blue-300 z-10">작업기간(W.D)</th>
-                                    <th className="sticky top-0 bg-[#2c2c3a] border-r border-gray-700 px-2 py-2 z-10">가동율</th>
+                                    <th className="sticky top-0 bg-[#2c2c3a] border-r border-gray-700 px-2 py-2 z-10">가동률</th>
 
                                     <th className="sticky top-0 bg-blue-900/40 border-r border-gray-700 px-2 py-2 text-blue-200 font-bold z-10">Calender Day</th>
                                     <th className="sticky top-0 bg-[#2c2c3a] border-r border-gray-700 px-2 py-2 z-10">비고</th>
@@ -1317,74 +1317,74 @@ export default function ScheduleMasterList() {
                                                 </tr>
                                             ),
                                             ...Object.entries(groupedItems).map(([category, categoryItems]) => (
-                                            <React.Fragment key={category}>
-                                                {/* Section Header */}
-                                                <tr className="bg-gradient-to-r from-[#2c2c3a] to-[#242433] border-t border-gray-700">
-                                                    <td colSpan="16" className="px-4 py-2.5">
-                                                        <div className="flex items-center justify-between gap-2">
-                                                        <div className="flex items-center gap-2">
-                                                            <div className="w-1 h-5 bg-blue-400 rounded-full"></div>
-                                                            <h3 className="font-bold text-gray-100 text-base tracking-tight">
-                                                                {category}
-                                                            </h3>
-                                                            <span className="text-xs text-gray-400 bg-[#1f1f2b] px-2 py-0.5 rounded-full border border-gray-700">
-                                                                {categoryItems.length}개 항목
-                                                            </span>
-                                                        </div>
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => handleDeleteCategory(category, categoryItems)}
-                                                            className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-red-500/40 text-red-200 hover:bg-red-500/10"
-                                                        >
-                                                            대공종 삭제
-                                                        </button>
-                                                    </div>
-                                                </td>
-                                            </tr>
-                                                <TableToolbarRow
-                                                    colSpan={16}
-                                                    onImport={() => {
-                                                        const lastCategoryItem = categoryItems[categoryItems.length - 1] || items[0];
-                                                        if (lastCategoryItem) {
-                                                            handleOpenImport({
-                                                                ...lastCategoryItem,
-                                                                main_category: category
-                                                            });
-                                                        }
-                                                    }}
-                                                    onAdd={() => {
-                                                        const lastCategoryItem = categoryItems[categoryItems.length - 1] || items[0];
-                                                        if (lastCategoryItem) {
-                                                            handleAddItem({
-                                                                ...lastCategoryItem,
-                                                                main_category: category,
-                                                                process: category === lastCategoryItem.main_category ? lastCategoryItem.process : ''
-                                                            });
-                                                        }
-                                                    }}
-                                                    onEvidence={() => {
-                                                        const lastCategoryItem = categoryItems[categoryItems.length - 1] || items[0];
-                                                        setEvidenceTargetParent(lastCategoryItem || null);
-                                                        setEvidenceModalOpen(true);
-                                                    }}
-                                                />
-                                                {/* Category Items */}
-                                                {categoryItems.map((item, rowIndex) => (
-                                                    <SortableRow
-                                                        key={item.id}
-                                                        item={item}
-                                                        rowClassName={rowIndex % 2 === 0 ? "bg-[#232332]" : "bg-[#2c2c3a]"}
-                                                        operatingRates={operatingRates}
-                                                        workDayType={workDayType}
-                                                        isLinked={item.link_module_type && item.link_module_type !== 'NONE'}
-                                                        handleChange={handleChange}
-                                                        handleDeleteItem={handleDeleteItem}
-                                                        handleAddItem={handleAddItem}
-                                                        handleOpenImport={handleOpenImport}
-                                                        spanInfo={spanInfoMap[item.id] || { isMainFirst: true, isProcFirst: true, mainRowSpan: 1, procRowSpan: 1 }}
+                                                <React.Fragment key={category}>
+                                                    {/* Section Header */}
+                                                    <tr className="bg-gradient-to-r from-[#2c2c3a] to-[#242433] border-t border-gray-700">
+                                                        <td colSpan="16" className="px-4 py-2.5">
+                                                            <div className="flex items-center justify-between gap-2">
+                                                                <div className="flex items-center gap-2">
+                                                                    <div className="w-1 h-5 bg-blue-400 rounded-full"></div>
+                                                                    <h3 className="font-bold text-gray-100 text-base tracking-tight">
+                                                                        {category}
+                                                                    </h3>
+                                                                    <span className="text-xs text-gray-400 bg-[#1f1f2b] px-2 py-0.5 rounded-full border border-gray-700">
+                                                                        {categoryItems.length}개 항목
+                                                                    </span>
+                                                                </div>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => handleDeleteCategory(category, categoryItems)}
+                                                                    className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-red-500/40 text-red-200 hover:bg-red-500/10"
+                                                                >
+                                                                    대공종 삭제
+                                                                </button>
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                    <TableToolbarRow
+                                                        colSpan={16}
+                                                        onImport={() => {
+                                                            const lastCategoryItem = categoryItems[categoryItems.length - 1] || items[0];
+                                                            if (lastCategoryItem) {
+                                                                handleOpenImport({
+                                                                    ...lastCategoryItem,
+                                                                    main_category: category
+                                                                });
+                                                            }
+                                                        }}
+                                                        onAdd={() => {
+                                                            const lastCategoryItem = categoryItems[categoryItems.length - 1] || items[0];
+                                                            if (lastCategoryItem) {
+                                                                handleAddItem({
+                                                                    ...lastCategoryItem,
+                                                                    main_category: category,
+                                                                    process: category === lastCategoryItem.main_category ? lastCategoryItem.process : ''
+                                                                });
+                                                            }
+                                                        }}
+                                                        onEvidence={() => {
+                                                            const lastCategoryItem = categoryItems[categoryItems.length - 1] || items[0];
+                                                            setEvidenceTargetParent(lastCategoryItem || null);
+                                                            setEvidenceModalOpen(true);
+                                                        }}
                                                     />
-                                                ))}
-                                            </React.Fragment>
+                                                    {/* Category Items */}
+                                                    {categoryItems.map((item, rowIndex) => (
+                                                        <SortableRow
+                                                            key={item.id}
+                                                            item={item}
+                                                            rowClassName={rowIndex % 2 === 0 ? "bg-[#232332]" : "bg-[#2c2c3a]"}
+                                                            operatingRates={operatingRates}
+                                                            workDayType={workDayType}
+                                                            isLinked={item.link_module_type && item.link_module_type !== 'NONE'}
+                                                            handleChange={handleChange}
+                                                            handleDeleteItem={handleDeleteItem}
+                                                            handleAddItem={handleAddItem}
+                                                            handleOpenImport={handleOpenImport}
+                                                            spanInfo={spanInfoMap[item.id] || { isMainFirst: true, isProcFirst: true, mainRowSpan: 1, procRowSpan: 1 }}
+                                                        />
+                                                    ))}
+                                                </React.Fragment>
                                             ))
                                         ];
                                     })()}

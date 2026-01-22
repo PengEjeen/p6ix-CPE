@@ -4,6 +4,9 @@ class CpeModuleConfig(AppConfig):
     name = "cpe_module"
 
     def ready(self):
+        # Import signals
+        import cpe_module.signals
+        
         from .models.criteria_models import PreparationWork, Earthwork, FrameWork
         # 기준데이터 자동 생성 (최초 실행 시)
         if not PreparationWork.objects.filter(is_admin=True, project__isnull=True).exists():

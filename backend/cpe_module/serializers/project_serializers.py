@@ -158,10 +158,8 @@ class ProjectSerializer(serializers.ModelSerializer):
             # Bored Pile 생산성 결과 초기화
             BoredPileResult.objects.create(project=project)
 
-            # 가동률 초기화
-            # from ..models.operating_rate_models import ConstructionType, WorkScheduleWeight (Already imported globally)
-            for choice in ConstructionType:
-                WorkScheduleWeight.objects.create(project=project, type=choice.value)
+            # 가동률 초기화는 스케줄 데이터(main_category) 기반으로 생성
+            # ConstructionScheduleItem 생성 시 신호에서 자동 생성됨
         
         # Schedule Master Initial Data (For ALL project types)
         # cpe_all_module/models/construction_schedule_models

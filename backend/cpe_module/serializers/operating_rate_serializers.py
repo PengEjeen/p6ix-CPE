@@ -5,17 +5,45 @@ from ..models.project_models import Project
 
 class WorkScheduleWeightSerializer(serializers.ModelSerializer):
     project = serializers.PrimaryKeyRelatedField(read_only=True)
-    type_display = serializers.CharField(source='get_type_display', read_only=True)
+    
+    # Deprecated field - keeping for backwards compatibility
+    type_display = serializers.CharField(source='get_type_display', read_only=True, required=False)
 
     class Meta:
         model = WorkScheduleWeight
         fields = [
+            "id",
             "project",
+            "main_category",
+            # Climate condition thresholds
+            "winter_threshold",
+            "winter_threshold_value",
+            "winter_threshold_enabled",
+            "summer_threshold",
+            "summer_threshold_value",
+            "summer_threshold_enabled",
+            "rainfall_threshold",
+            "rainfall_threshold_value",
+            "rainfall_threshold_enabled",
+            "snowfall_threshold",
+            "snowfall_threshold_value",
+            "snowfall_threshold_enabled",
+            "wind_threshold",
+            "visibility_threshold",
+            "dust_alert_level",
+            "sector_type",
+            # Calculated values (user input or auto-calculated)
+            "working_days",
+            "climate_days_excl_dup",
+            "legal_holidays",
+            "operating_rate",
+            # Deprecated fields
             "type",
             "type_display",
             "pct_7d",
             "pct_6d",
             "pct_5d",
+            # Timestamps
             "created_at",
             "updated_at",
         ]

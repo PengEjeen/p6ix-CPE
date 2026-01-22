@@ -19,22 +19,20 @@ def get_work_schedule_weights(request):
     return Response({"results": serializer.data})
 
 
-# 단일 조회 (project_id 기준)
+# 단일 조회 (project_id 기준) - main_category 기반
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def detail_work_schedule_weight(request, project_id):
     if not project_id:
         return Response({"error": "project_id parameter is required"}, status=400)
 
-    # 여러 개 가능
+    # main_category 기반으로 여러 개 조회
     weights = WorkScheduleWeight.objects.filter(
         project__id=project_id,
         project__user=request.user
-    )
+    ).order_by('main_category')
 
-    if not weights.exists():
-        return Response({"error": "데이터가 없습니다."}, status=404)
-
+    # 데이터가 없어도 빈 배열 반환 (404 대신)
     serializer = WorkScheduleWeightSerializer(weights, many=True, context={"request": request})
     return Response(serializer.data)
 
@@ -43,16 +41,6 @@ def detail_work_schedule_weight(request, project_id):
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
 def create_work_schedule_weight(request, project_id):
-    # 해당 유저가 접근 가능한 프로젝트에 연결된 Weight만 생성 허용
-    if WorkScheduleWeight.objects.filter(
-        project__id=project_id,
-        project__user=request.user
-    ).exists():
-        return Response(
-            {"detail": "해당 프로젝트의 WorkScheduleWeight가 이미 존재합니다."},
-            status=status.HTTP_400_BAD_REQUEST,
-        )
-
     serializer = WorkScheduleWeightSerializer(
         data=request.data,
         context={"request": request, "project_id": project_id}
@@ -65,7 +53,7 @@ def create_work_schedule_weight(request, project_id):
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
-# 수정
+# 수정 - main_category 기반으로 변경
 @api_view(["PUT"])
 @permission_classes([IsAuthenticated])
 def update_work_schedule_weight(request, project_id):
@@ -78,18 +66,40 @@ def update_work_schedule_weight(request, project_id):
     updated_items = []
 
     for item in weights_data:
-        type_value = item.get("type")
-        if not type_value:
-            continue  # type이 없으면 스킵
+        main_category = item.get("main_category")
+        item_id = item.get("id")
+        
+        if not main_category and not item_id:
+            continue  # main_category나 id가 없으면 스킵
 
-        # project_id + type 조합으로 정확히 한 개 존재
-        weight = get_object_or_404(
-            WorkScheduleWeight,
-            project__id=project_id,
-            project__user=request.user,
-            type=type_value
-        )
+        # ID가 있으면 ID로 찾고, 없으면 main_category로 찾기
+        try:
+            if item_id:
+                weight = WorkScheduleWeight.objects.get(
+                    id=item_id,
+                    project__id=project_id,
+                    project__user=request.user
+                )
+            else:
+                weight = WorkScheduleWeight.objects.get(
+                    project__id=project_id,
+                    project__user=request.user,
+                    main_category=main_category
+                )
+        except WorkScheduleWeight.DoesNotExist:
+            # 없으면 생성
+            serializer = WorkScheduleWeightSerializer(
+                data=item,
+                context={"request": request, "project_id": project_id}
+            )
+            if serializer.is_valid():
+                serializer.save()
+                updated_items.append(serializer.data)
+            else:
+                return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            continue
 
+        # 업데이트
         serializer = WorkScheduleWeightSerializer(
             weight,
             data=item,

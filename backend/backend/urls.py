@@ -9,4 +9,5 @@ urlpatterns = [
     path("api/users/", include("user.urls", namespace="user")), # user
     path("api/cpe/", include("cpe_module.urls", namespace="cpe_module")), # user
     path("api/cpe-all/", include("cpe_all_module.urls")),
+    path("api/operatio/", include("operatio.urls")),  # weather stations
 ]

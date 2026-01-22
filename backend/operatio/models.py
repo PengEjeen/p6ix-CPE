@@ -160,3 +160,46 @@ class WeatherDailyRecord(models.Model):
 
     def __str__(self):
         return f"{self.station_id} {self.date}"
+
+
+class PublicHoliday(models.Model):
+    # 날짜 (YYYYMMDD 형식을 DateField로 저장)
+    date = models.DateField(verbose_name="날짜", db_index=True)
+    
+    # 공휴일 이름 (예: '설날', '광복절', '대체공휴일')
+    name = models.CharField(max_length=100, verbose_name="공휴일명")
+    
+    # 날짜 종류 (dateKind, 예: '01')
+    date_kind = models.CharField(max_length=10, null=True, blank=True, verbose_name="날짜종류")
+    
+    # 공휴일 여부 ('Y' or 'N')
+    is_holiday = models.CharField(max_length=1, default='Y', verbose_name="공휴일여부")
+    
+    # 민간 적용 여부 (True=민간 적용, False=공공만)
+    is_private = models.BooleanField(default=False, verbose_name="민간적용")
+    
+    # 순서 (같은 날짜에 여러 공휴일이 있을 경우 구분)
+    seq = models.IntegerField(default=1, verbose_name="순서")
+    
+    # 원본 locdate 값 (YYYYMMDD 정수형)
+    locdate = models.IntegerField(verbose_name="원본날짜코드")
+    
+    # 생성 시각
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="생성일")
+    
+    # 수정 시각
+    updated_at = models.DateTimeField(auto_now=True, verbose_name="수정일")
+
+    class Meta:
+        verbose_name = "공휴일"
+        verbose_name_plural = "공휴일 목록"
+        ordering = ["date", "seq"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["date", "seq"], 
+                name="uniq_public_holiday"
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.date} - {self.name}"
