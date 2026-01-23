@@ -11,6 +11,7 @@ def create_operating_rates_for_new_categories(sender, instance, **kwargs):
     자동으로 WorkScheduleWeight 생성
     """
     if not instance.data:
+        WorkScheduleWeight.objects.filter(project=instance.project).delete()
         return
     
     # data에서 main_category 추출
@@ -28,3 +29,8 @@ def create_operating_rates_for_new_categories(sender, instance, **kwargs):
             project=instance.project,
             main_category=category,
         )
+
+    # 삭제된 대공종 정리
+    WorkScheduleWeight.objects.filter(project=instance.project).exclude(
+        main_category__in=data_categories
+    ).delete()

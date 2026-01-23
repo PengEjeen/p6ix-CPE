@@ -15,9 +15,9 @@ export const detailOperatingRate = async (project_id) => {
 };
 
 // 가동률 수정(5개)
-export const updateOperatingRate = async (project_id, weights) => {
+export const updateOperatingRate = async (project_id, payload) => {
   try {
-    const res = await api.put(`cpe/work-schedule-weights/${project_id}/update/`, weights);
+    const res = await api.put(`cpe/work-schedule-weights/${project_id}/update/`, payload);
     return res.data;
   } catch (error) {
     console.error("가동률 수정 실패:", error);

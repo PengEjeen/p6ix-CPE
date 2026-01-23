@@ -1,9 +1,7 @@
 import axios from "axios";
 
-//개발용
-const baseURL = process.env.REACT_APP_API_BASE || "http://127.0.0.1:8000/api";
-//배포용
-// const baseURL = "/api"
+// 기본은 동일 오리진의 /api로 붙이고, 필요하면 REACT_APP_API_BASE로 덮어씀
+const baseURL = process.env.REACT_APP_API_BASE || "/api";
 
 // ▶ 테스트서버에서 계속 로그인 유지하고 싶으면 .env에 REACT_APP_PERSIST_LOGIN=true
 const PERSIST_LOGIN =

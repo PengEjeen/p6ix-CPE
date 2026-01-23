@@ -4,6 +4,7 @@ import {
   detailOperatingRate,
   updateOperatingRate,
 } from "../api/cpe/operating_rate";
+import { detailWorkCondition, updateWorkCondition } from "../api/cpe/calc";
 import { fetchScheduleItems } from "../api/cpe_all/construction_schedule";
 import { getWeatherStations } from "../api/operatio/weather";
 import PageHeader from "../components/cpe/PageHeader";
@@ -17,7 +18,7 @@ export default function OperatingRate() {
   const [globalSettings, setGlobalSettings] = useState({
     region: '',
     dataYears: '10년',
-    interiorType: '건식'  // 건식/습식
+    workWeekDays: 6,
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -43,9 +44,10 @@ export default function OperatingRate() {
   useEffect(() => {
     const loadData = async () => {
       try {
-        const [data, scheduleData] = await Promise.all([
+        const [data, scheduleData, workCondData] = await Promise.all([
           detailOperatingRate(projectId),
           fetchScheduleItems(projectId),
+          detailWorkCondition(projectId),
         ]);
 
         const scheduleItems = scheduleData?.items || [];
@@ -83,8 +85,16 @@ export default function OperatingRate() {
           }
         ));
 
-        const extras = existing.filter((row) => !categoryOrder.includes(row.main_category));
-        setWorkTypes([...merged, ...extras]);
+        setWorkTypes(merged);
+
+        const workCond = workCondData?.data || workCondData;
+        if (workCond?.earthwork_type) {
+          const weekDays = Number(workCond.earthwork_type);
+          setGlobalSettings((prev) => ({
+            ...prev,
+            workWeekDays: Number.isNaN(weekDays) ? prev.workWeekDays : weekDays,
+          }));
+        }
       } catch (error) {
         console.error("가동률 불러오기 실패:", error);
         // 404 오류여도 빈 배열 설정
@@ -114,7 +124,17 @@ export default function OperatingRate() {
   const handleSave = useCallback(async () => {
     try {
       setSaving(true);
-      await updateOperatingRate(projectId, workTypes);
+      await updateOperatingRate(projectId, {
+        weights: workTypes,
+        settings: {
+          region: globalSettings.region,
+          dataYears: globalSettings.dataYears,
+        },
+      });
+      await updateWorkCondition(projectId, {
+        earthwork_type: String(globalSettings.workWeekDays),
+        framework_type: String(globalSettings.workWeekDays),
+      });
       await alert("저장되었습니다.");
     } catch (error) {
       console.error("가동률 저장 실패:", error);
@@ -122,25 +142,26 @@ export default function OperatingRate() {
     } finally {
       setSaving(false);
     }
-  }, [alert, projectId, workTypes]);
+  }, [alert, projectId, workTypes, globalSettings.workWeekDays]);
 
   if (loading) {
     return <p className="p-6 text-gray-400">불러오는 중...</p>;
   }
 
-  // 행 정의
-  const rows = [
-    // 기후불능일 조건 (공종별)
+  const climateRows = [
     { key: "winter_threshold", label: "동절기", type: "threshold", operator: "이하", unit: "℃", valueField: "winter_threshold_value", enabledField: "winter_threshold_enabled", color: "bg-[#20202a]" },
     { key: "summer_threshold", label: "혹서기", type: "threshold", operator: "이상", unit: "℃", valueField: "summer_threshold_value", enabledField: "summer_threshold_enabled", color: "bg-[#20202a]" },
     { key: "rainfall_threshold", label: "강우량", type: "threshold", operator: "이상", unit: "mm", valueField: "rainfall_threshold_value", enabledField: "rainfall_threshold_enabled", color: "bg-[#20202a]" },
     { key: "snowfall_threshold", label: "강설량", type: "threshold", operator: "이상", unit: "cm", valueField: "snowfall_threshold_value", enabledField: "snowfall_threshold_enabled", color: "bg-[#20202a]" },
     { key: "dust_alert_level", label: "미세먼지", type: "dust", color: "bg-[#20202a]" },
     { key: "sector_type", label: "공공/민간", type: "sector", color: "bg-[#20202a]" },
-    // 계산값 (4개 - NORMAL/GREEN)
+  ];
+
+  const calculationRows = [
     { key: "working_days", label: "작업일", type: "number", color: "bg-[#20202a]" },
     { key: "climate_days_excl_dup", label: "기후불능일(중복 제외)", type: "number", color: "bg-[#20202a]" },
     { key: "legal_holidays", label: "법정공휴일", type: "number", color: "bg-[#20202a]" },
+    { key: "operating_rate", label: "가동률", type: "number", color: "bg-[#20202a]" },
   ];
 
   return (
@@ -179,23 +200,18 @@ export default function OperatingRate() {
           </select>
         </div>
 
-        {/* 내부마감 구분 */}
-        <div className="flex items-center gap-2">
-          <label className="text-sm text-gray-400">내부마감 구분</label>
-          <div className="flex gap-1 bg-[#181825] rounded p-1 border border-gray-700">
-            {['건식', '습식'].map(type => (
-              <button
-                key={type}
-                onClick={() => setGlobalSettings({ ...globalSettings, interiorType: type })}
-                className={`px-3 py-1 text-sm rounded transition ${globalSettings.interiorType === type
-                  ? 'bg-blue-600 text-white'
-                  : 'text-gray-400 hover:text-gray-200'
-                  }`}
-              >
-                {type}
-              </button>
-            ))}
-          </div>
+        {/* 주간 작업일 */}
+        <div>
+          <label className="text-sm text-gray-400 mr-2">주간 작업일</label>
+          <select
+            value={globalSettings.workWeekDays}
+            onChange={(e) => setGlobalSettings({ ...globalSettings, workWeekDays: Number(e.target.value) })}
+            className="bg-[#1f1f2b] border border-gray-600 rounded px-3 py-1.5 text-sm text-gray-200"
+          >
+            <option value={5}>주 5일</option>
+            <option value={6}>주 6일</option>
+            <option value={7}>주 7일</option>
+          </select>
         </div>
 
         {/* Save Button */}
@@ -232,7 +248,7 @@ export default function OperatingRate() {
             </tr>
 
             {/* Climate Rows */}
-            {rows.filter(row => row.type === 'threshold' || row.type === 'dust' || row.type === 'sector').map((row) => (
+            {climateRows.map((row) => (
               <tr key={row.key} className="hover:bg-white/[0.03]">
                 <td className={`sticky left-0 ${row.color} border-r border-white/5 px-4 py-2 font-medium`}>
                   {row.label}
@@ -297,7 +313,7 @@ export default function OperatingRate() {
             </tr>
 
             {/* Calculation Rows */}
-            {rows.filter(row => row.type !== 'climate').map((row) => (
+            {calculationRows.map((row) => (
               <tr key={row.key} className="hover:bg-white/[0.03]">
                 <td className={`sticky left-0 ${row.color} border-r border-white/5 px-4 py-2 font-medium ${row.key === 'operating_rate' ? 'text-green-200 font-bold' : ''
                   }`}>

@@ -1076,7 +1076,20 @@ export default function ScheduleMasterList() {
     const handleDeleteCategory = async (category, categoryItems) => {
         const ok = await confirm(`${category} 대공종을 삭제하시겠습니까? (항목 ${categoryItems.length}개)`);
         if (!ok) return;
+        const remainingItems = items.filter((item) => item.main_category !== category);
+        const remainingIds = new Set(remainingItems.map((item) => item.id));
+        const remainingLinks = links.filter(
+            (link) => remainingIds.has(link.from) && remainingIds.has(link.to)
+        );
         categoryItems.forEach((item) => deleteItem(item.id));
+        if (containerId) {
+            try {
+                await saveScheduleData(containerId, { items: remainingItems, links: remainingLinks });
+            } catch (error) {
+                console.error("Failed to save after category delete:", error);
+                toast.error("대공종 삭제 저장 실패");
+            }
+        }
         toast.success("대공종이 삭제되었습니다.");
     };
 
