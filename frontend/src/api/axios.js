@@ -1,7 +1,10 @@
 import axios from "axios";
 
-// 기본은 동일 오리진의 /api로 붙이고, 필요하면 REACT_APP_API_BASE로 덮어씀
-const baseURL = process.env.REACT_APP_API_BASE || "/api";
+// 개발 환경에서는 localhost:8000/api 사용, 배포 환경에서는 .env 설정 사용
+const isDev = window.location.hostname === "localhost" && window.location.port === "3000";
+const baseURL = isDev
+  ? "http://localhost:8000/api"
+  : (process.env.REACT_APP_API_BASE || "/api");
 
 // ▶ 테스트서버에서 계속 로그인 유지하고 싶으면 .env에 REACT_APP_PERSIST_LOGIN=true
 const PERSIST_LOGIN =
@@ -20,24 +23,24 @@ const refreshClient = axios.create({
 
 // 요청 인터셉터: 토큰/프로젝트 파라미터 주입
 api.interceptors.request.use((config) => {
-    const token = localStorage.getItem("access");
-    const projectId = localStorage.getItem("projectId");
+  const token = localStorage.getItem("access");
+  const projectId = localStorage.getItem("projectId");
 
-    if (token) {
-        config.headers.Authorization = `Bearer ${token}`;
-    }
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
 
-    const excludedPaths = ["users/login", "users/register", "users/token/refresh"];
+  const excludedPaths = ["users/login", "users/register", "users/token/refresh"];
 
-    const url = config.url || "";
-    const shouldExclude = excludedPaths.some((p) => url.includes(p));
+  const url = config.url || "";
+  const shouldExclude = excludedPaths.some((p) => url.includes(p));
 
-    if (projectId && !shouldExclude) {
-        config.params ||= {};
-        if (config.params.project == null) config.params.project = projectId;
-    }
+  if (projectId && !shouldExclude) {
+    config.params ||= {};
+    if (config.params.project == null) config.params.project = projectId;
+  }
 
-    return config;
+  return config;
 });
 
 let isRefreshing = false;
