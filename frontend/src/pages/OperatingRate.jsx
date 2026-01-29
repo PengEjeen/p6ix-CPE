@@ -80,7 +80,10 @@ export default function OperatingRate() {
             working_days: 0,
             climate_days_excl_dup: 0,
             legal_holidays: 0,
+            climate_days_excl_dup: 0,
+            legal_holidays: 0,
             operating_rate: 0,
+            winter_criteria: "AVG",
           }
         ));
 
@@ -96,6 +99,8 @@ export default function OperatingRate() {
             ...prev,
             workWeekDays: Number.isNaN(weekDays) ? prev.workWeekDays : weekDays,
             region: workCond.region || prev.region || '',
+            dataYears: workCond.data_years ? `${workCond.data_years}년` : '10년',
+            winterCriteria: workCond.winter_criteria || prev.winterCriteria || 'AVG',
           }));
           console.log('[DEBUG] setGlobalSettings region:', workCond.region);
         }
@@ -136,6 +141,15 @@ export default function OperatingRate() {
   const handleSave = useCallback(async () => {
     try {
       setSaving(true);
+      // 1. 설정값(지역, 공종별 주간작업일) 먼저 저장
+      await updateWorkCondition(projectId, {
+        earthwork_type: String(globalSettings.workWeekDays),
+        framework_type: String(globalSettings.workWeekDays),
+        region: globalSettings.region,
+        data_years: parseInt(globalSettings.dataYears),
+      });
+
+      // 2. 가동률 업데이트 및 계산
       await updateOperatingRate(projectId, {
         weights: workTypes,
         settings: {
@@ -143,11 +157,6 @@ export default function OperatingRate() {
           dataYears: globalSettings.dataYears,
           workWeekDays: globalSettings.workWeekDays,
         },
-      });
-      await updateWorkCondition(projectId, {
-        earthwork_type: String(globalSettings.workWeekDays),
-        framework_type: String(globalSettings.workWeekDays),
-        region: globalSettings.region,
       });
       await alert("저장되었습니다.");
       // 저장 후 페이지 새로고침하여 최신 데이터 반영
@@ -171,6 +180,7 @@ export default function OperatingRate() {
     { key: "snowfall_threshold", label: "강설량", type: "threshold", operator: "이상", unit: "cm", valueField: "snowfall_threshold_value", enabledField: "snowfall_threshold_enabled", color: "bg-[#20202a]" },
     { key: "dust_alert_level", label: "미세먼지", type: "dust", color: "bg-[#20202a]" },
     { key: "sector_type", label: "공공/민간", type: "sector", color: "bg-[#20202a]" },
+    { key: "work_week_days", label: "주간 작업일", type: "workWeek", color: "bg-[#20202a]" },
   ];
 
   const calculationRows = [
@@ -181,7 +191,17 @@ export default function OperatingRate() {
   ];
 
   return (
-    <div className="p-6 text-gray-200 space-y-6">
+    <div className="p-6 text-gray-200 space-y-6 relative">
+      {/* Saving Overlay */}
+      {saving && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center backdrop-blur-sm">
+          <div className="bg-[#1f1f2b] p-8 rounded-xl shadow-2xl flex flex-col items-center border border-white/10">
+            <div className="animate-spin rounded-full h-12 w-12 border-4 border-blue-500 border-t-transparent mb-4"></div>
+            <p className="text-white text-lg font-bold">저장 및 다시 계산 중...</p>
+            <p className="text-gray-400 text-sm mt-2">잠시만 기다려주세요.</p>
+          </div>
+        </div>
+      )}
       <PageHeader title="가동률 입력" description="대공종별 가동률 및 기후 조건 입력" />
 
       {/* Header Controls */}
@@ -210,25 +230,15 @@ export default function OperatingRate() {
             onChange={(e) => setGlobalSettings({ ...globalSettings, dataYears: e.target.value })}
             className="bg-[#1f1f2b] border border-gray-600 rounded px-3 py-1.5 text-sm text-gray-200"
           >
-            <option value="10년">10년</option>
-            <option value="20년">20년</option>
-            <option value="30년">30년</option>
+            {Array.from({ length: 10 }, (_, i) => i + 1).map((year) => (
+              <option key={year} value={`${year}년`}>
+                {year}년
+              </option>
+            ))}
           </select>
         </div>
 
-        {/* 주간 작업일 */}
-        <div>
-          <label className="text-sm text-gray-400 mr-2">주간 작업일</label>
-          <select
-            value={globalSettings.workWeekDays}
-            onChange={(e) => setGlobalSettings({ ...globalSettings, workWeekDays: Number(e.target.value) })}
-            className="bg-[#1f1f2b] border border-gray-600 rounded px-3 py-1.5 text-sm text-gray-200"
-          >
-            <option value={5}>주 5일</option>
-            <option value={6}>주 6일</option>
-            <option value={7}>주 7일</option>
-          </select>
-        </div>
+
 
         {/* Save Button */}
         <div className="ml-auto">
@@ -273,6 +283,18 @@ export default function OperatingRate() {
                     <td key={index} className={`${row.color} border-r border-white/5 px-2 py-1`}>
                       {row.type === "threshold" && (
                         <div className="flex items-center justify-center gap-2">
+                          {/* 동절기인 경우 기준 선택 셀렉터 추가 */}
+                          {row.key === "winter_threshold" && (
+                            <select
+                              value={workType.winter_criteria || "AVG"}
+                              onChange={(e) => handleCellChange(index, "winter_criteria", e.target.value)}
+                              className="bg-[#181825] border border-gray-700 rounded px-2 py-1 text-xs text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500/50 mr-1"
+                            >
+                              <option value="MIN">최저</option>
+                              <option value="AVG">평균</option>
+                              <option value="MAX">최고</option>
+                            </select>
+                          )}
                           <select
                             value={workType[row.enabledField] ? "apply" : "none"}
                             onChange={(e) => handleCellChange(index, row.enabledField, e.target.value === "apply")}
@@ -314,6 +336,17 @@ export default function OperatingRate() {
                         >
                           <option value="PUBLIC">공공</option>
                           <option value="PRIVATE">민간</option>
+                        </select>
+                      )}
+                      {row.type === "workWeek" && (
+                        <select
+                          value={workType.work_week_days || 6}
+                          onChange={(e) => handleCellChange(index, "work_week_days", Number(e.target.value))}
+                          className="w-full bg-[#181825] border border-gray-700 rounded px-2 py-1 text-center text-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                        >
+                          <option value={7}>7일</option>
+                          <option value={6}>6일</option>
+                          <option value={5}>5일</option>
                         </select>
                       )}
                     </td>

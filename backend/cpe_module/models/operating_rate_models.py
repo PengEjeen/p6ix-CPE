@@ -34,7 +34,7 @@ class WorkScheduleWeight(models.Model):
     # ===== 기후불능일 조건 (6가지) =====
     winter_threshold = models.CharField(
         max_length=50,
-        default="최저 5℃ 이하",
+        default="평균 5℃ 이하",
         verbose_name="동절기",
         blank=True
     )
@@ -140,6 +140,30 @@ class WorkScheduleWeight(models.Model):
         choices=SECTOR_CHOICES,
         default="PRIVATE",
         verbose_name="공공/민간"
+    )
+
+    # 주간 작업일 (공종별 설정)
+    WORK_WEEK_CHOICES = [
+        (7, "7일"),
+        (6, "6일"),
+        (5, "5일"),
+    ]
+    work_week_days = models.IntegerField(
+        choices=WORK_WEEK_CHOICES,
+        default=6,
+        verbose_name="주간 작업일",
+        help_text="7일, 6일, 5일 중 선택"
+    )
+
+    winter_criteria = models.CharField(
+        max_length=10,
+        choices=[
+            ("MIN", "최저기온"),
+            ("AVG", "평균기온"),
+            ("MAX", "최고기온"),
+        ],
+        default="AVG",
+        verbose_name="동절기 기준"
     )
 
     # ===== 계산 결과 (유저 입력 또는 자동 계산) =====

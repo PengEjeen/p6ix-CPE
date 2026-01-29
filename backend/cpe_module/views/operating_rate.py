@@ -108,7 +108,7 @@ def update_work_schedule_weight(request, project_id):
     def year_range(year):
         return date_cls(year, 1, 1), date_cls(year, 12, 31)
 
-    def compute_year_stats(weight, year, station_id, work_week_days):
+    def compute_year_stats(weight, year, station_id, work_week_days, winter_criteria="AVG"):
         year_start, year_end = year_range(year)
         workdays = {
             year_start + timedelta(days=offset)
@@ -128,8 +128,15 @@ def update_work_schedule_weight(request, project_id):
         climate_dates = set()
 
         if weight.winter_threshold_enabled and weight.winter_threshold_value is not None:
+            if winter_criteria == "MIN":
+                filter_kwargs = {"minTa__lte": weight.winter_threshold_value}
+            elif winter_criteria == "MAX":
+                filter_kwargs = {"maxTa__lte": weight.winter_threshold_value}
+            else:
+                filter_kwargs = {"avgTa__lte": weight.winter_threshold_value}
+
             climate_dates |= set(
-                qs.filter(minTa__lte=weight.winter_threshold_value)
+                qs.filter(**filter_kwargs)
                 .values_list("date", flat=True)
             )
         if weight.summer_threshold_enabled and weight.summer_threshold_value is not None:
@@ -209,11 +216,27 @@ def update_work_schedule_weight(request, project_id):
         legal_holidays_count = len(weekend_days) + holidays_on_workdays_count
 
         # 실제 연도의 법정공휴일 날짜 (기후불능일 중복 제외용)
+        # reference_year(법정공휴일 데이터 연도)가 calculation year(기상 데이터 연도)와 다를 경우
+        # 법정공휴일의 날짜를 calculation year로 투영하여 중복 여부를 판단해야 함
+        holiday_dates_on_workdays = set()
+        
         if reference_year == year:
             holiday_dates_on_workdays = all_holiday_dates & workdays
         else:
-            # reference_year 데이터 사용 시 빈 셋 (과거 연도니까 실제 중복 없음)
-            holiday_dates_on_workdays = set()
+            # 날짜 투영 (월/일 매핑)
+            projected_holidays = set()
+            for h_date in all_holiday_dates:
+                try:
+                    # 해당 연도로 날짜 변경
+                    new_date = h_date.replace(year=year)
+                    projected_holidays.add(new_date)
+                except ValueError:
+                    # 2월 29일 처리: 윤년이 아닌 해로 투영 시 에러 발생 -> 2월 28일로 매핑하거나 제외
+                    # 여기서는 2월 28일로 매핑
+                    if h_date.month == 2 and h_date.day == 29:
+                        projected_holidays.add(date_cls(year, 2, 28))
+            
+            holiday_dates_on_workdays = projected_holidays & workdays
 
         # 중복 제외는 기후불능일에만 적용: 법정공휴일과 겹치는 날을 기후불능일에서 제외
         climate_dates_excl_holidays = climate_dates - holiday_dates_on_workdays
@@ -303,8 +326,8 @@ def update_work_schedule_weight(request, project_id):
         if work_week_days is None:
             work_cond = WorkCondition.objects.filter(project__id=project_id).first()
             work_week_days = int(work_cond.earthwork_type) if work_cond and work_cond.earthwork_type else 6
-        else:
             work_week_days = int(work_week_days)
+            work_cond = None # Ensure variable exists for later use
 
         for item in updated_items:
             weight_id = item.get("id")
@@ -318,9 +341,13 @@ def update_work_schedule_weight(request, project_id):
             if not weight:
                 continue
 
+            # 공종별 work_week_days 사용 (개별 설정 우선, 없으면 기본 6일)
+            per_weight_work_week_days = weight.work_week_days or 6
+            per_weight_winter_criteria = weight.winter_criteria or "AVG"
+
             stats = []
             for year in years_range:
-                year_stats = compute_year_stats(weight, year, station_id, work_week_days)
+                year_stats = compute_year_stats(weight, year, station_id, per_weight_work_week_days, per_weight_winter_criteria)
                 if year_stats:
                     stats.append(year_stats)
 

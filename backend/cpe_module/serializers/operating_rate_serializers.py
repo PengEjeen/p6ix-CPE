@@ -32,6 +32,8 @@ class WorkScheduleWeightSerializer(serializers.ModelSerializer):
             "visibility_threshold",
             "dust_alert_level",
             "sector_type",
+            "work_week_days",
+            "winter_criteria",
             # Calculated values (user input or auto-calculated)
             "working_days",
             "climate_days_excl_dup",
