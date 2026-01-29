@@ -30,9 +30,8 @@ export default function OperatingRate() {
       try {
         const data = await getWeatherStations();
         setRegions(data || []);
-        if (data && data.length > 0) {
-          setGlobalSettings(prev => ({ ...prev, region: data[0].name }));
-        }
+        // 기본값은 WorkCondition에서 로드된 후에만 설정하지 않음
+        // WorkCondition의 region이 비어있을 때만 첫 번째 지역을 기본값으로 사용
       } catch (error) {
         console.error("지역 목록 불러오기 실패:", error);
       }
@@ -88,12 +87,17 @@ export default function OperatingRate() {
         setWorkTypes(merged);
 
         const workCond = workCondData?.data || workCondData;
-        if (workCond?.earthwork_type) {
+        console.log('[DEBUG] workCondData:', workCondData);
+        console.log('[DEBUG] workCond:', workCond);
+        console.log('[DEBUG] workCond.region:', workCond?.region);
+        if (workCond) {
           const weekDays = Number(workCond.earthwork_type);
           setGlobalSettings((prev) => ({
             ...prev,
             workWeekDays: Number.isNaN(weekDays) ? prev.workWeekDays : weekDays,
+            region: workCond.region || prev.region || '',
           }));
+          console.log('[DEBUG] setGlobalSettings region:', workCond.region);
         }
       } catch (error) {
         console.error("가동률 불러오기 실패:", error);
@@ -105,6 +109,14 @@ export default function OperatingRate() {
     };
     loadData();
   }, [projectId]);
+
+  // region이 비어있고 지역 목록이 로드된 경우 기본값 설정
+  // WorkCondition 로드(loading=false) 후에만 실행
+  useEffect(() => {
+    if (!loading && !globalSettings.region && regions.length > 0) {
+      setGlobalSettings(prev => ({ ...prev, region: regions[0].name }));
+    }
+  }, [regions, globalSettings.region, loading]);
 
   // 값 변경 핸들러
   const handleCellChange = (workTypeIndex, field, value) => {
@@ -129,20 +141,24 @@ export default function OperatingRate() {
         settings: {
           region: globalSettings.region,
           dataYears: globalSettings.dataYears,
+          workWeekDays: globalSettings.workWeekDays,
         },
       });
       await updateWorkCondition(projectId, {
         earthwork_type: String(globalSettings.workWeekDays),
         framework_type: String(globalSettings.workWeekDays),
+        region: globalSettings.region,
       });
       await alert("저장되었습니다.");
+      // 저장 후 페이지 새로고침하여 최신 데이터 반영
+      window.location.reload();
     } catch (error) {
       console.error("가동률 저장 실패:", error);
       await alert("저장 중 오류가 발생했습니다.");
     } finally {
       setSaving(false);
     }
-  }, [alert, projectId, workTypes, globalSettings.workWeekDays]);
+  }, [alert, projectId, workTypes, globalSettings]);
 
   if (loading) {
     return <p className="p-6 text-gray-400">불러오는 중...</p>;
@@ -227,110 +243,110 @@ export default function OperatingRate() {
             <thead>
               <tr className="bg-[#2a2a35] text-gray-400 border-b border-white/5">
                 <th className="sticky left-0 bg-[#2a2a35] border-r border-white/5 px-4 py-3 text-left min-w-[140px]">
-                구분
-              </th>
-              {workTypes.map((workType, index) => (
-                <th
-                  key={index}
-                  className="bg-[#2a2a35] border-r border-white/5 px-4 py-3 text-center min-w-[120px]"
-                >
-                  {workType.main_category}
+                  구분
                 </th>
-              ))}
+                {workTypes.map((workType, index) => (
+                  <th
+                    key={index}
+                    className="bg-[#2a2a35] border-r border-white/5 px-4 py-3 text-center min-w-[120px]"
+                  >
+                    {workType.main_category}
+                  </th>
+                ))}
               </tr>
             </thead>
             <tbody className="divide-y divide-white/5">
-            {/* Climate Conditions Header */}
-            <tr className="bg-[#2a2a35]">
-              <td className="sticky left-0 bg-[#2a2a35] border-r border-white/5 px-4 py-2 font-bold text-gray-200" colSpan={workTypes.length + 1}>
-                기후불능일
-              </td>
-            </tr>
-
-            {/* Climate Rows */}
-            {climateRows.map((row) => (
-              <tr key={row.key} className="hover:bg-white/[0.03]">
-                <td className={`sticky left-0 ${row.color} border-r border-white/5 px-4 py-2 font-medium`}>
-                  {row.label}
+              {/* Climate Conditions Header */}
+              <tr className="bg-[#2a2a35]">
+                <td className="sticky left-0 bg-[#2a2a35] border-r border-white/5 px-4 py-2 font-bold text-gray-200" colSpan={workTypes.length + 1}>
+                  기후불능일
                 </td>
-                {workTypes.map((workType, index) => (
-                  <td key={index} className={`${row.color} border-r border-white/5 px-2 py-1`}>
-                    {row.type === "threshold" && (
-                      <div className="flex items-center justify-center gap-2">
-                        <select
-                          value={workType[row.enabledField] ? "apply" : "none"}
-                          onChange={(e) => handleCellChange(index, row.enabledField, e.target.value === "apply")}
-                          className="bg-[#181825] border border-gray-700 rounded px-2 py-1 text-xs text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500/50"
-                        >
-                          <option value="apply">적용</option>
-                          <option value="none">미적용</option>
-                        </select>
-                        <div className="flex items-center gap-1">
-                          <input
-                            type="number"
-                            value={workType[row.valueField] ?? ""}
-                            onChange={(e) => handleCellChange(index, row.valueField, e.target.value === "" ? null : Number(e.target.value))}
-                            disabled={!workType[row.enabledField]}
-                            className="w-20 bg-[#181825] border border-gray-700 text-center text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500/50 px-2 py-1 rounded disabled:opacity-50"
-                            placeholder="0"
-                          />
-                          <span className="text-xs text-gray-400">{row.unit}</span>
-                          <span className="text-xs text-gray-400">{row.operator}</span>
+              </tr>
+
+              {/* Climate Rows */}
+              {climateRows.map((row) => (
+                <tr key={row.key} className="hover:bg-white/[0.03]">
+                  <td className={`sticky left-0 ${row.color} border-r border-white/5 px-4 py-2 font-medium`}>
+                    {row.label}
+                  </td>
+                  {workTypes.map((workType, index) => (
+                    <td key={index} className={`${row.color} border-r border-white/5 px-2 py-1`}>
+                      {row.type === "threshold" && (
+                        <div className="flex items-center justify-center gap-2">
+                          <select
+                            value={workType[row.enabledField] ? "apply" : "none"}
+                            onChange={(e) => handleCellChange(index, row.enabledField, e.target.value === "apply")}
+                            className="bg-[#181825] border border-gray-700 rounded px-2 py-1 text-xs text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                          >
+                            <option value="apply">적용</option>
+                            <option value="none">미적용</option>
+                          </select>
+                          <div className="flex items-center gap-1">
+                            <input
+                              type="number"
+                              value={workType[row.valueField] ?? ""}
+                              onChange={(e) => handleCellChange(index, row.valueField, e.target.value === "" ? null : Number(e.target.value))}
+                              disabled={!workType[row.enabledField]}
+                              className="w-20 bg-[#181825] border border-gray-700 text-center text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500/50 px-2 py-1 rounded disabled:opacity-50"
+                              placeholder="0"
+                            />
+                            <span className="text-xs text-gray-400">{row.unit}</span>
+                            <span className="text-xs text-gray-400">{row.operator}</span>
+                          </div>
                         </div>
-                      </div>
-                    )}
-                    {row.type === "dust" && (
-                      <select
-                        value={workType.dust_alert_level || "NONE"}
-                        onChange={(e) => handleCellChange(index, "dust_alert_level", e.target.value)}
-                        className="w-full bg-[#181825] border border-gray-700 rounded px-2 py-1 text-center text-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50"
-                      >
-                        <option value="NONE">미적용</option>
-                        <option value="WARNING">주의</option>
-                        <option value="ALERT">경보</option>
-                      </select>
-                    )}
-                    {row.type === "sector" && (
-                      <select
-                        value={workType.sector_type || "PRIVATE"}
-                        onChange={(e) => handleCellChange(index, "sector_type", e.target.value)}
-                        className="w-full bg-[#181825] border border-gray-700 rounded px-2 py-1 text-center text-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50"
-                      >
-                        <option value="PUBLIC">공공</option>
-                        <option value="PRIVATE">민간</option>
-                      </select>
-                    )}
-                  </td>
-                ))}
-              </tr>
-            ))}
+                      )}
+                      {row.type === "dust" && (
+                        <select
+                          value={workType.dust_alert_level || "NONE"}
+                          onChange={(e) => handleCellChange(index, "dust_alert_level", e.target.value)}
+                          className="w-full bg-[#181825] border border-gray-700 rounded px-2 py-1 text-center text-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                        >
+                          <option value="NONE">미적용</option>
+                          <option value="WARNING">주의</option>
+                          <option value="ALERT">경보</option>
+                        </select>
+                      )}
+                      {row.type === "sector" && (
+                        <select
+                          value={workType.sector_type || "PRIVATE"}
+                          onChange={(e) => handleCellChange(index, "sector_type", e.target.value)}
+                          className="w-full bg-[#181825] border border-gray-700 rounded px-2 py-1 text-center text-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                        >
+                          <option value="PUBLIC">공공</option>
+                          <option value="PRIVATE">민간</option>
+                        </select>
+                      )}
+                    </td>
+                  ))}
+                </tr>
+              ))}
 
-            {/* Calculation Header */}
-            <tr className="bg-[#2a2a35]">
-              <td className="sticky left-0 bg-[#2a2a35] border-r border-white/5 px-4 py-2 font-bold text-gray-200" colSpan={workTypes.length + 1}>
-                산정일수
-              </td>
-            </tr>
-
-            {/* Calculation Rows */}
-            {calculationRows.map((row) => (
-              <tr key={row.key} className="hover:bg-white/[0.03]">
-                <td className={`sticky left-0 ${row.color} border-r border-white/5 px-4 py-2 font-medium ${row.key === 'operating_rate' ? 'text-green-200 font-bold' : ''
-                  }`}>
-                  {row.label}
+              {/* Calculation Header */}
+              <tr className="bg-[#2a2a35]">
+                <td className="sticky left-0 bg-[#2a2a35] border-r border-white/5 px-4 py-2 font-bold text-gray-200" colSpan={workTypes.length + 1}>
+                  산정일수
                 </td>
-                {workTypes.map((workType, index) => (
-                  <td key={index} className={`${row.color} border-r border-white/5 px-2 py-1`}>
-                    <span className={`inline-flex w-full justify-center rounded-md px-2 py-1 text-sm ${row.key === 'operating_rate'
-                      ? 'text-green-300 font-bold'
-                      : 'text-gray-200'
-                      }`}>
-                      {workType[row.key] ?? "-"}
-                    </span>
-                  </td>
-                ))}
               </tr>
-            ))}
+
+              {/* Calculation Rows */}
+              {calculationRows.map((row) => (
+                <tr key={row.key} className="hover:bg-white/[0.03]">
+                  <td className={`sticky left-0 ${row.color} border-r border-white/5 px-4 py-2 font-medium ${row.key === 'operating_rate' ? 'text-green-200 font-bold' : ''
+                    }`}>
+                    {row.label}
+                  </td>
+                  {workTypes.map((workType, index) => (
+                    <td key={index} className={`${row.color} border-r border-white/5 px-2 py-1`}>
+                      <span className={`inline-flex w-full justify-center rounded-md px-2 py-1 text-sm ${row.key === 'operating_rate'
+                        ? 'text-green-300 font-bold'
+                        : 'text-gray-200'
+                        }`}>
+                        {workType[row.key] ?? "-"}
+                      </span>
+                    </td>
+                  ))}
+                </tr>
+              ))}
             </tbody>
           </table>
         </div>

@@ -74,6 +74,16 @@ class WorkCondition(models.Model):
         related_name="WorkCondition",
     )
 
+    # --- 지역 설정 ---
+    region = models.CharField(
+        "지역",
+        max_length=50,
+        blank=True,
+        null=True,
+        default="서울",
+        help_text="기상 데이터 조회 지역"
+    )
+
     # --- 근무 조건 ---
     earthwork_type = models.CharField(
         "토공사 근무 조건",

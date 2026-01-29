@@ -189,8 +189,8 @@ function Login() {
         {/* Google 로그인 버튼 */}
         <div className="space-y-3">
           {isGoogleLoading ? (
-            <div className="w-full py-3 bg-[#1e1e2f] border border-gray-600 rounded-lg text-center text-gray-400 text-sm">
-              로딩 중...
+            <div className="text-center text-gray-400 text-sm">
+              로딩
             </div>
           ) : googleClientId ? (
             <div
@@ -199,7 +199,7 @@ function Login() {
               style={{ minHeight: "50px", transform: "scale(1.3)" }}
             ></div>
           ) : (
-            <div className="w-full py-3 bg-[#1e1e2f] border border-gray-600 rounded-lg text-center text-gray-400 text-sm">
+            <div className="text-center text-gray-400 text-sm">
               Google 로그인을 사용할 수 없습니다
             </div>
           )}
