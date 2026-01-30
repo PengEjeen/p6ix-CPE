@@ -15,3 +15,4 @@ class CpeModuleConfig(AppConfig):
             Earthwork.objects.create(is_admin=True)
         if not FrameWork.objects.filter(is_admin=True, project__isnull=True).exists():
             FrameWork.objects.create(is_admin=True)
+
