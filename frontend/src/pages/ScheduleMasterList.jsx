@@ -35,6 +35,7 @@ export default function ScheduleMasterList() {
     // Actions
     const setStoreItems = useScheduleStore((state) => state.setItems);
     const setStoreOperatingRates = useScheduleStore((state) => state.setOperatingRates);
+    const updateOperatingRate = useScheduleStore((state) => state.updateOperatingRate);
     const setStoreLinks = useScheduleStore((state) => state.setLinks);
     const setStoreWorkDayType = useScheduleStore((state) => state.setWorkDayType);
     const updateItem = useScheduleStore((state) => state.updateItem);
@@ -221,6 +222,30 @@ export default function ScheduleMasterList() {
         addItem(newItem);
         setNewMainCategory("");
         toast.success("대공종이 추가되었습니다.");
+    };
+
+    const handleCategoryRunRateChange = async (category, newRunRate) => {
+        try {
+            // Update store first (optimistic update)
+            updateOperatingRate(category, parseInt(newRunRate));
+
+            // Save to backend
+            const rateToUpdate = operatingRates.find(r => r.main_category === category);
+            if (rateToUpdate) {
+                const { updateOperatingRate: updateOperatingRateAPI } = await import("../api/cpe/operating_rate");
+                await updateOperatingRateAPI(projectId, {
+                    weights: [{
+                        id: rateToUpdate.id,
+                        main_category: category,
+                        work_week_days: parseInt(newRunRate)
+                    }]
+                });
+                toast.success(`${category} Run Rate 업데이트 완료`);
+            }
+        } catch (error) {
+            console.error("Run Rate 업데이트 실패:", error);
+            toast.error("Run Rate 업데이트 실패");
+        }
     };
 
     // --- Gantt to Store Connection ---
@@ -523,6 +548,25 @@ export default function ScheduleMasterList() {
                                                                     <span className="text-xs text-gray-400 bg-[#1f1f2b] px-2 py-0.5 rounded-full border border-gray-700">
                                                                         {categoryItems.length}개 항목
                                                                     </span>
+                                                                    {/* Category-specific Run Rate */}
+                                                                    {(() => {
+                                                                        const categoryRate = operatingRates.find(r => r.main_category === category);
+                                                                        const currentRunRate = categoryRate?.work_week_days || 6;
+                                                                        return (
+                                                                            <div className="flex items-center gap-2 ml-4">
+                                                                                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Run Rate</label>
+                                                                                <select
+                                                                                    className="bg-[#181825] text-gray-100 font-bold text-sm py-1 px-2 rounded-lg border border-gray-700 focus:border-blue-500"
+                                                                                    value={currentRunRate}
+                                                                                    onChange={(e) => handleCategoryRunRateChange(category, e.target.value)}
+                                                                                >
+                                                                                    <option value="5">주5일</option>
+                                                                                    <option value="6">주6일</option>
+                                                                                    <option value="7">주7일</option>
+                                                                                </select>
+                                                                            </div>
+                                                                        );
+                                                                    })()}
                                                                 </div>
                                                                 <button
                                                                     type="button"

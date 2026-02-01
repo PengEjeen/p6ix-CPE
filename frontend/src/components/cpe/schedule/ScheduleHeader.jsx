@@ -90,19 +90,6 @@ export default function ScheduleHeader({
                     />
                 </div>
 
-                <div className="flex flex-col gap-1 w-20">
-                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest pl-1">Run Rate</label>
-                    <select
-                        className="bg-[#181825] text-gray-100 font-bold text-sm py-1.5 pl-2 pr-1 rounded-lg border border-gray-700 focus:border-blue-500 w-full"
-                        value={workDayType}
-                        onChange={(e) => onWorkDayTypeChange(e.target.value)}
-                    >
-                        <option value="5d">주5일</option>
-                        <option value="6d">주6일</option>
-                        <option value="7d">주7일</option>
-                    </select>
-                </div>
-
                 <div className="flex items-center gap-2">
                     <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">목표 공기</label>
                     <input

@@ -34,6 +34,25 @@ export const useScheduleStore = create(
                 );
             }),
 
+            updateOperatingRate: (main_category, work_week_days) => set((state) => {
+                // Find and update the specific category's run rate
+                const index = state.operatingRates.findIndex(r => r.main_category === main_category);
+                if (index !== -1) {
+                    state.operatingRates[index].work_week_days = work_week_days;
+                } else {
+                    // If not found, create a new entry
+                    state.operatingRates.push({
+                        main_category,
+                        work_week_days,
+                        operating_rate: 100 // Default, will be recalculated by backend
+                    });
+                }
+                // Re-calculate all items in this category
+                state.items = state.items.map(item =>
+                    calculateItem(item, state.operatingRates, state.workDayType)
+                );
+            }),
+
             setWorkDayType: (type) => set((state) => {
                 state.workDayType = type;
                 // Re-calculate all items when work day type changes
