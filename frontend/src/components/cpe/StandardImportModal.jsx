@@ -85,11 +85,41 @@ export default function StandardImportModal({ isOpen, onClose, onSelect, project
 
     }, [items, searchTerm]);
 
+    const handleSelectType = (item, type) => {
+        let productivity = 0;
+        let remark = '';
+
+        switch (type) {
+            case 'molit':
+                productivity = item.molit_workload || 0;
+                remark = '국토부 가이드라인 물량 기준';
+                break;
+            case 'pumsam':
+                productivity = item.pumsam_workload || 0;
+                remark = '표준품셈 물량 기준';
+                break;
+            case 'average':
+                const avg = (item.pumsam_workload && item.molit_workload)
+                    ? (item.pumsam_workload + item.molit_workload) / 2
+                    : (item.pumsam_workload || item.molit_workload || 0);
+                productivity = avg;
+                remark = '평균 물량 기준';
+                break;
+        }
+
+        onSelect({
+            ...item,
+            productivity,
+            selectedType: type,
+            remark
+        });
+    };
+
     if (!isOpen) return null;
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-            <div className="bg-[#2c2c3a] w-full max-w-5xl max-h-[85vh] rounded-2xl border border-gray-700 shadow-2xl flex flex-col overflow-hidden">
+            <div className="bg-[#2c2c3a] w-full max-w-7xl max-h-[85vh] rounded-2xl border border-gray-700 shadow-2xl flex flex-col overflow-hidden">
                 {/* Header (Navy) */}
                 <div className="p-5 border-b border-gray-700 flex justify-between items-center bg-[#3a3a4a]">
                     <div>
@@ -98,7 +128,7 @@ export default function StandardImportModal({ isOpen, onClose, onSelect, project
                             표준품셈 가져오기
                         </h2>
                         <p className="text-xs text-gray-400 mt-1 pl-3.5">
-                            검증된 표준 생산성 데이터를 공정표에 적용합니다.
+                            국토부 가이드라인, 표준품셈, 평균 중 선택하여 적용합니다.
                         </p>
                     </div>
                     <button
@@ -148,51 +178,74 @@ export default function StandardImportModal({ isOpen, onClose, onSelect, project
                                         <table className="w-full text-sm text-left">
                                             <thead>
                                                 <tr className="bg-[#1f1f2b] text-gray-400 border-b border-gray-700/50 text-xs uppercase tracking-wider">
-                                                    <th className="py-2 px-4 font-medium w-32">공종</th>
+                                                    <th className="py-2 px-4 font-medium w-28">공종</th>
                                                     <th className="py-2 px-4 font-medium">항목명</th>
                                                     <th className="py-2 px-4 font-medium">규격</th>
-                                                    <th className="py-2 px-4 font-medium w-20 text-center">단위</th>
-                                                    <th className="py-2 px-4 font-medium w-28 text-right">일일생산성</th>
-                                                    <th className="py-2 px-4 font-medium w-20"></th>
+                                                    <th className="py-2 px-4 font-medium w-16 text-center">단위</th>
+                                                    <th className="py-2 px-4 font-medium w-28 text-right">국토부</th>
+                                                    <th className="py-2 px-4 font-medium w-28 text-right">표준품셈</th>
+                                                    <th className="py-2 px-4 font-medium w-28 text-right">평균</th>
                                                 </tr>
                                             </thead>
                                             <tbody className="divide-y divide-gray-700/30">
-                                                {categoryItems.map((item) => (
-                                                    <tr
-                                                        key={item.id}
-                                                        onClick={() => onSelect(item)}
-                                                        className="group hover:bg-blue-900/10 border-b border-gray-800 last:border-0 cursor-pointer transition-colors"
-                                                    >
-                                                        <td className="py-3 px-4 text-gray-500 font-medium">
-                                                            {item.category}
-                                                        </td>
-                                                        <td className="py-3 px-4 text-gray-200 font-bold group-hover:text-blue-400 transition-colors">
-                                                            {item.item_name}
-                                                        </td>
-                                                        <td className="py-3 px-4 text-gray-500">
-                                                            {item.standard || '-'}
-                                                        </td>
-                                                        <td className="py-3 px-4 text-center text-gray-500">
-                                                            {item.unit}
-                                                        </td>
-                                                        <td className="py-3 px-4 text-right">
-                                                            <span className="font-mono font-bold text-blue-400">
-                                                                {(item.pumsam_workload || 0).toLocaleString()}
-                                                            </span>
-                                                        </td>
-                                                        <td className="py-3 px-4 text-right" >
-                                                            <button
-                                                                className="px-3 py-1.5 bg-blue-500/10 text-blue-300 rounded text-xs font-bold border border-blue-500/20 hover:bg-blue-500 hover:text-white transition opacity-0 group-hover:opacity-100"
-                                                                onClick={(e) => {
-                                                                    e.stopPropagation();
-                                                                    onSelect(item);
-                                                                }}
-                                                            >
-                                                                선택
-                                                            </button>
-                                                        </td>
-                                                    </tr>
-                                                ))}
+                                                {categoryItems.map((item) => {
+                                                    const avgValue = (item.pumsam_workload && item.molit_workload)
+                                                        ? (item.pumsam_workload + item.molit_workload) / 2
+                                                        : (item.pumsam_workload || item.molit_workload || 0);
+
+                                                    return (
+                                                        <tr
+                                                            key={item.id}
+                                                            className="group hover:bg-blue-900/10 border-b border-gray-800 last:border-0 transition-colors"
+                                                        >
+                                                            <td className="py-3 px-4 text-gray-500 font-medium">
+                                                                {item.category}
+                                                            </td>
+                                                            <td className="py-3 px-4 text-gray-200 font-bold">
+                                                                {item.item_name}
+                                                            </td>
+                                                            <td className="py-3 px-4 text-gray-500">
+                                                                {item.standard || '-'}
+                                                            </td>
+                                                            <td className="py-3 px-4 text-center text-gray-500">
+                                                                {item.unit}
+                                                            </td>
+                                                            <td className="py-3 px-4 text-right">
+                                                                <button
+                                                                    onClick={() => handleSelectType(item, 'molit')}
+                                                                    className="w-full px-2 py-1.5 bg-blue-500/10 text-blue-300 rounded text-xs font-bold border border-blue-500/20 hover:bg-blue-500 hover:text-white transition"
+                                                                    disabled={!item.molit_workload}
+                                                                >
+                                                                    {item.molit_workload ? (
+                                                                        <span className="font-mono">{item.molit_workload.toLocaleString()}</span>
+                                                                    ) : '-'}
+                                                                </button>
+                                                            </td>
+                                                            <td className="py-3 px-4 text-right">
+                                                                <button
+                                                                    onClick={() => handleSelectType(item, 'pumsam')}
+                                                                    className="w-full px-2 py-1.5 bg-blue-500/10 text-blue-300 rounded text-xs font-bold border border-blue-500/20 hover:bg-blue-500 hover:text-white transition"
+                                                                    disabled={!item.pumsam_workload}
+                                                                >
+                                                                    {item.pumsam_workload ? (
+                                                                        <span className="font-mono">{item.pumsam_workload.toLocaleString()}</span>
+                                                                    ) : '-'}
+                                                                </button>
+                                                            </td>
+                                                            <td className="py-3 px-4 text-right">
+                                                                <button
+                                                                    onClick={() => handleSelectType(item, 'average')}
+                                                                    className="w-full px-2 py-1.5 bg-blue-500/10 text-blue-300 rounded text-xs font-bold border border-blue-500/20 hover:bg-blue-500 hover:text-white transition"
+                                                                    disabled={!avgValue}
+                                                                >
+                                                                    {avgValue ? (
+                                                                        <span className="font-mono">{avgValue.toLocaleString()}</span>
+                                                                    ) : '-'}
+                                                                </button>
+                                                            </td>
+                                                        </tr>
+                                                    );
+                                                })}
                                             </tbody>
                                         </table>
                                     </div>

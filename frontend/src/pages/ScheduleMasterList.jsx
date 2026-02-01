@@ -274,16 +274,18 @@ export default function ScheduleMasterList() {
                 id: `imp-${Date.now()}-${Math.random()}`,
                 main_category: importTargetParent?.main_category || "수입 공종",
                 process: std.process_name || importTargetParent?.process || "수입 작업",
-                work_type: std.item_name,
+                work_type: std.category || std.item_name,
                 unit: std.unit,
                 quantity: 1,
                 quantity_formula: "",
+                // Use the selected productivity value (from modal selection)
                 productivity: std.productivity || std.pumsam_workload || 0,
                 crew_size: 1,
                 operating_rate_type: "EARTH",
                 operating_rate_value: 0,
                 standard_code: std.code || std.standard,
-                remarks: std.item_name || ""
+                // Use the remark from selection: "항목명 (선택 기준)"
+                remarks: std.remark ? `${std.item_name} (${std.remark})` : std.item_name || ""
             };
 
             if (importTargetParent) {
@@ -477,9 +479,9 @@ export default function ScheduleMasterList() {
                                 <col width="80" />
                                 <col width="90" />
                                 <col width="80" />
-                                <col width="100" />
-                                <col width="220" />
-                                <col width="45" />
+                                <col width="800" />
+                                <col width="60" />
+
                             </colgroup>
                             <thead className="bg-[#3a3a4a] text-gray-200">
                                 <tr className="bg-[#2c2c3a] text-gray-300 font-medium sticky top-0 z-[2] shadow-sm border-b border-gray-700">
@@ -494,7 +496,7 @@ export default function ScheduleMasterList() {
                                     <th className="sticky top-0 bg-[#2c2c3a] border-r border-gray-700 px-2 py-2 z-10">투입조</th>
                                     <th className="sticky top-0 bg-[#2c2c3a] border-r border-gray-700 px-2 py-2 z-10">생산량/일</th>
                                     <th className="sticky top-0 bg-[#2c2c3a] border-r border-gray-700 px-2 py-2 z-10">반영율</th>
-                                    <th className="sticky top-0 bg-[#2c2c3a] border-r border-gray-700 px-2 py-2 text-blue-300 z-10">작업기간(W.D)</th>
+                                    {/* <th className="sticky top-0 bg-[#2c2c3a] border-r border-gray-700 px-2 py-2 text-blue-300 z-10">작업기간(W.D)</th> */}
                                     <th className="sticky top-0 bg-[#2c2c3a] border-r border-gray-700 px-2 py-2 z-10">가동률</th>
                                     <th className="sticky top-0 bg-blue-900/40 border-r border-gray-700 px-2 py-2 text-blue-200 font-bold z-10">Calender Day</th>
                                     <th className="sticky top-0 bg-[#2c2c3a] border-r border-gray-700 px-2 py-2 z-10">비고</th>
@@ -644,9 +646,9 @@ export default function ScheduleMasterList() {
                                             <col width="80" />
                                             <col width="90" />
                                             <col width="80" />
-                                            <col width="100" />
-                                            <col width="220" />
-                                            <col width="45" />
+                                            <col width="800" />
+                                            <col width="60" />
+
                                         </colgroup>
                                         <tbody>
                                             <ScheduleTableRow

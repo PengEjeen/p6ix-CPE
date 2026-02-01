@@ -57,32 +57,13 @@ const ScheduleTableRow = ({ item, isLinked, handleChange, handleDeleteItem, hand
             {(spanInfo.isProcFirst || isOverlay) && (
                 <td
                     rowSpan={isOverlay ? 1 : spanInfo.procRowSpan}
-                    className="border-r border-gray-700 bg-[#2c2c3a] p-1 align-top relative group"
+                    className="border-r border-gray-700 bg-[#2c2c3a] p-1 align-top"
                 >
-                    <div className="flex flex-col h-full min-h-[40px] justify-between">
-                        <input
-                            className="w-full bg-transparent outline-none font-medium text-gray-200 text-center text-base mb-1"
-                            value={item.process}
-                            onChange={(e) => handleChange(item.id, 'process', e.target.value)}
-                        />
-                        {/* Hover Actions */}
-                        <div className="flex justify-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity z-20 bg-[#1f1f2b]/90 backdrop-blur-sm p-1 rounded border border-gray-700 shadow-sm mx-auto">
-                            <button
-                                className="text-[10px] p-1 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded flex items-center gap-1"
-                                onClick={() => handleAddItem(item)}
-                                title="추가"
-                            >
-                                <Plus size={10} />
-                            </button>
-                            <button
-                                className="text-[10px] p-1 bg-green-50 hover:bg-green-100 text-green-600 rounded flex items-center gap-1"
-                                onClick={() => handleOpenImport(item)}
-                                title="품셈 가져오기"
-                            >
-                                <RefreshCw size={10} />
-                            </button>
-                        </div>
-                    </div>
+                    <input
+                        className="w-full bg-transparent outline-none font-medium text-gray-200 text-center text-base"
+                        value={item.process}
+                        onChange={(e) => handleChange(item.id, 'process', e.target.value)}
+                    />
                 </td>
             )}
 
@@ -137,11 +118,6 @@ const ScheduleTableRow = ({ item, isLinked, handleChange, handleDeleteItem, hand
                     value={item.application_rate || 100}
                     onChange={(e) => handleChange(item.id, 'application_rate', e.target.value)}
                 />
-            </td>
-
-            {/* Working Days */}
-            <td className="border-r border-gray-700 px-2 py-1 text-right text-blue-300 font-bold font-mono text-base">
-                {runRate ? `주${runRate}일` : parseFloat(item.working_days || 0).toFixed(1)}
             </td>
 
             {/* Op Rate */}
