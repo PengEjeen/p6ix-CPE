@@ -1,5 +1,6 @@
-import React, { useMemo, useRef, useState, useCallback, useEffect } from "react";
+import React, { useMemo, useRef, useState, useCallback, useEffect, useLayoutEffect } from "react";
 import SmartGanttBar from "./SmartGanttBar";
+import SubtaskNameModal from "./schedule/SubtaskNameModal";
 
 const GanttChartArea = ({
     timeline,
@@ -47,8 +48,8 @@ const GanttChartArea = ({
         });
         return map;
     }, [aiPreviewItems, aiOriginalItems]);
-    const rowH = 44;
-    const rowCenter = 22;
+    const [rowH, setRowH] = useState(44);
+    const [rowCenter, setRowCenter] = useState(22);
     const pxFactor = pixelsPerUnit / dateScale;
     const itemIndexById = new Map(itemsWithTiming.map((item, index) => [item.id, { item, index }]));
     const subtaskIndexById = new Map((subTasks || []).map((subtask) => {
@@ -60,6 +61,23 @@ const GanttChartArea = ({
     const subtaskDraftRef = useRef(null);
     const chartAreaRef = useRef(null);
     const [linkDrag, setLinkDrag] = useState(null); // { fromId, fromAnchor, fromX, fromY, x, y }
+    const [renameModal, setRenameModal] = useState({ open: false, id: null, value: "" });
+
+    useLayoutEffect(() => {
+        if (!chartAreaRef.current || itemsWithTiming.length === 0) return;
+        const measure = () => {
+            const firstRow = chartAreaRef.current.querySelector('[data-chart-row="true"]');
+            if (firstRow) {
+                const height = firstRow.getBoundingClientRect().height;
+                if (height && Math.abs(height - rowH) > 0.5) {
+                    setRowH(height);
+                    setRowCenter(height / 2);
+                }
+            }
+        };
+        const raf = requestAnimationFrame(measure);
+        return () => cancelAnimationFrame(raf);
+    }, [itemsWithTiming.length, rowH]);
     const getAnchorX = (itemData, anchor) => {
         const startX = itemData.startDay * pxFactor;
         const endX = (itemData.startDay + itemData.durationDays) * pxFactor;
@@ -193,7 +211,7 @@ const GanttChartArea = ({
         return startDay < redEnd && endDay > redStart;
     }, [itemsWithTiming]);
 
-    const snapDay = useCallback((itemId, day, excludeSubtaskId = null) => {
+    const getSnapCandidate = useCallback((itemId, day, excludeSubtaskId = null) => {
         const snapThresholdPx = 14;
         const thresholdDays = snapThresholdPx / pxFactor;
         const candidates = [];
@@ -219,7 +237,7 @@ const GanttChartArea = ({
                 bestDiff = diff;
             }
         });
-        return best;
+        return { snapped: best, diff: bestDiff, within: bestDiff <= thresholdDays };
     }, [itemsWithTiming, subTasks, pxFactor]);
 
     const handleSubtaskDrawStart = useCallback((e) => {
@@ -242,7 +260,7 @@ const GanttChartArea = ({
 
         const handleMouseMove = (moveEvent) => {
             const current = Math.max(0, (moveEvent.clientX - rect.left) / pxFactor);
-            const snapped = snapDay(item.id, current);
+            const snapped = getSnapCandidate(item.id, current).snapped;
             const nextDraft = { ...subtaskDraftRef.current, endDay: snapped };
             subtaskDraftRef.current = nextDraft;
             setSubtaskDraft(nextDraft);
@@ -253,8 +271,10 @@ const GanttChartArea = ({
             if (finalDraft && onCreateSubtask) {
                 const rawStart = Math.min(finalDraft.startDay, finalDraft.endDay);
                 const rawEnd = Math.max(finalDraft.startDay, finalDraft.endDay);
-                const start = snapDay(finalDraft.itemId, rawStart);
-                const end = snapDay(finalDraft.itemId, rawEnd);
+                const startSnap = getSnapCandidate(finalDraft.itemId, rawStart);
+                const endSnap = getSnapCandidate(finalDraft.itemId, rawEnd);
+                const start = startSnap.within ? startSnap.snapped : rawStart;
+                const end = endSnap.within ? endSnap.snapped : rawEnd;
                 const duration = Math.max(0.1, Math.abs(end - start));
                 if (!hasSubtaskOverlap(finalDraft.itemId, start, duration) && !overlapsCriticalPath(finalDraft.itemId, start, duration)) {
                     onCreateSubtask(finalDraft.itemId, start, duration);
@@ -268,7 +288,7 @@ const GanttChartArea = ({
 
         document.addEventListener('mousemove', handleMouseMove);
         document.addEventListener('mouseup', handleMouseUp);
-    }, [subtaskMode, rowH, itemsWithTiming, pxFactor, onCreateSubtask, hasSubtaskOverlap, snapDay]);
+    }, [subtaskMode, rowH, itemsWithTiming, pxFactor, onCreateSubtask, hasSubtaskOverlap, getSnapCandidate]);
 
     const handleCanvasClick = useCallback(() => {
         if (onSelectSubtask) onSelectSubtask(null);
@@ -314,7 +334,14 @@ const GanttChartArea = ({
                         }
                     }
                     const rawStart = Math.max(0, (startLeftPx + deltaX) / pxFactor);
-                    const newStart = snapDay(nextItemId, rawStart, subtask.id);
+                    const startSnap = getSnapCandidate(nextItemId, rawStart, subtask.id);
+                    const endSnap = getSnapCandidate(nextItemId, rawStart + durationDays, subtask.id);
+                    let newStart = rawStart;
+                    if (endSnap.within && (!startSnap.within || endSnap.diff < startSnap.diff)) {
+                        newStart = endSnap.snapped - durationDays;
+                    } else if (startSnap.within) {
+                        newStart = startSnap.snapped;
+                    }
                     if (hasSubtaskOverlap(nextItemId, newStart, durationDays, subtask.id)) return;
                     if (overlapsCriticalPath(nextItemId, newStart, durationDays)) return;
                     if (onUpdateSubtask) onUpdateSubtask(subtask.id, { startDay: newStart, itemId: nextItemId });
@@ -323,7 +350,8 @@ const GanttChartArea = ({
 
                 if (mode === 'resize-start') {
                     const rawStart = Math.max(0, (startLeftPx + deltaX) / pxFactor);
-                    const newStart = snapDay(subtask.itemId, rawStart, subtask.id);
+                    const startSnap = getSnapCandidate(subtask.itemId, rawStart, subtask.id);
+                    const newStart = startSnap.within ? startSnap.snapped : rawStart;
                     const nextDuration = Math.max(0.1, endDay - newStart);
                     if (hasSubtaskOverlap(subtask.itemId, newStart, nextDuration, subtask.id)) return;
                     if (overlapsCriticalPath(subtask.itemId, newStart, nextDuration)) return;
@@ -333,7 +361,8 @@ const GanttChartArea = ({
 
                 if (mode === 'resize-end') {
                     const rawEnd = Math.max(0, (startWidthPx + deltaX) / pxFactor) + startDay;
-                    const snappedEnd = snapDay(subtask.itemId, rawEnd, subtask.id);
+                    const endSnap = getSnapCandidate(subtask.itemId, rawEnd, subtask.id);
+                    const snappedEnd = endSnap.within ? endSnap.snapped : rawEnd;
                     const nextDuration = Math.max(0.1, snappedEnd - startDay);
                     if (hasSubtaskOverlap(subtask.itemId, startDay, nextDuration, subtask.id)) return;
                     if (overlapsCriticalPath(subtask.itemId, startDay, nextDuration)) return;
@@ -368,11 +397,7 @@ const GanttChartArea = ({
                     onMouseDown={(e) => handleDragStart(e, 'move')}
                     onDoubleClick={(e) => {
                         e.stopPropagation();
-                        const next = window.prompt('부공종 이름', subtask.label || '');
-                        if (next !== null && onUpdateSubtask) {
-                            const label = next.trim() || "부공종";
-                            onUpdateSubtask(subtask.id, { label });
-                        }
+                        setRenameModal({ open: true, id: subtask.id, value: subtask.label || "부공종" });
                     }}
                     onClick={(e) => {
                         e.stopPropagation();
@@ -800,10 +825,24 @@ const GanttChartArea = ({
                             linkDragActive={!!linkDrag}
                             aiPreview={aiPreviewMap.get(item.id)}
                             aiActive={aiActiveItemId === item.id}
+                            dataChartRow
                         />
                     );
                 })}
             </div>
+            <SubtaskNameModal
+                isOpen={renameModal.open}
+                value={renameModal.value}
+                onChange={(value) => setRenameModal((prev) => ({ ...prev, value }))}
+                onClose={() => setRenameModal({ open: false, id: null, value: "" })}
+                onSubmit={() => {
+                    if (renameModal.id && onUpdateSubtask) {
+                        const label = renameModal.value.trim() || "부공종";
+                        onUpdateSubtask(renameModal.id, { label });
+                    }
+                    setRenameModal({ open: false, id: null, value: "" });
+                }}
+            />
         </div>
     );
 };

@@ -22,7 +22,8 @@ const SmartGanttBar = ({
     linkDragActive,
     onLinkAnchorComplete,
     aiPreview,
-    aiActive
+    aiActive,
+    dataChartRow
 }) => {
     const [isResizing, setIsResizing] = useState(false);
     const [isDragging, setIsDragging] = useState(false);
@@ -116,7 +117,11 @@ const SmartGanttBar = ({
     };
 
     return (
-        <div id={`chart-item-${item.id}`} className={`relative h-11 border-b border-gray-50/50 group/row hover:bg-slate-50 transition-colors ${selectedItemId === item.id ? 'bg-violet-50/50' : ''}`}>
+        <div
+            id={`chart-item-${item.id}`}
+            data-chart-row={dataChartRow ? "true" : undefined}
+            className={`relative h-11 border-b border-gray-50/50 group/row hover:bg-slate-50 transition-colors ${selectedItemId === item.id ? 'bg-violet-50/50' : ''}`}
+        >
 
             {/* Task Label (Floating Above) */}
             <div
