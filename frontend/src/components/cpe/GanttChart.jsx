@@ -48,7 +48,17 @@ export default function GanttChart({ items, links, startDate, onResize, onSmartR
     // Tree View State
     const [expandedCategories, setExpandedCategories] = useState({});
     // eslint-disable-next-line no-unused-vars
+    // eslint-disable-next-line no-unused-vars
     const [expandedProcesses, setExpandedProcesses] = useState({});
+
+    const [isScrolling, setIsScrolling] = useState(false);
+    const handleScroll = useCallback(() => {
+        setIsScrolling(true);
+        clearTimeout(window.ganttChartScrollTimeout);
+        window.ganttChartScrollTimeout = setTimeout(() => {
+            setIsScrolling(false);
+        }, 1000);
+    }, []);
 
     // Calculate Grid Data FIRST (needed for handlers)
     const { itemsWithTiming, totalDays, dailyLoads } = useMemo(() => {
@@ -595,7 +605,11 @@ export default function GanttChart({ items, links, startDate, onResize, onSmartR
                 />
 
                 {/* Right Timeline */}
-                <div ref={chartRef} className="flex-1 overflow-auto bg-white relative">
+                <div
+                    ref={chartRef}
+                    className={`scroll-container flex-1 overflow-auto bg-white relative ${isScrolling ? 'scrolling' : ''}`}
+                    onScroll={handleScroll}
+                >
                     <div style={{ minWidth: `${Math.ceil(totalDays / dateScale) * pixelsPerUnit}px` }}>
 
                         {/* Timeline Header */}

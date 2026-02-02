@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState, useCallback } from "react";
 import { calculateBoredRow, calculateCipRow, calculatePileRow } from "../../../utils/productivityCalculations";
 import EditableTable from "../EditableTable";
 
@@ -14,6 +14,15 @@ export default function EvidenceResultModal({
     onAddItem
 }) {
     const [drafts, setDrafts] = useState({});
+    const [isScrolling, setIsScrolling] = useState(false);
+
+    const handleScroll = useCallback(() => {
+        setIsScrolling(true);
+        clearTimeout(window.evidenceModalScrollTimeout);
+        window.evidenceModalScrollTimeout = setTimeout(() => {
+            setIsScrolling(false);
+        }, 1000);
+    }, []);
 
     useEffect(() => {
         if (!isOpen) return;
@@ -642,7 +651,10 @@ export default function EvidenceResultModal({
                     </div>
                     <button onClick={onClose} className="text-gray-400 hover:text-gray-200">✕</button>
                 </div>
-                <div className="p-6 overflow-y-auto space-y-6">
+                <div
+                    className={`scroll-container p-6 overflow-y-auto space-y-6 ${isScrolling ? 'scrolling' : ''}`}
+                    onScroll={handleScroll}
+                >
                     <div className="space-y-3">
                         <div className="text-sm font-semibold text-gray-200">CIP 결과</div>
                         <EditableTable
@@ -670,7 +682,7 @@ export default function EvidenceResultModal({
                             data={pileTableRows}
                             columns={pileResultColumns}
                             customThead={pileScheduleHeader}
-                            onRowChange={() => {}}
+                            onRowChange={() => { }}
                         />
                         <div className="flex flex-wrap gap-2">
                             {pileTableRows.map((row) => (
@@ -691,7 +703,7 @@ export default function EvidenceResultModal({
                             data={boredTableRows}
                             columns={boredResultColumns}
                             customThead={boredScheduleHeader}
-                            onRowChange={() => {}}
+                            onRowChange={() => { }}
                         />
                         <div className="flex flex-wrap gap-2">
                             {boredTableRows.map((row) => (

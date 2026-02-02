@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { X, Search, ChevronDown, Check } from 'lucide-react';
 import { fetchProductivities } from '../../api/cpe_all/productivity';
 
@@ -35,6 +35,15 @@ export default function StandardImportModal({ isOpen, onClose, onSelect, project
     const [items, setItems] = useState([]);
     const [loading, setLoading] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
+    const [isScrolling, setIsScrolling] = useState(false);
+
+    const handleScroll = useCallback(() => {
+        setIsScrolling(true);
+        clearTimeout(window.importModalScrollTimeout);
+        window.importModalScrollTimeout = setTimeout(() => {
+            setIsScrolling(false);
+        }, 1000);
+    }, []);
 
     useEffect(() => {
         if (isOpen && project_id) {
@@ -154,7 +163,10 @@ export default function StandardImportModal({ isOpen, onClose, onSelect, project
                 </div>
 
                 {/* Content Area (Dark) */}
-                <div className="flex-1 overflow-auto p-4 bg-[#1f1f2b] custom-scrollbar">
+                <div
+                    className={`scroll-container flex-1 overflow-auto p-4 bg-[#1f1f2b] ${isScrolling ? 'scrolling' : ''}`}
+                    onScroll={handleScroll}
+                >
                     {loading ? (
                         <div className="flex flex-col justify-center items-center h-64 gap-3">
                             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-400"></div>

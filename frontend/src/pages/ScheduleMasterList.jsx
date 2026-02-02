@@ -130,6 +130,16 @@ export default function ScheduleMasterList() {
     const [importTargetParent, setImportTargetParent] = useState(null);
     const [viewMode, setViewMode] = useState("table"); // "table" or "gantt"
     const [newMainCategory, setNewMainCategory] = useState("");
+    const [isScrolling, setIsScrolling] = useState(false);
+
+    // Scroll handler for custom scrollbar
+    const handleScroll = useCallback((e) => {
+        setIsScrolling(true);
+        clearTimeout(window.scrollTimeout);
+        window.scrollTimeout = setTimeout(() => {
+            setIsScrolling(false);
+        }, 1000);
+    }, []);
 
     // Dnd Sensors
     const sensors = useSensors(
@@ -457,7 +467,10 @@ export default function ScheduleMasterList() {
                     onApply={() => handleAiApply(confirm)}
                 />
             ) : (
-                <div className="flex-1 min-h-0 overflow-auto rounded-xl border border-gray-700 shadow-xl bg-[#2c2c3a] relative">
+                <div
+                    className={`scroll-container flex-1 min-h-0 overflow-auto rounded-xl border border-gray-700 shadow-xl bg-[#2c2c3a] relative ${isScrolling ? 'scrolling' : ''}`}
+                    onScroll={handleScroll}
+                >
                     <DndContext
                         sensors={sensors}
                         collisionDetection={closestCenter}

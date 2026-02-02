@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import React, { useMemo, useState, useCallback } from "react";
 
 export default function AiLogPanel({
     aiMode,
@@ -29,6 +29,25 @@ export default function AiLogPanel({
             .filter(Boolean);
     }, [aiPreviewItems, aiOriginalItems]);
 
+    const [isLogScrolling, setIsLogScrolling] = useState(false);
+    const [isCompareScrolling, setIsCompareScrolling] = useState(false);
+
+    const handleLogScroll = useCallback(() => {
+        setIsLogScrolling(true);
+        clearTimeout(window.aiLogScrollTimeout);
+        window.aiLogScrollTimeout = setTimeout(() => {
+            setIsLogScrolling(false);
+        }, 1000);
+    }, []);
+
+    const handleCompareScroll = useCallback(() => {
+        setIsCompareScrolling(true);
+        clearTimeout(window.aiCompareScrollTimeout);
+        window.aiCompareScrollTimeout = setTimeout(() => {
+            setIsCompareScrolling(false);
+        }, 1000);
+    }, []);
+
     return (
         <div className="w-80 min-w-[280px] max-w-[360px] flex flex-col rounded-xl border border-gray-700 bg-[#2c2c3a] shadow-lg overflow-hidden">
             <div className="px-4 py-3 border-b border-gray-700 bg-[#3a3a4a] flex items-center justify-between">
@@ -41,7 +60,10 @@ export default function AiLogPanel({
                 {aiMode === "fail" && "목표 달성이 어려워 추가 조정이 필요합니다."}
                 {aiMode === "cancelled" && "작업이 취소되었습니다."}
             </div>
-            <div className="flex-1 overflow-y-auto px-4 py-3 space-y-2 text-xs text-gray-300">
+            <div
+                className={`scroll-container flex-1 overflow-y-auto px-4 py-3 space-y-2 text-xs text-gray-300 ${isLogScrolling ? 'scrolling' : ''}`}
+                onScroll={handleLogScroll}
+            >
                 {aiLogs.length === 0 && <div className="text-gray-500">조정 로그가 없습니다.</div>}
                 {aiLogs.map((log) => (
                     <div
@@ -85,7 +107,10 @@ export default function AiLogPanel({
                     </button>
                 </div>
                 {aiShowCompare && compareRows.length > 0 && (
-                    <div className="mt-3 max-h-40 overflow-y-auto text-[11px] text-gray-400 space-y-1">
+                    <div
+                        className={`scroll-container mt-3 max-h-40 overflow-y-auto text-[11px] text-gray-400 space-y-1 ${isCompareScrolling ? 'scrolling' : ''}`}
+                        onScroll={handleCompareScroll}
+                    >
                         {compareRows.map((row) => (
                             <div key={row.id}>
                                 {row.label} · 인원 {row.crewDiff > 0 ? `+${row.crewDiff}` : row.crewDiff.toFixed(1)}, 생산성 {row.prodDiff > 0 ? `+${row.prodDiff.toFixed(2)}` : row.prodDiff.toFixed(2)}

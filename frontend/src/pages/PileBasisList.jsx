@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { useParams } from "react-router-dom";
 import { fetchPileBasis, fetchPileStandard, updatePileBasis, updatePileStandard, fetchPileResults, updatePileResult, createPileResult } from "../api/cpe_all/pile_basis";
 import { fetchPileResultSummary, updatePileResultSummary, createPileResultSummary } from "../api/cpe_all/pile_basis";
@@ -14,6 +14,15 @@ export default function PileBasisList() {
     const [resultSummary, setResultSummary] = useState(null); // Single Pile Result row
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
+    const [isScrolling, setIsScrolling] = useState(false);
+
+    const handleScroll = useCallback(() => {
+        setIsScrolling(true);
+        clearTimeout(window.pileBasisScrollTimeout);
+        window.pileBasisScrollTimeout = setTimeout(() => {
+            setIsScrolling(false);
+        }, 1000);
+    }, []);
 
     useEffect(() => {
         loadData();
@@ -971,7 +980,10 @@ export default function PileBasisList() {
                 <SaveButton onSave={handleSaveAll} saving={saving} />
             </div>
 
-            <div className="flex-1 overflow-auto space-y-6">
+            <div
+                className={`scroll-container flex-1 overflow-auto space-y-6 ${isScrolling ? 'scrolling' : ''}`}
+                onScroll={handleScroll}
+            >
                 {/* 3. NEW: CIP Result Summary Table (Single Row) */}
                 <div className="bg-[#2c2c3a] border border-gray-700 rounded-xl p-4 shadow-lg">
                     <h2 className="text-xl font-bold mb-4 text-gray-200">작업 결과표</h2>

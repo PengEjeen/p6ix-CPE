@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { useParams } from "react-router-dom";
 import {
     fetchBoredPileBasis,
@@ -24,6 +24,15 @@ export default function BoredPileBasisList() {
     const [resultSummary, setResultSummary] = useState(null);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
+    const [isScrolling, setIsScrolling] = useState(false);
+
+    const handleScroll = useCallback(() => {
+        setIsScrolling(true);
+        clearTimeout(window.boredPileScrollTimeout);
+        window.boredPileScrollTimeout = setTimeout(() => {
+            setIsScrolling(false);
+        }, 1000);
+    }, []);
 
     useEffect(() => {
         loadData();
@@ -526,7 +535,10 @@ export default function BoredPileBasisList() {
                 </div>
             </div>
 
-            <div className="flex-1 overflow-auto space-y-6">
+            <div
+                className={`scroll-container flex-1 overflow-auto space-y-6 ${isScrolling ? 'scrolling' : ''}`}
+                onScroll={handleScroll}
+            >
                 {/* 1. Result Summary */}
                 <div className="bg-[#2c2c3a] border border-gray-700 rounded-xl p-4 shadow-lg">
                     <h2 className="text-xl font-bold mb-4 text-gray-200">작업 결과표</h2>

@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ChevronRight, Layers, FileText, Clock } from "lucide-react";
 
@@ -19,8 +19,23 @@ const GanttSidebar = ({ groupedItems, expandedCategories, setExpandedCategories,
         });
         return map;
     }, [aiPreviewItems, aiOriginalItems]);
+
+    const [isScrolling, setIsScrolling] = useState(false);
+
+    const handleScroll = useCallback(() => {
+        setIsScrolling(true);
+        clearTimeout(window.ganttSidebarScrollTimeout);
+        window.ganttSidebarScrollTimeout = setTimeout(() => {
+            setIsScrolling(false);
+        }, 1000);
+    }, []);
+
     return (
-        <div ref={containerRef} className="w-80 border-r border-gray-200 bg-white flex-shrink-0 overflow-y-auto font-sans scrollbar-thin scrollbar-thumb-gray-200 scrollbar-track-transparent">
+        <div
+            ref={containerRef}
+            className={`scroll-container w-80 border-r border-gray-200 bg-white flex-shrink-0 overflow-y-auto font-sans scrollbar-thin scrollbar-thumb-gray-200 scrollbar-track-transparent ${isScrolling ? 'scrolling' : ''}`}
+            onScroll={handleScroll}
+        >
             {/* Header */}
             <div className="sticky top-0 bg-white/95 backdrop-blur border-b border-gray-200 px-4 py-3 z-[2] shadow-sm flex items-center justify-between">
                 <div className="flex items-center gap-2">

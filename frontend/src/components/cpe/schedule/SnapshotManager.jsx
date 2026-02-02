@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useCallback } from "react";
 import { Trash2, History, Save } from "lucide-react";
 import toast from "react-hot-toast";
 import { useScheduleStore } from "../../../stores/scheduleStore";
@@ -10,6 +10,15 @@ const SnapshotManager = ({ isOpen, onClose }) => {
     const restoreSnapshot = useScheduleStore((state) => state.restoreSnapshot);
     const deleteSnapshot = useScheduleStore((state) => state.deleteSnapshot);
     const [label, setLabel] = useState("");
+    const [isScrolling, setIsScrolling] = useState(false);
+
+    const handleScroll = useCallback(() => {
+        setIsScrolling(true);
+        clearTimeout(window.snapshotScrollTimeout);
+        window.snapshotScrollTimeout = setTimeout(() => {
+            setIsScrolling(false);
+        }, 1000);
+    }, []);
     const { confirm } = useConfirm();
 
     if (!isOpen) return null;
@@ -58,7 +67,10 @@ const SnapshotManager = ({ isOpen, onClose }) => {
                     </div>
                 </div>
 
-                <div className="flex-1 overflow-y-auto p-2 space-y-2 bg-gray-50/50">
+                <div
+                    className={`scroll-container flex-1 overflow-y-auto p-2 space-y-2 bg-gray-50/50 ${isScrolling ? 'scrolling' : ''}`}
+                    onScroll={handleScroll}
+                >
                     {snapshots.length === 0 && (
                         <div className="text-center text-gray-400 text-xs py-8">저장된 스냅샷이 없습니다.</div>
                     )}

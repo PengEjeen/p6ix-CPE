@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   fetchProjects,
@@ -24,7 +24,16 @@ function Projects() {
   const [editingTitle, setEditingTitle] = useState("");
   const [descModal, setDescModal] = useState(null);
   const [menuPosition, setMenuPosition] = useState({ top: 0, left: 0 });
+  const [isScrolling, setIsScrolling] = useState(false);
   const descRef = useRef(null);
+
+  const handleScroll = useCallback(() => {
+    setIsScrolling(true);
+    clearTimeout(window.projectsScrollTimeout);
+    window.projectsScrollTimeout = setTimeout(() => {
+      setIsScrolling(false);
+    }, 1000);
+  }, []);
   const navigate = useNavigate();
   const { alert, confirm } = useConfirm();
 
@@ -176,7 +185,10 @@ function Projects() {
         갑지목록
       </h2>
 
-      <div className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-gray-800 pr-1">
+      <div
+        className={`scroll-container flex-1 overflow-y-auto pr-1 ${isScrolling ? 'scrolling' : ''}`}
+        onScroll={handleScroll}
+      >
         {filteredProjects.length > 0 ? (
           <ul className="space-y-2">
             {filteredProjects.map((project) => (

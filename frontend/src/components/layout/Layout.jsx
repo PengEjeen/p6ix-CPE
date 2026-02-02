@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { Outlet, useNavigate } from "react-router-dom";
 import Header from "./Header";
 import Projects from "./tools/Projects";
@@ -13,6 +13,24 @@ function Layout() {
   const [menuOpen, setMenuOpen] = useState(true);
   const [userOpen, setUserOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+  const [isSidebarScrolling, setIsSidebarScrolling] = useState(false);
+  const [isMainScrolling, setIsMainScrolling] = useState(false);
+
+  const handleSidebarScroll = useCallback(() => {
+    setIsSidebarScrolling(true);
+    clearTimeout(window.sidebarScrollTimeout);
+    window.sidebarScrollTimeout = setTimeout(() => {
+      setIsSidebarScrolling(false);
+    }, 1000);
+  }, []);
+
+  const handleMainScroll = useCallback(() => {
+    setIsMainScrolling(true);
+    clearTimeout(window.mainScrollTimeout);
+    window.mainScrollTimeout = setTimeout(() => {
+      setIsMainScrolling(false);
+    }, 1000);
+  }, []);
   const user = JSON.parse(localStorage.getItem("user") || "{}");
   const userRef = useRef(null);
 
@@ -49,11 +67,13 @@ function Layout() {
 
       {/* === 사이드바 === */}
       <aside
-        className={`fixed top-0 left-0 h-full bg-[#2c2c3a] border-r border-gray-700 flex flex-col justify-between transition-all duration-300 ease-in-out z-20 ${
-          menuOpen ? "w-60" : "w-12"
-        }`}
+        className={`fixed top-0 left-0 h-full bg-[#2c2c3a] border-r border-gray-700 flex flex-col justify-between transition-all duration-300 ease-in-out z-20 ${menuOpen ? "w-60" : "w-12"
+          }`}
       >
-        <div className="flex-1 flex flex-col justify-start overflow-y-auto p-3">
+        <div
+          className={`scroll-container flex-1 flex flex-col justify-start overflow-y-auto p-3 ${isSidebarScrolling ? 'scrolling' : ''}`}
+          onScroll={handleSidebarScroll}
+        >
           {/* 홈버튼 */}
           <div className="flex items-center justify-between mb-4">
             {menuOpen ? (
@@ -112,9 +132,8 @@ function Layout() {
 
             <div
               ref={userRef}
-              className={`overflow-hidden transition-all duration-300 ${
-                userOpen ? "max-h-40 mt-3" : "max-h-0"
-              }`}
+              className={`overflow-hidden transition-all duration-300 ${userOpen ? "max-h-40 mt-3" : "max-h-0"
+                }`}
             >
               <div className="text-sm text-gray-400 space-y-2">
                 <div className="flex items-center gap-2">
@@ -143,12 +162,14 @@ function Layout() {
 
       {/* === 메인 === */}
       <main
-        className={`flex-1 flex flex-col bg-[#1e1e2f] transition-all duration-300 ${
-          menuOpen && !isMobile ? "ml-60" : "ml-12"
-        }`}
+        className={`flex-1 flex flex-col bg-[#1e1e2f] transition-all duration-300 ${menuOpen && !isMobile ? "ml-60" : "ml-12"
+          }`}
       >
         <Header />
-        <div className="flex-1 overflow-y-auto p-6 text-gray-200">
+        <div
+          className={`scroll-container flex-1 overflow-y-auto p-6 text-gray-200 ${isMainScrolling ? 'scrolling' : ''}`}
+          onScroll={handleMainScroll}
+        >
           <Outlet />
         </div>
       </main>
