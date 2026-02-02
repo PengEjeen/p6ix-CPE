@@ -362,16 +362,13 @@ export default function ScheduleMasterList() {
     };
 
     const deriveStandardProductivity = useCallback((std) => {
-        if (std?.pumsam_workload) {
-            return { productivity: std.pumsam_workload, remark: '표준품셈 물량 기준' };
-        }
         if (std?.molit_workload) {
             return { productivity: std.molit_workload, remark: '국토부 가이드라인 물량 기준' };
         }
-        const avg = (std?.pumsam_workload && std?.molit_workload)
-            ? (std.pumsam_workload + std.molit_workload) / 2
-            : (std?.pumsam_workload || std?.molit_workload || 0);
-        return { productivity: avg, remark: '평균 물량 기준' };
+        if (std?.pumsam_workload) {
+            return { productivity: std.pumsam_workload, remark: '표준품셈 물량 기준' };
+        }
+        return { productivity: 0, remark: '추천 기준 없음' };
     }, []);
 
     const handleApplyStandardToRow = useCallback((item, std) => {
