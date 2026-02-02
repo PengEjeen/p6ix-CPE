@@ -30,6 +30,7 @@ export default function ScheduleMasterList() {
     const items = useScheduleStore((state) => state.items);
     const operatingRates = useScheduleStore((state) => state.operatingRates);
     const links = useScheduleStore((state) => state.links);
+    const subTasks = useScheduleStore((state) => state.subTasks);
     const workDayType = useScheduleStore((state) => state.workDayType);
 
     // Actions
@@ -38,11 +39,15 @@ export default function ScheduleMasterList() {
     const updateOperatingRate = useScheduleStore((state) => state.updateOperatingRate);
     const setStoreLinks = useScheduleStore((state) => state.setLinks);
     const setStoreWorkDayType = useScheduleStore((state) => state.setWorkDayType);
+    const setStoreSubTasks = useScheduleStore((state) => state.setSubTasks);
     const updateItem = useScheduleStore((state) => state.updateItem);
     const addItem = useScheduleStore((state) => state.addItem);
     const addItemAtIndex = useScheduleStore((state) => state.addItemAtIndex);
     const deleteItem = useScheduleStore((state) => state.deleteItem);
     const reorderItems = useScheduleStore((state) => state.reorderItems);
+    const addSubTask = useScheduleStore((state) => state.addSubTask);
+    const updateSubTask = useScheduleStore((state) => state.updateSubTask);
+    const deleteSubTask = useScheduleStore((state) => state.deleteSubTask);
 
     // Temporal (Undo/Redo) - Safe Access
     const temporalStore = useScheduleStore.temporal;
@@ -96,7 +101,7 @@ export default function ScheduleMasterList() {
         projectName,
         containerId,
         setContainerId
-    } = useScheduleData(projectId, setStoreItems, setStoreOperatingRates, setStoreLinks, setStoreWorkDayType);
+    } = useScheduleData(projectId, setStoreItems, setStoreOperatingRates, setStoreLinks, setStoreWorkDayType, setStoreSubTasks);
 
     const {
         aiTargetDays,
@@ -149,6 +154,15 @@ export default function ScheduleMasterList() {
     useEffect(() => {
         loadData();
     }, [loadData]);
+
+    useEffect(() => {
+        if (!subTasks || subTasks.length === 0) return;
+        const itemIdSet = new Set(items.map((item) => item.id));
+        const filtered = subTasks.filter((subtask) => itemIdSet.has(subtask.itemId));
+        if (filtered.length !== subTasks.length) {
+            setStoreSubTasks(filtered);
+        }
+    }, [items, subTasks, setStoreSubTasks]);
 
     const handleAddEvidenceItem = useCallback((type, row) => {
         const parent = evidenceTargetParent || items[0];
@@ -208,6 +222,24 @@ export default function ScheduleMasterList() {
             addItem(newItem);
         }
     };
+
+    const handleCreateSubtask = useCallback((itemId, startDay, durationDays) => {
+        addSubTask({
+            id: `sub-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+            itemId,
+            startDay,
+            durationDays,
+            label: "부공종"
+        });
+    }, [addSubTask]);
+
+    const handleUpdateSubtask = useCallback((id, updates) => {
+        updateSubTask(id, updates);
+    }, [updateSubTask]);
+
+    const handleDeleteSubtask = useCallback((id) => {
+        deleteSubTask(id);
+    }, [deleteSubTask]);
 
     const handleAddMainCategory = () => {
         const name = newMainCategory.trim();
@@ -329,10 +361,11 @@ export default function ScheduleMasterList() {
         const remainingLinks = links.filter(
             (link) => remainingIds.has(link.from) && remainingIds.has(link.to)
         );
+        const remainingSubTasks = subTasks.filter((subtask) => remainingIds.has(subtask.itemId));
         categoryItems.forEach((item) => deleteItem(item.id));
         if (containerId) {
             try {
-                await saveScheduleData(containerId, { items: remainingItems, links: remainingLinks });
+                await saveScheduleData(containerId, { items: remainingItems, links: remainingLinks, sub_tasks: remainingSubTasks });
             } catch (error) {
                 console.error("Failed to save after category delete:", error);
                 toast.error("대공종 삭제 저장 실패");
@@ -374,7 +407,7 @@ export default function ScheduleMasterList() {
             });
 
             const results = await Promise.allSettled([
-                saveScheduleData(targetContainerId, { items, links }),
+                saveScheduleData(targetContainerId, { items, links, sub_tasks: subTasks }),
                 updateWorkCondition(projectId, {
                     earthwork_type: typeVal,
                     framework_type: typeVal
@@ -465,6 +498,10 @@ export default function ScheduleMasterList() {
                     aiShowCompare={aiShowCompare}
                     onToggleCompare={() => setAiShowCompare((prev) => !prev)}
                     onApply={() => handleAiApply(confirm)}
+                    subTasks={subTasks}
+                    onCreateSubtask={handleCreateSubtask}
+                    onUpdateSubtask={handleUpdateSubtask}
+                    onDeleteSubtask={handleDeleteSubtask}
                 />
             ) : (
                 <div

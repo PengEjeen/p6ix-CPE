@@ -15,6 +15,7 @@ export const useScheduleStore = create(
             // State
             items: [],
             links: [],
+            subTasks: [],
             operatingRates: [],
             workDayType: '6d', // '5d', '6d', '7d'
 
@@ -24,6 +25,9 @@ export const useScheduleStore = create(
             }),
             setLinks: (links) => set((state) => {
                 state.links = links;
+            }),
+            setSubTasks: (subTasks) => set((state) => {
+                state.subTasks = subTasks || [];
             }),
 
             setOperatingRates: (rates) => set((state) => {
@@ -91,6 +95,7 @@ export const useScheduleStore = create(
             deleteItem: (id) => set((state) => {
                 state.items = state.items.filter(i => i.id !== id);
                 state.links = state.links.filter(l => l.from !== id && l.to !== id);
+                state.subTasks = state.subTasks.filter(s => s.itemId !== id);
             }),
 
             addLink: (link) => set((state) => {
@@ -110,6 +115,21 @@ export const useScheduleStore = create(
 
             reorderItems: (newItems) => set((state) => {
                 state.items = newItems;
+            }),
+
+            addSubTask: (subtask) => set((state) => {
+                state.subTasks.push(subtask);
+            }),
+
+            updateSubTask: (id, updates) => set((state) => {
+                const index = state.subTasks.findIndex(s => s.id === id);
+                if (index !== -1) {
+                    state.subTasks[index] = { ...state.subTasks[index], ...updates };
+                }
+            }),
+
+            deleteSubTask: (id) => set((state) => {
+                state.subTasks = state.subTasks.filter(s => s.id !== id);
             }),
 
             // Smart Actions (Inverse Calculation)

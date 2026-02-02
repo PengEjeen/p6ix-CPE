@@ -16,7 +16,11 @@ export default function ScheduleGanttPanel({
     aiSummary,
     aiShowCompare,
     onToggleCompare,
-    onApply
+    onApply,
+    subTasks,
+    onCreateSubtask,
+    onUpdateSubtask,
+    onDeleteSubtask
 }) {
     return (
         <div className="flex-1 min-h-0 flex gap-4">
@@ -30,6 +34,10 @@ export default function ScheduleGanttPanel({
                     aiPreviewItems={aiPreviewItems}
                     aiOriginalItems={aiOriginalItems}
                     aiActiveItemId={aiActiveItemId}
+                    subTasks={subTasks}
+                    onCreateSubtask={onCreateSubtask}
+                    onUpdateSubtask={onUpdateSubtask}
+                    onDeleteSubtask={onDeleteSubtask}
                 />
             </div>
             {(aiMode !== "idle" || aiLogs.length > 0) && (

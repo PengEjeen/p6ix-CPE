@@ -10,7 +10,20 @@ import GanttChartArea from "./GanttChartArea";
 import ContextualBrainPopover from "./ContextualBrainPopover";
 import OverlapResolvePopover from "./OverlapResolvePopover";
 
-export default function GanttChart({ items, links, startDate, onResize, onSmartResize, aiPreviewItems, aiOriginalItems, aiActiveItemId }) {
+export default function GanttChart({
+    items,
+    links,
+    startDate,
+    onResize,
+    onSmartResize,
+    aiPreviewItems,
+    aiOriginalItems,
+    aiActiveItemId,
+    subTasks,
+    onCreateSubtask,
+    onUpdateSubtask,
+    onDeleteSubtask
+}) {
     // DEBUG: Log when items change
     React.useEffect(() => {
         console.log('[GanttChart] Items prop changed! Count:', items.length);
@@ -32,6 +45,8 @@ export default function GanttChart({ items, links, startDate, onResize, onSmartR
     const [linkMode, setLinkMode] = useState(false);
     const [linkDraft, setLinkDraft] = useState(null); // { fromId, fromAnchor }
     const [linkEditor, setLinkEditor] = useState(null); // { id, x, y }
+    const [subtaskMode, setSubtaskMode] = useState(false);
+    const [selectedSubtaskId, setSelectedSubtaskId] = useState(null);
     const pixelsPerUnit = 40;
 
     // Refs for scrolling
@@ -290,6 +305,19 @@ export default function GanttChart({ items, links, startDate, onResize, onSmartR
         if (!aiActiveItemId) return;
         handleItemClick(aiActiveItemId, 'sidebar');
     }, [aiActiveItemId, handleItemClick]);
+
+    const handleCreateSubtask = useCallback((itemId, startDay, durationDays) => {
+        if (onCreateSubtask) onCreateSubtask(itemId, startDay, durationDays);
+    }, [onCreateSubtask]);
+
+    const handleUpdateSubtask = useCallback((id, updates) => {
+        if (onUpdateSubtask) onUpdateSubtask(id, updates);
+    }, [onUpdateSubtask]);
+
+    const handleDeleteSubtask = useCallback((id) => {
+        if (onDeleteSubtask) onDeleteSubtask(id);
+        setSelectedSubtaskId((prev) => (prev === id ? null : prev));
+    }, [onDeleteSubtask]);
 
     // Calculate category completion milestones
     const categoryMilestones = useMemo(() => {
@@ -567,6 +595,21 @@ export default function GanttChart({ items, links, startDate, onResize, onSmartR
                                         <span className="text-[10px] text-amber-600 font-semibold tracking-wide">대상 선택</span>
                                     )}
                                 </div>
+                                <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-lg border border-gray-200 shadow-sm">
+                                    <button
+                                        type="button"
+                                        onClick={() => setSubtaskMode((prev) => !prev)}
+                                        className={`px-3 py-1 text-xs rounded-full transition-all font-semibold border ${subtaskMode
+                                            ? 'bg-slate-900 text-emerald-300 border-emerald-400/60 shadow-[0_0_12px_rgba(16,185,129,0.25)]'
+                                            : 'bg-gray-50 text-gray-600 hover:bg-gray-100 border-gray-200'
+                                            }`}
+                                    >
+                                        부공종 추가
+                                    </button>
+                                    {subtaskMode && (
+                                        <span className="text-[10px] text-emerald-600 font-semibold tracking-wide">드래그해서 그리기</span>
+                                    )}
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -641,6 +684,13 @@ export default function GanttChart({ items, links, startDate, onResize, onSmartR
                             aiPreviewItems={aiPreviewItems}
                             aiOriginalItems={aiOriginalItems}
                             aiActiveItemId={aiActiveItemId}
+                            subtaskMode={subtaskMode}
+                            subTasks={subTasks}
+                            selectedSubtaskId={selectedSubtaskId}
+                            onSelectSubtask={setSelectedSubtaskId}
+                            onCreateSubtask={handleCreateSubtask}
+                            onUpdateSubtask={handleUpdateSubtask}
+                            onDeleteSubtask={handleDeleteSubtask}
                         />
 
                     </div>

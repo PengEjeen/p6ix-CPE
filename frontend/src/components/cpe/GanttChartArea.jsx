@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import React, { useMemo, useRef, useState, useCallback } from "react";
 import SmartGanttBar from "./SmartGanttBar";
 
 const GanttChartArea = ({
@@ -21,7 +21,14 @@ const GanttChartArea = ({
     selectedLinkId,
     aiPreviewItems,
     aiOriginalItems,
-    aiActiveItemId
+    aiActiveItemId,
+    subtaskMode,
+    subTasks,
+    selectedSubtaskId,
+    onSelectSubtask,
+    onCreateSubtask,
+    onUpdateSubtask,
+    onDeleteSubtask
 }) => {
     const aiPreviewMap = useMemo(() => {
         if (!aiPreviewItems || !aiOriginalItems) return new Map();
@@ -43,9 +50,22 @@ const GanttChartArea = ({
     const rowCenter = 22;
     const pxFactor = pixelsPerUnit / dateScale;
     const itemIndexById = new Map(itemsWithTiming.map((item, index) => [item.id, { item, index }]));
+    const subtaskIndexById = new Map((subTasks || []).map((subtask) => {
+        const parent = itemIndexById.get(subtask.itemId);
+        if (!parent) return null;
+        return [subtask.id, { subtask, index: parent.index }];
+    }).filter(Boolean));
+    const [subtaskDraft, setSubtaskDraft] = useState(null);
+    const subtaskDraftRef = useRef(null);
+    const chartAreaRef = useRef(null);
     const getAnchorX = (itemData, anchor) => {
         const startX = itemData.startDay * pxFactor;
         const endX = (itemData.startDay + itemData.durationDays) * pxFactor;
+        return anchor === "start" ? startX : endX;
+    };
+    const getSubtaskAnchorX = (subtaskData, anchor) => {
+        const startX = subtaskData.startDay * pxFactor;
+        const endX = (subtaskData.startDay + subtaskData.durationDays) * pxFactor;
         return anchor === "start" ? startX : endX;
     };
     const getAnchorY = (index) => (index * rowH) + rowCenter;
@@ -74,6 +94,266 @@ const GanttChartArea = ({
         }
         // 그래프 끝(end)에서 출발: X축 먼저
         return `M ${fromX} ${offsetFromY} L ${toX} ${offsetFromY} L ${toX} ${offsetToY}`;
+    };
+
+    const hasSubtaskOverlap = useCallback((itemId, startDay, durationDays, excludeId = null) => {
+        if (!subTasks || subTasks.length === 0) return false;
+        const endDay = startDay + durationDays;
+        return subTasks.some((subtask) => {
+            if (subtask.itemId !== itemId) return false;
+            if (excludeId && subtask.id === excludeId) return false;
+            const otherStart = subtask.startDay;
+            const otherEnd = subtask.startDay + subtask.durationDays;
+            return startDay < otherEnd && endDay > otherStart;
+        });
+    }, [subTasks]);
+
+    const overlapsCriticalPath = useCallback((itemId, startDay, durationDays) => {
+        const parent = itemsWithTiming.find((item) => item.id === itemId);
+        if (!parent) return false;
+        const frontParallel = parseFloat(parent.front_parallel_days) || 0;
+        const backParallel = parseFloat(parent.back_parallel_days) || 0;
+        const redStart = parent.startDay + frontParallel;
+        const redEnd = (parent.startDay + parent.durationDays) - backParallel;
+        if (redEnd <= redStart) return false;
+        const endDay = startDay + durationDays;
+        return startDay < redEnd && endDay > redStart;
+    }, [itemsWithTiming]);
+
+    const snapDay = useCallback((itemId, day, excludeSubtaskId = null) => {
+        const snapThresholdPx = 14;
+        const thresholdDays = snapThresholdPx / pxFactor;
+        const candidates = [];
+        const parent = itemsWithTiming.find((item) => item.id === itemId);
+        if (parent) {
+            const frontParallel = parseFloat(parent.front_parallel_days) || 0;
+            const backParallel = parseFloat(parent.back_parallel_days) || 0;
+            const redStart = parent.startDay + frontParallel;
+            const redEnd = (parent.startDay + parent.durationDays) - backParallel;
+            candidates.push(redStart, redEnd);
+        }
+        (subTasks || []).forEach((subtask) => {
+            if (subtask.itemId !== itemId) return;
+            if (excludeSubtaskId && subtask.id === excludeSubtaskId) return;
+            candidates.push(subtask.startDay, subtask.startDay + subtask.durationDays);
+        });
+        let best = day;
+        let bestDiff = thresholdDays + 1;
+        candidates.forEach((candidate) => {
+            const diff = Math.abs(candidate - day);
+            if (diff <= thresholdDays && diff < bestDiff) {
+                best = candidate;
+                bestDiff = diff;
+            }
+        });
+        return best;
+    }, [itemsWithTiming, subTasks, pxFactor]);
+
+    const handleSubtaskDrawStart = useCallback((e) => {
+        if (!subtaskMode) return;
+        if (e.button !== 0) return;
+        e.preventDefault();
+        e.stopPropagation();
+
+        const rect = e.currentTarget.getBoundingClientRect();
+        const rowIndex = Math.floor((e.clientY - rect.top) / rowH);
+        if (rowIndex < 0 || rowIndex >= itemsWithTiming.length) return;
+
+        const item = itemsWithTiming[rowIndex];
+        if (!item) return;
+
+        const startDay = Math.max(0, (e.clientX - rect.left) / pxFactor);
+        const draft = { itemId: item.id, startDay, endDay: startDay };
+        setSubtaskDraft(draft);
+        subtaskDraftRef.current = draft;
+
+        const handleMouseMove = (moveEvent) => {
+            const current = Math.max(0, (moveEvent.clientX - rect.left) / pxFactor);
+            const snapped = snapDay(item.id, current);
+            const nextDraft = { ...subtaskDraftRef.current, endDay: snapped };
+            subtaskDraftRef.current = nextDraft;
+            setSubtaskDraft(nextDraft);
+        };
+
+        const handleMouseUp = () => {
+            const finalDraft = subtaskDraftRef.current;
+            if (finalDraft && onCreateSubtask) {
+                const rawStart = Math.min(finalDraft.startDay, finalDraft.endDay);
+                const rawEnd = Math.max(finalDraft.startDay, finalDraft.endDay);
+                const start = snapDay(finalDraft.itemId, rawStart);
+                const end = snapDay(finalDraft.itemId, rawEnd);
+                const duration = Math.max(0.1, Math.abs(end - start));
+                if (!hasSubtaskOverlap(finalDraft.itemId, start, duration) && !overlapsCriticalPath(finalDraft.itemId, start, duration)) {
+                    onCreateSubtask(finalDraft.itemId, start, duration);
+                }
+            }
+            setSubtaskDraft(null);
+            subtaskDraftRef.current = null;
+            document.removeEventListener('mousemove', handleMouseMove);
+            document.removeEventListener('mouseup', handleMouseUp);
+        };
+
+        document.addEventListener('mousemove', handleMouseMove);
+        document.addEventListener('mouseup', handleMouseUp);
+    }, [subtaskMode, rowH, itemsWithTiming, pxFactor, onCreateSubtask, hasSubtaskOverlap, snapDay]);
+
+    const handleCanvasClick = useCallback(() => {
+        if (onSelectSubtask) onSelectSubtask(null);
+    }, [onSelectSubtask]);
+
+    const renderSubtask = (subtask) => {
+        const itemData = itemIndexById.get(subtask.itemId);
+        if (!itemData) return null;
+
+        const index = itemData.index;
+        const height = 6;
+        const top = (index * rowH) + rowCenter - (height / 2);
+        const labelTop = (index * rowH);
+        const leftPx = subtask.startDay * pxFactor;
+        const widthPx = Math.max(subtask.durationDays * pxFactor, 6);
+        const isSelected = selectedSubtaskId === subtask.id;
+
+        const handleDragStart = (e, mode) => {
+            e.preventDefault();
+            e.stopPropagation();
+            if (onSelectSubtask) onSelectSubtask(subtask.id);
+
+            const startX = e.clientX;
+            const startY = e.clientY;
+            const startDay = subtask.startDay;
+            const durationDays = subtask.durationDays;
+            const endDay = startDay + durationDays;
+            const startLeftPx = startDay * pxFactor;
+            const startWidthPx = durationDays * pxFactor;
+            const containerRect = chartAreaRef.current?.getBoundingClientRect();
+
+            const handleMouseMove = (moveEvent) => {
+                const deltaX = moveEvent.clientX - startX;
+
+                if (mode === 'move') {
+                    let nextItemId = subtask.itemId;
+                    if (containerRect) {
+                        const deltaY = moveEvent.clientY - startY;
+                        const nextRowIndex = Math.max(0, Math.min(itemsWithTiming.length - 1, Math.floor((startY + deltaY - containerRect.top) / rowH)));
+                        const rowItem = itemsWithTiming[nextRowIndex];
+                        if (rowItem && rowItem.id) {
+                            nextItemId = rowItem.id;
+                        }
+                    }
+                    const rawStart = Math.max(0, (startLeftPx + deltaX) / pxFactor);
+                    const newStart = snapDay(nextItemId, rawStart, subtask.id);
+                    if (hasSubtaskOverlap(nextItemId, newStart, durationDays, subtask.id)) return;
+                    if (overlapsCriticalPath(nextItemId, newStart, durationDays)) return;
+                    if (onUpdateSubtask) onUpdateSubtask(subtask.id, { startDay: newStart, itemId: nextItemId });
+                    return;
+                }
+
+                if (mode === 'resize-start') {
+                    const rawStart = Math.max(0, (startLeftPx + deltaX) / pxFactor);
+                    const newStart = snapDay(subtask.itemId, rawStart, subtask.id);
+                    const nextDuration = Math.max(0.1, endDay - newStart);
+                    if (hasSubtaskOverlap(subtask.itemId, newStart, nextDuration, subtask.id)) return;
+                    if (overlapsCriticalPath(subtask.itemId, newStart, nextDuration)) return;
+                    if (onUpdateSubtask) onUpdateSubtask(subtask.id, { startDay: newStart, durationDays: nextDuration });
+                    return;
+                }
+
+                if (mode === 'resize-end') {
+                    const rawEnd = Math.max(0, (startWidthPx + deltaX) / pxFactor) + startDay;
+                    const snappedEnd = snapDay(subtask.itemId, rawEnd, subtask.id);
+                    const nextDuration = Math.max(0.1, snappedEnd - startDay);
+                    if (hasSubtaskOverlap(subtask.itemId, startDay, nextDuration, subtask.id)) return;
+                    if (overlapsCriticalPath(subtask.itemId, startDay, nextDuration)) return;
+                    if (onUpdateSubtask) onUpdateSubtask(subtask.id, { durationDays: nextDuration });
+                }
+            };
+
+            const handleMouseUp = () => {
+                document.removeEventListener('mousemove', handleMouseMove);
+                document.removeEventListener('mouseup', handleMouseUp);
+            };
+
+            document.addEventListener('mousemove', handleMouseMove);
+            document.addEventListener('mouseup', handleMouseUp);
+        };
+
+        return (
+            <div key={subtask.id}>
+                <div
+                    className={`absolute text-[10px] font-bold truncate px-1 whitespace-nowrap pointer-events-none
+                        ${isSelected ? 'text-slate-800' : 'text-slate-600'}
+                    `}
+                    style={{ left: `${leftPx}px`, top: `${labelTop}px`, width: 'max-content' }}
+                >
+                    {subtask.label || "부공종"}
+                </div>
+                <div
+                    className={`absolute rounded-full cursor-grab select-none pointer-events-auto
+                        ${isSelected ? 'bg-slate-600/90 text-white ring-2 ring-slate-300' : 'bg-slate-300/90 text-slate-900'}
+                    `}
+                    style={{ left: `${leftPx}px`, top: `${top}px`, height: `${height}px`, width: `${widthPx}px` }}
+                    onMouseDown={(e) => handleDragStart(e, 'move')}
+                    onDoubleClick={(e) => {
+                        e.stopPropagation();
+                        const next = window.prompt('부공종 이름', subtask.label || '');
+                        if (next !== null && onUpdateSubtask) {
+                            const label = next.trim() || "부공종";
+                            onUpdateSubtask(subtask.id, { label });
+                        }
+                    }}
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        if (onSelectSubtask) onSelectSubtask(subtask.id);
+                    }}
+                >
+                <div
+                    className="absolute left-0 top-1/2 -translate-x-1/2 -translate-y-1/2 w-3.5 h-3.5 rounded-full bg-white border-2 border-slate-500 cursor-ew-resize pointer-events-auto"
+                    onMouseDown={(e) => handleDragStart(e, 'resize-start')}
+                />
+                <div
+                    className="absolute right-0 top-1/2 translate-x-1/2 -translate-y-1/2 w-3.5 h-3.5 rounded-full bg-white border-2 border-slate-500 cursor-ew-resize pointer-events-auto"
+                    onMouseDown={(e) => handleDragStart(e, 'resize-end')}
+                />
+                {linkMode && (
+                    <>
+                        <button
+                            type="button"
+                            className="absolute top-0 left-0 -translate-x-1/2 -translate-y-1/2 w-2.5 h-2.5 rounded-full bg-amber-400 ring-2 ring-white shadow-[0_0_6px_rgba(251,191,36,0.45)] z-30"
+                            style={{ left: `${leftPx}px` }}
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                if (onLinkAnchorClick) onLinkAnchorClick(subtask.id, "start");
+                            }}
+                            aria-label="Link start"
+                        />
+                        <button
+                            type="button"
+                            className="absolute top-0 -translate-y-1/2 w-2.5 h-2.5 rounded-full bg-amber-400 ring-2 ring-white shadow-[0_0_6px_rgba(251,191,36,0.45)] z-30"
+                            style={{ left: `${leftPx + widthPx}px` }}
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                if (onLinkAnchorClick) onLinkAnchorClick(subtask.id, "end");
+                            }}
+                            aria-label="Link end"
+                        />
+                    </>
+                )}
+                {isSelected && (
+                    <button
+                        type="button"
+                        className="absolute -right-3 -top-4 w-4 h-4 rounded-full bg-white text-slate-700 border border-slate-300 text-[10px] leading-[14px] shadow-sm pointer-events-auto z-50"
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            if (onDeleteSubtask) onDeleteSubtask(subtask.id);
+                        }}
+                        aria-label="부공종 삭제"
+                    >
+                        ×
+                    </button>
+                )}
+                </div>
+            </div>
+        );
     };
     return (
         <div className="relative">
@@ -112,15 +392,26 @@ const GanttChartArea = ({
                     }
                 `}</style>
                 {Array.isArray(links) && links.map((link) => {
-                    const fromData = itemIndexById.get(link.from);
-                    const toData = itemIndexById.get(link.to);
-                    if (!fromData || !toData) return null;
+                    const fromTask = itemIndexById.get(link.from);
+                    const toTask = itemIndexById.get(link.to);
+                    const fromSub = subtaskIndexById.get(link.from);
+                    const toSub = subtaskIndexById.get(link.to);
+                    if (!fromTask && !fromSub) return null;
+                    if (!toTask && !toSub) return null;
+
                     const anchors = deriveAnchorForType(link.type);
-                    const fromX = getAnchorX(fromData.item, anchors.from);
                     const lagValue = parseFloat(link.lag) || 0;
-                    const toX = getAnchorX(toData.item, anchors.to) + (lagValue * pxFactor);
-                    const fromY = getAnchorY(fromData.index);
-                    const toY = getAnchorY(toData.index);
+
+                    const fromX = fromTask
+                        ? getAnchorX(fromTask.item, anchors.from)
+                        : getSubtaskAnchorX(fromSub.subtask, anchors.from);
+                    const toXBase = toTask
+                        ? getAnchorX(toTask.item, anchors.to)
+                        : getSubtaskAnchorX(toSub.subtask, anchors.to);
+                    const toX = toXBase + (lagValue * pxFactor);
+
+                    const fromY = getAnchorY((fromTask || fromSub).index);
+                    const toY = getAnchorY((toTask || toSub).index);
                     const linkOffset = anchors.from === "start" ? -10 : 10;
                     const path = buildLinkPath(fromX, fromY, toX, toY, anchors.from, linkOffset);
                     const isSelected = link.id === selectedLinkId;
@@ -318,7 +609,41 @@ const GanttChartArea = ({
             </div>
 
             {/* Gantt Rows */}
-            <div className="relative py-1">
+            <div ref={chartAreaRef} className="relative" onMouseDown={handleCanvasClick}>
+                {/* Subtask Layer */}
+                <div
+                    className="absolute inset-0 z-40 pointer-events-none"
+                    style={{ height: `${itemsWithTiming.length * rowH}px` }}
+                >
+                    {(subTasks || []).map((subtask) => renderSubtask(subtask))}
+                    {subtaskDraft && (() => {
+                        const itemData = itemIndexById.get(subtaskDraft.itemId);
+                        if (!itemData) return null;
+                        const start = Math.min(subtaskDraft.startDay, subtaskDraft.endDay);
+                        const duration = Math.max(1, Math.abs(subtaskDraft.endDay - subtaskDraft.startDay));
+                        const height = 6;
+                        const top = (itemData.index * rowH) + rowCenter - (height / 2);
+                        return (
+                            <div
+                                className="absolute rounded-full bg-slate-400/60"
+                                style={{
+                                    left: `${start * pxFactor}px`,
+                                    top: `${top}px`,
+                                    height: `${height}px`,
+                                    width: `${Math.max(duration * pxFactor, 6)}px`
+                                }}
+                            />
+                        );
+                    })()}
+                </div>
+
+                {/* Subtask Draw Overlay */}
+                <div
+                    className={`absolute inset-0 z-30 ${subtaskMode ? 'cursor-crosshair' : 'pointer-events-none'}`}
+                    style={{ height: `${itemsWithTiming.length * rowH}px` }}
+                    onMouseDown={handleSubtaskDrawStart}
+                />
+
                 {itemsWithTiming.map((item, index) => {
                     const taskStart = item.startDay;
                     const taskEnd = item.startDay + item.durationDays;

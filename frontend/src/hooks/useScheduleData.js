@@ -23,7 +23,7 @@ const DEFAULT_SCHEDULE_ITEMS = [];
  * @param {Function} setStoreWorkDayType - Store setter for work day type
  * @returns {Object} { loading, loadData, cipResult, pileResult, boredResult, cipStandards, pileStandards, boredStandards, startDate, projectName, containerId, setContainerId }
  */
-export const useScheduleData = (projectId, setStoreItems, setStoreOperatingRates, setStoreLinks, setStoreWorkDayType) => {
+export const useScheduleData = (projectId, setStoreItems, setStoreOperatingRates, setStoreLinks, setStoreWorkDayType, setStoreSubTasks) => {
     const [loading, setLoading] = useState(true);
     const [cipResult, setCipResult] = useState([]);
     const [pileResult, setPileResult] = useState([]);
@@ -63,6 +63,7 @@ export const useScheduleData = (projectId, setStoreItems, setStoreOperatingRates
             // Handle Initial Init
             let scheduleItems = fetchedData.items;
             let scheduleLinks = fetchedData.links || [];
+            let scheduleSubTasks = fetchedData.sub_tasks || fetchedData.subTasks || [];
             let currentContainerId = fetchedData.containerId;
 
             if (!currentContainerId || !scheduleItems || scheduleItems.length === 0) {
@@ -72,6 +73,7 @@ export const useScheduleData = (projectId, setStoreItems, setStoreOperatingRates
                     const refetched = await fetchScheduleItems(projectId);
                     scheduleItems = refetched.items;
                     scheduleLinks = refetched.links || [];
+                    scheduleSubTasks = refetched.sub_tasks || refetched.subTasks || [];
                     currentContainerId = refetched.containerId;
                 } catch (e) {
                     console.error("Backend Init Failed, using local fallback");
@@ -82,9 +84,10 @@ export const useScheduleData = (projectId, setStoreItems, setStoreOperatingRates
                     console.warn("Using Local Fallback Data");
                     scheduleItems = DEFAULT_SCHEDULE_ITEMS;
                     scheduleLinks = [];
+                    scheduleSubTasks = [];
                     // Try to save it immediately if we have a containerId, or wait for user save
                     if (currentContainerId) {
-                        saveScheduleData(currentContainerId, { items: scheduleItems, links: scheduleLinks }).catch(console.error);
+                        saveScheduleData(currentContainerId, { items: scheduleItems, links: scheduleLinks, sub_tasks: scheduleSubTasks }).catch(console.error);
                     }
                 }
             }
@@ -96,6 +99,9 @@ export const useScheduleData = (projectId, setStoreItems, setStoreOperatingRates
             setStoreOperatingRates(rateData);
             setStoreItems(scheduleItems); // Will calculate in store
             setStoreLinks(scheduleLinks);
+            if (setStoreSubTasks) {
+                setStoreSubTasks(scheduleSubTasks);
+            }
 
             const cipList = Array.isArray(cipData) ? cipData : (cipData.results || []);
             const pileList = Array.isArray(pileData) ? pileData : (pileData.results || []);

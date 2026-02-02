@@ -15,19 +15,21 @@ export const fetchScheduleItems = async (projectId) => {
                 return {
                     containerId: container.id,
                     items: rawData,
-                    links: []
+                    links: [],
+                    sub_tasks: []
                 };
             }
             return {
                 containerId: container.id,
                 items: rawData.items || [],
-                links: rawData.links || []
+                links: rawData.links || [],
+                sub_tasks: rawData.sub_tasks || rawData.subTasks || []
             };
         }
-        return { containerId: null, items: [], links: [] };
+        return { containerId: null, items: [], links: [], sub_tasks: [] };
     } catch (error) {
         console.error("Error fetching schedule items:", error);
-        return { containerId: null, items: [], links: [] };
+        return { containerId: null, items: [], links: [], sub_tasks: [] };
     }
 };
 
@@ -48,7 +50,8 @@ export const saveScheduleData = async (containerId, payload) => {
             ? payload
             : {
                 items: payload.items || [],
-                links: payload.links || []
+                links: payload.links || [],
+                sub_tasks: payload.sub_tasks || payload.subTasks || []
             };
         // We patch the container with the new data array
         await api.patch(`${API_URL}${containerId}/`, {
