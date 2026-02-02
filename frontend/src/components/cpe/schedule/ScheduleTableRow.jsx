@@ -1,9 +1,24 @@
-import React from "react";
+import React, { useMemo, useRef, useState } from "react";
 import { Trash2, Link, RefreshCw, Plus, GripVertical } from "lucide-react";
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
+import StandardSuggestList from "./StandardSuggestList";
 
-const ScheduleTableRow = ({ item, isLinked, handleChange, handleDeleteItem, handleAddItem, handleOpenImport, spanInfo, isOverlay, rowClassName = "", operatingRates = [], workDayType = "6d" }) => {
+const ScheduleTableRow = ({
+    item,
+    isLinked,
+    handleChange,
+    handleDeleteItem,
+    handleAddItem,
+    handleOpenImport,
+    spanInfo,
+    isOverlay,
+    rowClassName = "",
+    operatingRates = [],
+    workDayType = "6d",
+    standardItems = [],
+    onApplyStandard
+}) => {
     // Auto-match operating rate by main_category
     const rateObj = operatingRates.find((rate) => rate.main_category === item.main_category);
 
@@ -41,6 +56,76 @@ const ScheduleTableRow = ({ item, isLinked, handleChange, handleDeleteItem, hand
         spanInfo = { mainRowSpan: 1, procRowSpan: 1, isMainFirst: true, isProcFirst: true };
     }
 
+    const [activeField, setActiveField] = useState(null);
+    const [processQuery, setProcessQuery] = useState("");
+    const [workTypeQuery, setWorkTypeQuery] = useState("");
+    const [activeIndex, setActiveIndex] = useState(0);
+    const blurTimeoutRef = useRef(null);
+    const processInputRef = useRef(null);
+    const workTypeInputRef = useRef(null);
+
+    const buildSuggestions = (query) => {
+        const term = query.trim().toLowerCase();
+        if (!term || !standardItems.length) return [];
+        const scored = standardItems.map((std) => {
+            const fields = [
+                std.item_name,
+                std.category,
+                std.standard,
+                std.main_category,
+                std.process_name
+            ].filter(Boolean).map((v) => String(v).toLowerCase());
+            let score = 0;
+            fields.forEach((f) => {
+                if (f === term) score += 10;
+                else if (f.startsWith(term)) score += 6;
+                else if (f.includes(term)) score += 3;
+            });
+            return { std, score };
+        }).filter((entry) => entry.score > 0);
+        return scored.sort((a, b) => b.score - a.score).slice(0, 6).map((entry) => entry.std);
+    };
+
+    const processSuggestions = useMemo(() => buildSuggestions(processQuery), [processQuery, standardItems]);
+    const workTypeSuggestions = useMemo(() => buildSuggestions(workTypeQuery), [workTypeQuery, standardItems]);
+
+    const handleInputFocus = (field) => {
+        if (blurTimeoutRef.current) {
+            clearTimeout(blurTimeoutRef.current);
+            blurTimeoutRef.current = null;
+        }
+        if (field === 'process') setProcessQuery(item.process || "");
+        if (field === 'work_type') setWorkTypeQuery(item.work_type || "");
+        setActiveIndex(0);
+        setActiveField(field);
+    };
+
+    const handleInputBlur = () => {
+        blurTimeoutRef.current = setTimeout(() => {
+            setActiveField(null);
+        }, 150);
+    };
+
+    const handleSuggestionSelect = (std) => {
+        if (onApplyStandard) onApplyStandard(item, std);
+        setActiveField(null);
+    };
+
+    const handleSuggestionKeyDown = (e, suggestions) => {
+        if (!suggestions || suggestions.length === 0) return;
+        if (e.key === "ArrowDown") {
+            e.preventDefault();
+            setActiveIndex((prev) => Math.min(prev + 1, suggestions.length - 1));
+        } else if (e.key === "ArrowUp") {
+            e.preventDefault();
+            setActiveIndex((prev) => Math.max(prev - 1, 0));
+        } else if (e.key === "Enter") {
+            e.preventDefault();
+            const selected = suggestions[activeIndex] || suggestions[0];
+            if (selected) handleSuggestionSelect(selected);
+        }
+    };
+
     return (
         <tr ref={setNodeRef} style={style} className={`hover:bg-white/5 transition-colors text-base ${rowClassName} ${isDragging && !isOverlay ? "bg-blue-900/20" : ""}`}>
             {/* Drag Handle */}
@@ -59,23 +144,57 @@ const ScheduleTableRow = ({ item, isLinked, handleChange, handleDeleteItem, hand
                     rowSpan={isOverlay ? 1 : spanInfo.procRowSpan}
                     className="border-r border-gray-700 bg-[#2c2c3a] p-1 align-top"
                 >
-                    <input
-                        className="w-full bg-transparent outline-none font-medium text-gray-200 text-center text-base"
-                        value={item.process}
-                        onChange={(e) => handleChange(item.id, 'process', e.target.value)}
-                    />
+                    <div className="relative">
+                        <input
+                            ref={processInputRef}
+                            className="w-full bg-transparent outline-none font-medium text-gray-200 text-center text-base"
+                            value={item.process}
+                            onChange={(e) => {
+                                handleChange(item.id, 'process', e.target.value);
+                                setProcessQuery(e.target.value);
+                            }}
+                            onFocus={() => handleInputFocus('process')}
+                            onBlur={handleInputBlur}
+                            onKeyDown={(e) => handleSuggestionKeyDown(e, processSuggestions)}
+                        />
+                        <StandardSuggestList
+                            items={processSuggestions}
+                            isOpen={!isOverlay && activeField === 'process'}
+                            activeIndex={activeIndex}
+                            onActiveIndexChange={setActiveIndex}
+                            onSelect={handleSuggestionSelect}
+                            position="bottom"
+                            anchorRef={processInputRef}
+                        />
+                    </div>
                 </td>
             )}
 
             {/* Work Type */}
             <td className="border-r border-gray-700 px-2 py-1">
-                <div className="flex items-center gap-1">
+                <div className="flex items-center gap-1 relative">
                     {isLinked && <Link size={12} className="text-blue-500" />}
                     <input
                         type="text"
+                        ref={workTypeInputRef}
                         className="w-full bg-transparent outline-none text-gray-200 p-1 rounded hover:bg-white/10 focus:bg-[#1f1f2b] focus:ring-1 focus:ring-blue-500/50 transition text-base font-medium"
                         value={item.work_type}
-                        onChange={(e) => handleChange(item.id, 'work_type', e.target.value)}
+                        onChange={(e) => {
+                            handleChange(item.id, 'work_type', e.target.value);
+                            setWorkTypeQuery(e.target.value);
+                        }}
+                        onFocus={() => handleInputFocus('work_type')}
+                        onBlur={handleInputBlur}
+                        onKeyDown={(e) => handleSuggestionKeyDown(e, workTypeSuggestions)}
+                    />
+                    <StandardSuggestList
+                        items={workTypeSuggestions}
+                        isOpen={!isOverlay && activeField === 'work_type'}
+                        activeIndex={activeIndex}
+                        onActiveIndexChange={setActiveIndex}
+                        onSelect={handleSuggestionSelect}
+                        position="bottom"
+                        anchorRef={workTypeInputRef}
                     />
                 </div>
             </td>

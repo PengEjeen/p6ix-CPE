@@ -14,11 +14,13 @@ def create_operating_rates_for_new_categories(sender, instance, **kwargs):
         WorkScheduleWeight.objects.filter(project=instance.project).delete()
         return
     
-    # data에서 main_category 추출
+    # data에서 main_category 추출 (list 또는 dict payload 모두 대응)
+    raw_data = instance.data
+    items = raw_data.get("items", []) if isinstance(raw_data, dict) else raw_data
     data_categories = {
         item.get("main_category")
-        for item in instance.data
-        if item.get("main_category")
+        for item in items
+        if isinstance(item, dict) and item.get("main_category")
     }
 
     # 새로운 카테고리만 생성 (중복 안전)

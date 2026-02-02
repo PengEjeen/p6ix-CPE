@@ -22,6 +22,7 @@ import { useAIScheduleOptimizer } from "../hooks/useAIScheduleOptimizer";
 import { useScheduleData } from "../hooks/useScheduleData";
 import { useDragHandlers } from "../hooks/useDragHandlers";
 import { calculateTotalCalendarDays, calculateTotalCalendarMonths } from "../utils/scheduleCalculations";
+import { fetchProductivities } from "../api/cpe_all/productivity";
 
 export default function ScheduleMasterList() {
     const { id: projectId } = useParams();
@@ -136,6 +137,7 @@ export default function ScheduleMasterList() {
     const [viewMode, setViewMode] = useState("table"); // "table" or "gantt"
     const [newMainCategory, setNewMainCategory] = useState("");
     const [isScrolling, setIsScrolling] = useState(false);
+    const [standardItems, setStandardItems] = useState([]);
 
     // Scroll handler for custom scrollbar
     const handleScroll = useCallback((e) => {
@@ -154,6 +156,23 @@ export default function ScheduleMasterList() {
     useEffect(() => {
         loadData();
     }, [loadData]);
+
+    useEffect(() => {
+        let isMounted = true;
+        const loadStandards = async () => {
+            try {
+                const data = await fetchProductivities(projectId);
+                const list = Array.isArray(data) ? data : (data.results || []);
+                if (isMounted) setStandardItems(list);
+            } catch (error) {
+                console.error("Failed to load standard productivities:", error);
+            }
+        };
+        if (projectId) loadStandards();
+        return () => {
+            isMounted = false;
+        };
+    }, [projectId]);
 
     useEffect(() => {
         if (!subTasks || subTasks.length === 0) return;
@@ -341,6 +360,30 @@ export default function ScheduleMasterList() {
         toast.success("표준품셈 항목 추가");
         setImportModalOpen(false);
     };
+
+    const deriveStandardProductivity = useCallback((std) => {
+        if (std?.pumsam_workload) {
+            return { productivity: std.pumsam_workload, remark: '표준품셈 물량 기준' };
+        }
+        if (std?.molit_workload) {
+            return { productivity: std.molit_workload, remark: '국토부 가이드라인 물량 기준' };
+        }
+        const avg = (std?.pumsam_workload && std?.molit_workload)
+            ? (std.pumsam_workload + std.molit_workload) / 2
+            : (std?.pumsam_workload || std?.molit_workload || 0);
+        return { productivity: avg, remark: '평균 물량 기준' };
+    }, []);
+
+    const handleApplyStandardToRow = useCallback((item, std) => {
+        if (!item || !std) return;
+        const { productivity, remark } = deriveStandardProductivity(std);
+        updateItem(item.id, 'process', std.process_name || std.category || std.item_name || item.process || '');
+        updateItem(item.id, 'work_type', std.category || std.item_name || item.work_type || '');
+        updateItem(item.id, 'unit', std.unit || item.unit || '');
+        updateItem(item.id, 'productivity', productivity || 0);
+        updateItem(item.id, 'standard_code', std.code || std.standard || item.standard_code || '');
+        updateItem(item.id, 'remarks', std.item_name ? `${std.item_name} (${remark})` : (item.remarks || remark));
+    }, [deriveStandardProductivity, updateItem]);
 
     const spanInfoMap = useMemo(() => {
         const map = {};
@@ -670,6 +713,8 @@ export default function ScheduleMasterList() {
                                                             handleAddItem={handleAddItem}
                                                             handleOpenImport={handleOpenImport}
                                                             spanInfo={spanInfoMap[item.id] || { isMainFirst: true, isProcFirst: true, mainRowSpan: 1, procRowSpan: 1 }}
+                                                            standardItems={standardItems}
+                                                            onApplyStandard={handleApplyStandardToRow}
                                                         />
                                                     ))}
                                                 </React.Fragment>
@@ -712,6 +757,8 @@ export default function ScheduleMasterList() {
                                                 handleOpenImport={() => { }}
                                                 spanInfo={{}}
                                                 isOverlay={true}
+                                                standardItems={[]}
+                                                onApplyStandard={() => { }}
                                             />
                                         </tbody>
                                     </table>
