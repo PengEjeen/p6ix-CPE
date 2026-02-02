@@ -285,6 +285,29 @@ export default function GanttChart({
         setLinkDraft(null);
     }, [addLink, linkDraft, linkMode, links]);
 
+    const handleCreateLink = useCallback((fromId, fromAnchor, toId, toAnchor) => {
+        if (!fromId || !toId) return;
+        if (fromId === toId && fromAnchor === toAnchor) return;
+        const linkType = deriveLinkType(fromAnchor, toAnchor);
+        const newLink = {
+            id: `link-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+            from: fromId,
+            to: toId,
+            type: linkType,
+            lag: 0
+        };
+        const alreadyExists = Array.isArray(links) && links.some(
+            (link) =>
+                link.from === newLink.from &&
+                link.to === newLink.to &&
+                link.type === newLink.type &&
+                (parseFloat(link.lag) || 0) === 0
+        );
+        if (!alreadyExists) {
+            addLink(newLink);
+        }
+    }, [addLink, links]);
+
     const handleLinkClick = useCallback((linkId, x, y) => {
         setSelectedLinkId(linkId);
         setLinkEditor({ id: linkId, x, y });
@@ -684,6 +707,7 @@ export default function GanttChart({
                             aiPreviewItems={aiPreviewItems}
                             aiOriginalItems={aiOriginalItems}
                             aiActiveItemId={aiActiveItemId}
+                            onCreateLink={handleCreateLink}
                             subtaskMode={subtaskMode}
                             subTasks={subTasks}
                             selectedSubtaskId={selectedSubtaskId}

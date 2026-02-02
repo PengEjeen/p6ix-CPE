@@ -18,6 +18,9 @@ const SmartGanttBar = ({
     onItemClick,
     linkMode,
     onLinkAnchorClick,
+    onLinkDragStart,
+    linkDragActive,
+    onLinkAnchorComplete,
     aiPreview,
     aiActive
 }) => {
@@ -185,7 +188,7 @@ const SmartGanttBar = ({
                 </motion.div>
             </div>
 
-            {linkMode && (
+                {linkMode && (
                 <>
                     <button
                         type="button"
@@ -195,6 +198,16 @@ const SmartGanttBar = ({
                             e.stopPropagation();
                             if (onLinkAnchorClick) onLinkAnchorClick(item.id, "start");
                         }}
+                        onClickCapture={(e) => {
+                            if (linkDragActive && onLinkAnchorComplete) {
+                                onLinkAnchorComplete(e, item.id, "start");
+                                return;
+                            }
+                            if (linkDragActive) return;
+                            if (onLinkDragStart) onLinkDragStart(e, item.id, "start");
+                        }}
+                        data-link-id={item.id}
+                        data-link-anchor="start"
                         aria-label="Link start"
                     />
                     <button
@@ -205,6 +218,16 @@ const SmartGanttBar = ({
                             e.stopPropagation();
                             if (onLinkAnchorClick) onLinkAnchorClick(item.id, "end");
                         }}
+                        onClickCapture={(e) => {
+                            if (linkDragActive && onLinkAnchorComplete) {
+                                onLinkAnchorComplete(e, item.id, "end");
+                                return;
+                            }
+                            if (linkDragActive) return;
+                            if (onLinkDragStart) onLinkDragStart(e, item.id, "end");
+                        }}
+                        data-link-id={item.id}
+                        data-link-anchor="end"
                         aria-label="Link end"
                     />
                 </>

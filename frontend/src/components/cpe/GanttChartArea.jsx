@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState, useCallback } from "react";
+import React, { useMemo, useRef, useState, useCallback, useEffect } from "react";
 import SmartGanttBar from "./SmartGanttBar";
 
 const GanttChartArea = ({
@@ -19,6 +19,7 @@ const GanttChartArea = ({
     onLinkAnchorClick,
     onLinkClick,
     selectedLinkId,
+    onCreateLink,
     aiPreviewItems,
     aiOriginalItems,
     aiActiveItemId,
@@ -58,6 +59,7 @@ const GanttChartArea = ({
     const [subtaskDraft, setSubtaskDraft] = useState(null);
     const subtaskDraftRef = useRef(null);
     const chartAreaRef = useRef(null);
+    const [linkDrag, setLinkDrag] = useState(null); // { fromId, fromAnchor, fromX, fromY, x, y }
     const getAnchorX = (itemData, anchor) => {
         const startX = itemData.startDay * pxFactor;
         const endX = (itemData.startDay + itemData.durationDays) * pxFactor;
@@ -95,6 +97,77 @@ const GanttChartArea = ({
         // 그래프 끝(end)에서 출발: X축 먼저
         return `M ${fromX} ${offsetFromY} L ${toX} ${offsetFromY} L ${toX} ${offsetToY}`;
     };
+
+    const getLinkAnchorPosition = useCallback((id, anchor) => {
+        const taskData = itemIndexById.get(id);
+        if (taskData) {
+            return {
+                x: getAnchorX(taskData.item, anchor),
+                y: getAnchorY(taskData.index)
+            };
+        }
+        const subData = subtaskIndexById.get(id);
+        if (subData) {
+            return {
+                x: getSubtaskAnchorX(subData.subtask, anchor),
+                y: getAnchorY(subData.index)
+            };
+        }
+        return null;
+    }, [itemIndexById, subtaskIndexById, getAnchorX, getSubtaskAnchorX]);
+
+    const handleLinkDragStart = useCallback((e, fromId, fromAnchor) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const origin = getLinkAnchorPosition(fromId, fromAnchor);
+        if (!origin) return;
+        const rect = chartAreaRef.current?.getBoundingClientRect();
+        if (!rect) return;
+        const startX = e.clientX - rect.left;
+        const startY = e.clientY - rect.top;
+        setLinkDrag({
+            fromId,
+            fromAnchor,
+            fromX: origin.x,
+            fromY: origin.y,
+            x: startX,
+            y: startY
+        });
+    }, [getLinkAnchorPosition]);
+
+    const handleLinkAnchorClick = useCallback((e, toId, toAnchor) => {
+        if (!linkDrag) return;
+        e.preventDefault();
+        e.stopPropagation();
+        if (onCreateLink) {
+            onCreateLink(linkDrag.fromId, linkDrag.fromAnchor, toId, toAnchor);
+        }
+        setLinkDrag(null);
+    }, [linkDrag, onCreateLink]);
+
+    useEffect(() => {
+        if (!linkDrag) return;
+        const rect = chartAreaRef.current?.getBoundingClientRect();
+        if (!rect) return;
+
+        const handleMouseMove = (moveEvent) => {
+            const nextX = moveEvent.clientX - rect.left;
+            const nextY = moveEvent.clientY - rect.top;
+            setLinkDrag((prev) => (prev ? { ...prev, x: nextX, y: nextY } : prev));
+        };
+
+        const handleMouseDown = (e) => {
+            if (e.target?.dataset?.linkId) return;
+            setLinkDrag(null);
+        };
+
+        document.addEventListener('mousemove', handleMouseMove);
+        document.addEventListener('mousedown', handleMouseDown);
+        return () => {
+            document.removeEventListener('mousemove', handleMouseMove);
+            document.removeEventListener('mousedown', handleMouseDown);
+        };
+    }, [linkDrag]);
 
     const hasSubtaskOverlap = useCallback((itemId, startDay, durationDays, excludeId = null) => {
         if (!subTasks || subTasks.length === 0) return false;
@@ -288,7 +361,7 @@ const GanttChartArea = ({
                     {subtask.label || "부공종"}
                 </div>
                 <div
-                    className={`absolute rounded-full cursor-grab select-none pointer-events-auto
+                    className={`absolute rounded-full cursor-grab select-none pointer-events-auto group/row
                         ${isSelected ? 'bg-slate-600/90 text-white ring-2 ring-slate-300' : 'bg-slate-300/90 text-slate-900'}
                     `}
                     style={{ left: `${leftPx}px`, top: `${top}px`, height: `${height}px`, width: `${widthPx}px` }}
@@ -318,22 +391,35 @@ const GanttChartArea = ({
                     <>
                         <button
                             type="button"
-                            className="absolute top-0 left-0 -translate-x-1/2 -translate-y-1/2 w-2.5 h-2.5 rounded-full bg-amber-400 ring-2 ring-white shadow-[0_0_6px_rgba(251,191,36,0.45)] z-30"
-                            style={{ left: `${leftPx}px` }}
+                            className="absolute -top-4 left-0 -translate-x-1/2 w-2.5 h-2.5 rounded-full bg-amber-400 ring-2 ring-white shadow-[0_0_6px_rgba(251,191,36,0.45)] z-30 opacity-0 group-hover/row:opacity-100 transition-opacity"
                             onClick={(e) => {
                                 e.stopPropagation();
                                 if (onLinkAnchorClick) onLinkAnchorClick(subtask.id, "start");
                             }}
+                            onClickCapture={(e) => handleLinkAnchorClick(e, subtask.id, "start")}
+                            onClick={(e) => {
+                                if (linkDrag) return;
+                                handleLinkDragStart(e, subtask.id, "start");
+                            }}
+                            data-link-id={subtask.id}
+                            data-link-anchor="start"
                             aria-label="Link start"
                         />
                         <button
                             type="button"
-                            className="absolute top-0 -translate-y-1/2 w-2.5 h-2.5 rounded-full bg-amber-400 ring-2 ring-white shadow-[0_0_6px_rgba(251,191,36,0.45)] z-30"
-                            style={{ left: `${leftPx + widthPx}px` }}
+                            className="absolute -top-4 -translate-x-1/2 w-2.5 h-2.5 rounded-full bg-amber-400 ring-2 ring-white shadow-[0_0_6px_rgba(251,191,36,0.45)] z-30 opacity-0 group-hover/row:opacity-100 transition-opacity"
+                            style={{ left: "100%" }}
                             onClick={(e) => {
                                 e.stopPropagation();
                                 if (onLinkAnchorClick) onLinkAnchorClick(subtask.id, "end");
                             }}
+                            onClickCapture={(e) => handleLinkAnchorClick(e, subtask.id, "end")}
+                            onClick={(e) => {
+                                if (linkDrag) return;
+                                handleLinkDragStart(e, subtask.id, "end");
+                            }}
+                            data-link-id={subtask.id}
+                            data-link-anchor="end"
                             aria-label="Link end"
                         />
                     </>
@@ -440,6 +526,24 @@ const GanttChartArea = ({
                         </g>
                     );
                 })}
+                {linkDrag && (
+                    <path
+                        d={buildLinkPath(
+                            linkDrag.fromX,
+                            linkDrag.fromY,
+                            linkDrag.x,
+                            linkDrag.y,
+                            linkDrag.fromAnchor,
+                            linkDrag.fromAnchor === "start" ? -10 : 10
+                        )}
+                        fill="none"
+                        stroke="#f59e0b"
+                        strokeWidth="2.5"
+                        strokeDasharray="6 4"
+                        className="opacity-90"
+                        pointerEvents="none"
+                    />
+                )}
             </svg>
 
             {/* Critical Path Lines (CP) */}
@@ -691,6 +795,9 @@ const GanttChartArea = ({
                             onItemClick={onItemClick}
                             linkMode={linkMode}
                             onLinkAnchorClick={onLinkAnchorClick}
+                            onLinkDragStart={handleLinkDragStart}
+                            onLinkAnchorComplete={handleLinkAnchorClick}
+                            linkDragActive={!!linkDrag}
                             aiPreview={aiPreviewMap.get(item.id)}
                             aiActive={aiActiveItemId === item.id}
                         />
