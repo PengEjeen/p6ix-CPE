@@ -56,6 +56,7 @@ export default function GanttChart({
     // Popover State
     const [popover, setPopover] = useState(null); // { visible, item, oldDuration, newDuration, x, y }
     const [overlapPopover, setOverlapPopover] = useState(null);  // For drag overlap
+    const lastOverlapRef = React.useRef(new Map()); // draggedId -> overlappingId
 
     // Simulation Tooltip State
     const [simulation, setSimulation] = useState(null);
@@ -525,6 +526,9 @@ export default function GanttChart({
         if (overlapInfo) {
             console.log('[DRAG] Result: OVERLAP → Showing popup');
             setOverlapPopover(overlapInfo);
+            if (overlapInfo.overlappingTask?.id) {
+                lastOverlapRef.current.set(itemId, overlapInfo.overlappingTask.id);
+            }
         } else {
             console.log('[DRAG] Result: NO OVERLAP → Should clear grey');
             console.log('[DRAG] What should we clear?');
@@ -532,9 +536,13 @@ export default function GanttChart({
             // TODO: Figure out which tasks to clear
 
             // Atomic update for Undo/Redo consistency
-            useScheduleStore.getState().resolveDragOverlap(itemId, newStartDay, [
-                { id: itemId, front: 0, back: 0 }
-            ]);
+            const updates = [{ id: itemId, front: 0, back: 0 }];
+            const prevOverlapId = lastOverlapRef.current.get(itemId);
+            if (prevOverlapId) {
+                updates.push({ id: prevOverlapId, front: 0, back: 0 });
+                lastOverlapRef.current.delete(itemId);
+            }
+            useScheduleStore.getState().resolveDragOverlap(itemId, newStartDay, updates);
         }
         console.log('=== [DRAG END] ===');
     }, [items, itemsWithTiming]);

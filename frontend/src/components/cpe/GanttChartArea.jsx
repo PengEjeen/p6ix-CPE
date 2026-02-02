@@ -63,6 +63,42 @@ const GanttChartArea = ({
     const [linkDrag, setLinkDrag] = useState(null); // { fromId, fromAnchor, fromX, fromY, x, y }
     const [renameModal, setRenameModal] = useState({ open: false, id: null, value: "" });
 
+    const cpMeta = useMemo(() => {
+        const map = new Map();
+        itemsWithTiming.forEach((item) => {
+            const frontParallel = parseFloat(item.front_parallel_days) || 0;
+            const backParallel = parseFloat(item.back_parallel_days) || 0;
+            const redStart = item.startDay + frontParallel;
+            const redEnd = (item.startDay + item.durationDays) - backParallel;
+            const hasCriticalSegment = redEnd > redStart;
+            const isCp = item.remarks !== '병행작업' && hasCriticalSegment;
+            map.set(item.id, { redStart, redEnd, isCp });
+        });
+        return map;
+    }, [itemsWithTiming]);
+
+    const containedCpMap = useMemo(() => {
+        const map = new Map();
+        itemsWithTiming.forEach((outer) => {
+            const outerMeta = cpMeta.get(outer.id);
+            if (!outerMeta || !outerMeta.isCp) return;
+            const list = [];
+            itemsWithTiming.forEach((inner) => {
+                if (inner.id === outer.id) return;
+                const innerMeta = cpMeta.get(inner.id);
+                if (!innerMeta || !innerMeta.isCp) return;
+                if (innerMeta.redStart >= outerMeta.redStart && innerMeta.redEnd <= outerMeta.redEnd) {
+                    list.push({ item: inner, meta: innerMeta });
+                }
+            });
+            if (list.length > 0) {
+                list.sort((a, b) => a.meta.redStart - b.meta.redStart);
+                map.set(outer.id, list);
+            }
+        });
+        return map;
+    }, [itemsWithTiming, cpMeta]);
+
     useLayoutEffect(() => {
         if (!chartAreaRef.current || itemsWithTiming.length === 0) return;
         const measure = () => {
@@ -585,8 +621,6 @@ const GanttChartArea = ({
                     if (i === itemsWithTiming.length - 1) return null;
 
                     const pxFactor = pixelsPerUnit / dateScale;
-                    const rowH = 44;
-                    const rowCenter = 22;
 
                     // Calculate RED end (excluding grey periods)
                     const frontParallel = parseFloat(item.front_parallel_days) || 0;
@@ -680,6 +714,38 @@ const GanttChartArea = ({
                                 markerEnd="url(#arrowhead-red)"
                                 className="opacity-100 mix-blend-multiply transition-all duration-300"
                             />
+                            {(() => {
+                                const contained = containedCpMap.get(item.id) || [];
+                                if (contained.length === 0) return null;
+                                return contained.map((entry) => {
+                                    const innerIndex = itemIndexById.get(entry.item.id)?.index;
+                                    if (innerIndex === undefined) return null;
+                                    const downX = entry.meta.redStart * pxFactor;
+                                    const upX = entry.meta.redEnd * pxFactor;
+                                    const outerY = (i * rowH) + rowCenter;
+                                    const innerY = (innerIndex * rowH) + rowCenter;
+                                    return (
+                                        <g key={`cp-detour-${item.id}-${entry.item.id}`}>
+                                            <path
+                                                d={`M ${downX} ${outerY} L ${downX} ${innerY}`}
+                                                fill="none"
+                                                stroke="#ef4444"
+                                                strokeWidth="2.5"
+                                                strokeDasharray="4 3"
+                                                markerEnd="url(#arrowhead-red)"
+                                            />
+                                            <path
+                                                d={`M ${upX} ${innerY} L ${upX} ${outerY}`}
+                                                fill="none"
+                                                stroke="#ef4444"
+                                                strokeWidth="2.5"
+                                                strokeDasharray="4 3"
+                                                markerEnd="url(#arrowhead-red)"
+                                            />
+                                        </g>
+                                    );
+                                });
+                            })()}
                         </g>
                     );
                 })}
@@ -825,6 +891,10 @@ const GanttChartArea = ({
                             linkDragActive={!!linkDrag}
                             aiPreview={aiPreviewMap.get(item.id)}
                             aiActive={aiActiveItemId === item.id}
+                            greySegments={(containedCpMap.get(item.id) || []).map((entry) => ({
+                                start: entry.meta.redStart,
+                                end: entry.meta.redEnd
+                            }))}
                             dataChartRow
                         />
                     );

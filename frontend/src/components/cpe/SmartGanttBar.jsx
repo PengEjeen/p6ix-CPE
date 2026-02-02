@@ -23,6 +23,7 @@ const SmartGanttBar = ({
     onLinkAnchorComplete,
     aiPreview,
     aiActive,
+    greySegments = [],
     dataChartRow
 }) => {
     const [isResizing, setIsResizing] = useState(false);
@@ -154,21 +155,52 @@ const SmartGanttBar = ({
             >
                 {/* 1. Multi-segment Line (Grey-Red-Grey) */}
                 {(() => {
-                    // This logic seems specific to the original component's state, specifically redStartDay/redEndDay passed as props
+                    const taskStart = startDay;
                     const taskEnd = startDay + durationDays;
-                    const relRedStart = Math.min(durationDays, Math.max(0, redStartDay - startDay));
-                    const relRedEnd = Math.min(durationDays, Math.max(relRedStart, redEndDay - startDay));
-                    const s1 = (relRedStart / durationDays) * 100;
-                    const s2 = ((relRedEnd - relRedStart) / durationDays) * 100;
-                    const s3 = 100 - (s1 + s2);
+                    const redStart = Math.max(taskStart, Math.min(taskEnd, redStartDay));
+                    const redEnd = Math.max(redStart, Math.min(taskEnd, redEndDay));
+                    const total = Math.max(0.1, durationDays);
+
+                    const overlaps = (greySegments || [])
+                        .map((seg) => ({
+                            start: Math.max(redStart, Math.min(taskEnd, seg.start)),
+                            end: Math.max(redStart, Math.min(taskEnd, seg.end))
+                        }))
+                        .filter((seg) => seg.end > seg.start)
+                        .sort((a, b) => a.start - b.start);
+
+                    const points = new Set([taskStart, redStart, redEnd, taskEnd]);
+                    overlaps.forEach((seg) => {
+                        points.add(seg.start);
+                        points.add(seg.end);
+                    });
+                    const sorted = Array.from(points).sort((a, b) => a - b);
+
+                    const segments = [];
+                    for (let i = 0; i < sorted.length - 1; i += 1) {
+                        const a = sorted[i];
+                        const b = sorted[i + 1];
+                        if (b <= a) continue;
+                        const mid = (a + b) / 2;
+                        let color = "bg-slate-400";
+                        if (mid >= redStart && mid < redEnd) {
+                            const inGrey = overlaps.some((seg) => mid >= seg.start && mid < seg.end);
+                            color = inGrey ? "bg-slate-400" : "bg-red-600";
+                        }
+                        const widthPct = ((b - a) / total) * 100;
+                        if (widthPct > 0) segments.push({ color, widthPct });
+                    }
 
                     return (
                         <div className={`absolute top-1/2 left-0 right-0 h-1.5 -translate-y-1/2 rounded-full overflow-hidden flex shadow-sm ring-1 ring-black/5
                             ${isDragging || isResizing || selectedItemId === item.id ? 'ring-2 ring-violet-500 shadow-[0_0_10px_rgba(139,92,246,0.3)]' : ''}`}>
-                            {s1 > 0 && <div className="h-full bg-slate-400" style={{ width: `${s1}%` }} />}
-                            {s2 > 0 && <div className="h-full bg-red-600" style={{ width: `${s2}%` }} />}
-                            {s3 > 0 && <div className="h-full bg-slate-400" style={{ width: `${s3}%` }} />}
-                            {s1 <= 0 && s2 <= 0 && s3 <= 0 && <div className="h-full w-full bg-slate-400" />}
+                            {segments.length > 0 ? (
+                                segments.map((seg, idx) => (
+                                    <div key={idx} className={`h-full ${seg.color}`} style={{ width: `${seg.widthPct}%` }} />
+                                ))
+                            ) : (
+                                <div className="h-full w-full bg-slate-400" />
+                            )}
                         </div>
                     );
                 })()}
