@@ -40,7 +40,7 @@ export default function GanttChart({
     const [draggedItem, setDraggedItem] = useState(null);
     const [dateScale, setDateScale] = useState(1);
     const [hasUserScaled, setHasUserScaled] = useState(false);
-    const [selectedItemId, setSelectedItemId] = useState(null);
+    const [selectedItemIds, setSelectedItemIds] = useState([]);
     const [selectedLinkId, setSelectedLinkId] = useState(null);
     const [linkMode, setLinkMode] = useState(false);
     const [linkDraft, setLinkDraft] = useState(null); // { fromId, fromAnchor }
@@ -137,8 +137,15 @@ export default function GanttChart({
         return { itemsWithTiming: result, totalDays: maxEndDay, parallelGroups: groups, dailyLoads: loads };
     }, [items]);
 
-    const handleItemClick = useCallback((itemId, source) => {
-        setSelectedItemId(itemId);
+    const handleItemClick = useCallback((itemId, source, event) => {
+        const isMulti = event?.shiftKey || event?.metaKey || event?.ctrlKey;
+        setSelectedItemIds((prev) => {
+            if (!isMulti) return [itemId];
+            if (prev.includes(itemId)) {
+                return prev.filter((id) => id !== itemId);
+            }
+            return [...prev, itemId];
+        });
 
         // Scroll Logic: Manual calculation to avoid layout breaking with scrollIntoView
         setTimeout(() => {
@@ -186,7 +193,11 @@ export default function GanttChart({
                 }
             }
         }, 50);
-    }, [itemsWithTiming, dateScale]);
+    }, [itemsWithTiming, dateScale, pixelsPerUnit]);
+
+    const handleBoxSelection = useCallback((ids) => {
+        setSelectedItemIds(ids);
+    }, []);
 
     const handleBarResizing = useCallback((itemId, duration, x, y) => {
         if (!itemId) {
@@ -245,6 +256,104 @@ export default function GanttChart({
     const addLink = useScheduleStore((state) => state.addLink);
     const updateLink = useScheduleStore((state) => state.updateLink);
     const deleteLink = useScheduleStore((state) => state.deleteLink);
+    const moveTaskBars = useScheduleStore((state) => state.moveTaskBars);
+    const moveSubTasks = useScheduleStore((state) => state.moveSubTasks);
+    const shiftSubTasksForItem = useScheduleStore((state) => state.shiftSubTasksForItem);
+    const dragPreviewRef = React.useRef(null);
+    const groupPreviewRef = React.useRef(null);
+
+    const handleGroupDrag = useCallback((deltaDays) => {
+        if (!deltaDays || !Array.isArray(selectedItemIds) || selectedItemIds.length < 1) return;
+        const updates = selectedItemIds.map((id) => {
+            const timing = itemsWithTiming.find(i => i.id === id);
+            const start = timing ? timing.startDay : 0;
+            return { id, newStartDay: Math.max(0, start + deltaDays) };
+        });
+        moveTaskBars(updates);
+        selectedItemIds.forEach((id) => {
+            shiftSubTasksForItem(id, deltaDays);
+        });
+    }, [itemsWithTiming, moveTaskBars, selectedItemIds, shiftSubTasksForItem]);
+
+    const handleGroupDragPreview = useCallback((deltaDays) => {
+        if (!deltaDays || !Array.isArray(selectedItemIds) || selectedItemIds.length < 1) return;
+
+        if (!groupPreviewRef.current) {
+            const base = new Map();
+            selectedItemIds.forEach((id) => {
+                const timing = itemsWithTiming.find(i => i.id === id);
+                base.set(id, timing ? timing.startDay : 0);
+            });
+            const subtaskBase = new Map();
+            (subTasks || []).forEach((subtask) => {
+                if (selectedItemIds.includes(subtask.itemId)) {
+                    subtaskBase.set(subtask.id, subtask.startDay);
+                }
+            });
+            groupPreviewRef.current = { base, subtaskBase };
+        }
+
+        const updates = selectedItemIds.map((id) => {
+            const start = groupPreviewRef.current.base.get(id) ?? 0;
+            return { id, newStartDay: Math.max(0, start + deltaDays) };
+        });
+        moveTaskBars(updates);
+
+        if (groupPreviewRef.current.subtaskBase?.size) {
+            const subtaskUpdates = [];
+            groupPreviewRef.current.subtaskBase.forEach((start, id) => {
+                subtaskUpdates.push({ id, startDay: start + deltaDays });
+            });
+            moveSubTasks(subtaskUpdates);
+        }
+    }, [itemsWithTiming, moveSubTasks, moveTaskBars, selectedItemIds, subTasks]);
+
+    const handleGroupDragEnd = useCallback(() => {
+        groupPreviewRef.current = null;
+    }, []);
+
+    const handleBarDragPreview = useCallback((draggedId, newStartDay) => {
+        const isSelected = Array.isArray(selectedItemIds) && selectedItemIds.includes(draggedId);
+        const targetIds = (isSelected && selectedItemIds.length > 1) ? selectedItemIds : null;
+        if (!targetIds) return;
+
+        if (!dragPreviewRef.current) {
+            const base = new Map();
+            targetIds.forEach((id) => {
+                const timing = itemsWithTiming.find(i => i.id === id);
+                base.set(id, timing ? timing.startDay : 0);
+            });
+            const subtaskBase = new Map();
+            (subTasks || []).forEach((subtask) => {
+                if (targetIds.includes(subtask.itemId)) {
+                    subtaskBase.set(subtask.id, subtask.startDay);
+                }
+            });
+            dragPreviewRef.current = { draggedId, targetIds, base, subtaskBase };
+        }
+
+        const baseStart = dragPreviewRef.current.base.get(draggedId);
+        const delta = newStartDay - (baseStart ?? newStartDay);
+        if (!delta) return;
+
+        const updates = targetIds.map((id) => {
+            const start = dragPreviewRef.current.base.get(id) ?? 0;
+            return { id, newStartDay: Math.max(0, start + delta) };
+        });
+        moveTaskBars(updates);
+        if (dragPreviewRef.current.subtaskBase?.size) {
+            const subtaskUpdates = [];
+            dragPreviewRef.current.subtaskBase.forEach((start, id) => {
+                subtaskUpdates.push({ id, startDay: start + delta });
+            });
+            moveSubTasks(subtaskUpdates);
+        }
+    }, [itemsWithTiming, moveSubTasks, moveTaskBars, selectedItemIds, subTasks]);
+
+    const handleBarDragEnd = useCallback((draggedId) => {
+        if (!dragPreviewRef.current) return;
+        dragPreviewRef.current = null;
+    }, []);
 
     const deriveLinkType = (fromAnchor, toAnchor) => {
         if (fromAnchor === "start" && toAnchor === "start") return "SS";
@@ -454,6 +563,27 @@ export default function GanttChart({
 
         const item = items.find(i => i.id === itemId);
         if (!item) return;
+        const isSelected = selectedItemIds.includes(itemId);
+        const activeSelection = (isSelected && selectedItemIds.length > 0) ? selectedItemIds : [itemId];
+        if (!isSelected) {
+            setSelectedItemIds([itemId]);
+        }
+        const timingItem = itemsWithTiming.find(i => i.id === itemId);
+        const currentStartDay = timingItem ? timingItem.startDay : (item._startDay ?? 0);
+        const dragDelta = newStartDay - currentStartDay;
+
+        if (activeSelection.length > 1) {
+            const updates = activeSelection.map((id) => {
+                const timing = itemsWithTiming.find(i => i.id === id);
+                const start = timing ? timing.startDay : 0;
+                return { id, newStartDay: Math.max(0, start + dragDelta) };
+            });
+            moveTaskBars(updates);
+            activeSelection.forEach((id) => {
+                if (dragDelta) shiftSubTasksForItem(id, dragDelta);
+            });
+            return;
+        }
 
         const duration = parseFloat(item.calendar_days) || 0;
         const newEnd = newStartDay + duration;
@@ -517,7 +647,8 @@ export default function GanttChart({
                         },
                         overlapDays: overlapDays,
                         draggedItemId: itemId,
-                        newStartDay: newStartDay
+                        newStartDay: newStartDay,
+                        dragDelta: dragDelta
                     };
                 }
             }
@@ -543,9 +674,12 @@ export default function GanttChart({
                 lastOverlapRef.current.delete(itemId);
             }
             useScheduleStore.getState().resolveDragOverlap(itemId, newStartDay, updates);
+            if (dragDelta) {
+                shiftSubTasksForItem(itemId, dragDelta);
+            }
         }
         console.log('=== [DRAG END] ===');
-    }, [items, itemsWithTiming]);
+    }, [items, itemsWithTiming, moveTaskBars, selectedItemIds, shiftSubTasksForItem]);
 
     const handleBarResize = useCallback((itemId, newDuration, x, y) => {
         // Trigger Popover for Logic Choice
@@ -671,7 +805,7 @@ export default function GanttChart({
                     groupedItems={groupedItems}
                     expandedCategories={expandedCategories}
                     setExpandedCategories={setExpandedCategories}
-                    selectedItemId={selectedItemId}
+                    selectedItemIds={selectedItemIds}
                     onItemClick={handleItemClick}
                     aiPreviewItems={aiPreviewItems}
                     aiOriginalItems={aiOriginalItems}
@@ -703,11 +837,17 @@ export default function GanttChart({
                             links={links}
                             categoryMilestones={categoryMilestones}
                             onBarDragStart={handleBarDrag}
+                            onBarDragPreview={handleBarDragPreview}
+                            onBarDragEnd={handleBarDragEnd}
                             onBarResize={handleBarResize}
                             onBarResizing={handleBarResizing}
                             setPopoverState={setPopover}
-                            selectedItemId={selectedItemId}
+                            selectedItemIds={selectedItemIds}
                             onItemClick={handleItemClick}
+                            onSelectionChange={handleBoxSelection}
+                            onGroupDrag={handleGroupDrag}
+                            onGroupDragPreview={handleGroupDragPreview}
+                            onGroupDragEnd={handleGroupDragEnd}
                             linkMode={linkMode}
                             onLinkAnchorClick={handleLinkAnchorClick}
                             onLinkClick={handleLinkClick}
@@ -811,6 +951,9 @@ export default function GanttChart({
                         }
 
                         useScheduleStore.getState().resolveDragOverlap(draggedItemId, newStartDay, updates);
+                        if (overlapPopover.dragDelta) {
+                            shiftSubTasksForItem(draggedItemId, overlapPopover.dragDelta);
+                        }
                         setOverlapPopover(null);
                     }}
                     onSelectOtherAsCP={() => {
@@ -836,6 +979,9 @@ export default function GanttChart({
                         }
 
                         useScheduleStore.getState().resolveDragOverlap(draggedItemId, newStartDay, updates);
+                        if (overlapPopover.dragDelta) {
+                            shiftSubTasksForItem(draggedItemId, overlapPopover.dragDelta);
+                        }
                         setOverlapPopover(null);
                     }}
                 />

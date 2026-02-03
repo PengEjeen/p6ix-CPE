@@ -2,7 +2,7 @@ import React, { useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ChevronRight, Layers, FileText, Clock } from "lucide-react";
 
-const GanttSidebar = ({ groupedItems, expandedCategories, setExpandedCategories, selectedItemId, onItemClick, containerRef, aiPreviewItems, aiOriginalItems, aiActiveItemId }) => {
+const GanttSidebar = ({ groupedItems, expandedCategories, setExpandedCategories, selectedItemIds, onItemClick, containerRef, aiPreviewItems, aiOriginalItems, aiActiveItemId }) => {
     const aiPreviewMap = React.useMemo(() => {
         if (!aiPreviewItems || !aiOriginalItems) return new Map();
         const originalMap = new Map(aiOriginalItems.map(item => [item.id, item]));
@@ -105,7 +105,7 @@ const GanttSidebar = ({ groupedItems, expandedCategories, setExpandedCategories,
 
                                                 {processGroup.items.map((item, itemIdx) => {
                                                     const calendarDays = item.calendar_days || item.durationDays || 0;
-                                                    const isSelected = selectedItemId === item.id;
+                                                    const isSelected = Array.isArray(selectedItemIds) && selectedItemIds.includes(item.id);
                                                     const aiPreview = aiPreviewMap.get(item.id);
                                                     const isAiActive = aiActiveItemId === item.id;
 
@@ -117,7 +117,7 @@ const GanttSidebar = ({ groupedItems, expandedCategories, setExpandedCategories,
                                                             animate={{ opacity: 1, x: 0 }}
                                                             transition={{ delay: itemIdx * 0.03 }}
                                                             id={`sidebar-item-${item.id}`} // For scroll targeting
-                                                            onClick={() => onItemClick && onItemClick(item.id, 'sidebar')}
+                                                            onClick={(event) => onItemClick && onItemClick(item.id, 'sidebar', event)}
                                                             className={`relative flex items-center pl-10 pr-4 py-3 cursor-pointer border-l-[3px] transition-all duration-200
                                                                 ${isSelected
                                                                     ? 'bg-blue-50/60 border-l-blue-600 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.5)]'

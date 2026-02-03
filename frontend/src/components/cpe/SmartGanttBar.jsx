@@ -16,7 +16,7 @@ const SmartGanttBar = ({
     setPopoverState,
     redStartDay,
     redEndDay,
-    selectedItemId,
+    isSelected,
     onItemClick,
     linkMode,
     onLinkAnchorClick,
@@ -75,7 +75,7 @@ const SmartGanttBar = ({
                 setTempStartDay(null);
             } else if (!hasMoved) {
                 // It was a click, not a drag
-                if (onItemClick) onItemClick(item.id, 'chart');
+                if (onItemClick) onItemClick(item.id, 'chart', e);
                 if (onBarDragEnd) onBarDragEnd(item.id);
             }
             document.removeEventListener('mousemove', handleMouseMove);
@@ -126,13 +126,13 @@ const SmartGanttBar = ({
         <div
             id={`chart-item-${item.id}`}
             data-chart-row={dataChartRow ? "true" : undefined}
-            className={`relative h-11 border-b border-gray-50/50 group/row hover:bg-slate-50 transition-colors ${selectedItemId === item.id ? 'bg-violet-50/50' : ''}`}
+            className={`relative h-11 border-b border-gray-50/50 group/row hover:bg-slate-50 transition-colors ${isSelected ? 'bg-violet-50/50' : ''}`}
         >
 
             {/* Task Label (Floating Above) */}
             <div
                 className={`absolute top-0 text-[10px] font-bold truncate px-1 whitespace-nowrap pointer-events-none z-10 
-                    ${selectedItemId === item.id ? 'text-violet-700' : 'text-slate-800'}`}
+                    ${isSelected ? 'text-violet-700' : 'text-slate-800'}`}
                 style={{
                     left: `${leftPx}px`,
                     width: 'max-content'
@@ -156,6 +156,7 @@ const SmartGanttBar = ({
                     left: `${leftPx}px`,
                     width: `${widthPx}px`,
                 }}
+                data-gantt-bar="true"
                 onMouseDown={handleBarDrag}
             >
                 {/* 1. Multi-segment Line (Grey-Red-Grey) */}
@@ -198,7 +199,7 @@ const SmartGanttBar = ({
 
                     return (
                         <div className={`absolute top-1/2 left-0 right-0 h-1.5 -translate-y-1/2 rounded-full overflow-hidden flex shadow-sm ring-1 ring-black/5
-                            ${isDragging || isResizing || selectedItemId === item.id ? 'ring-2 ring-violet-500 shadow-[0_0_10px_rgba(139,92,246,0.3)]' : ''}`}>
+                            ${isDragging || isResizing || isSelected ? 'ring-2 ring-violet-500 shadow-[0_0_10px_rgba(139,92,246,0.3)]' : ''}`}>
                             {segments.length > 0 ? (
                                 segments.map((seg, idx) => (
                                     <div key={idx} className={`h-full ${seg.color}`} style={{ width: `${seg.widthPct}%` }} />

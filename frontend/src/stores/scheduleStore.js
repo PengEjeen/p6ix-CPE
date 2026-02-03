@@ -128,6 +128,25 @@ export const useScheduleStore = create(
                 }
             }),
 
+            moveSubTasks: (updates) => set((state) => {
+                if (!Array.isArray(updates) || updates.length === 0) return;
+                updates.forEach((update) => {
+                    const index = state.subTasks.findIndex(s => s.id === update.id);
+                    if (index !== -1 && update.startDay !== undefined) {
+                        state.subTasks[index].startDay = Math.max(0, update.startDay);
+                    }
+                });
+            }),
+
+            shiftSubTasksForItem: (itemId, deltaDays) => set((state) => {
+                if (!itemId || !deltaDays) return;
+                state.subTasks.forEach((subtask) => {
+                    if (subtask.itemId === itemId) {
+                        subtask.startDay = Math.max(0, (subtask.startDay || 0) + deltaDays);
+                    }
+                });
+            }),
+
             deleteSubTask: (id) => set((state) => {
                 state.subTasks = state.subTasks.filter(s => s.id !== id);
             }),
@@ -231,6 +250,16 @@ export const useScheduleStore = create(
                 if (index !== -1) {
                     state.items[index]._startDay = newStartDay;
                 }
+            }),
+
+            moveTaskBars: (updates) => set((state) => {
+                if (!Array.isArray(updates) || updates.length === 0) return;
+                updates.forEach((update) => {
+                    const index = state.items.findIndex(i => i.id === update.id);
+                    if (index !== -1) {
+                        state.items[index]._startDay = update.newStartDay;
+                    }
+                });
             }),
 
             /**

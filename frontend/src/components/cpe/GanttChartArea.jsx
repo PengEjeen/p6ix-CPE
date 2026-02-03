@@ -11,11 +11,17 @@ const GanttChartArea = ({
     links,
     categoryMilestones,
     onBarDragStart,
+    onBarDragPreview,
+    onBarDragEnd,
     onBarResize,
     onBarResizing,
     setPopoverState,
-    selectedItemId,
+    selectedItemIds,
     onItemClick,
+    onSelectionChange,
+    onGroupDrag,
+    onGroupDragPreview,
+    onGroupDragEnd,
     linkMode,
     onLinkAnchorClick,
     onLinkClick,
@@ -60,6 +66,8 @@ const GanttChartArea = ({
     const [subtaskDraft, setSubtaskDraft] = useState(null);
     const subtaskDraftRef = useRef(null);
     const chartAreaRef = useRef(null);
+    const selectionRef = useRef(null);
+    const [selectionBox, setSelectionBox] = useState(null);
     const [linkDrag, setLinkDrag] = useState(null); // { fromId, fromAnchor, fromX, fromY, x, y }
     const [renameModal, setRenameModal] = useState({ open: false, id: null, value: "" });
 
@@ -326,9 +334,79 @@ const GanttChartArea = ({
         document.addEventListener('mouseup', handleMouseUp);
     }, [subtaskMode, rowH, itemsWithTiming, pxFactor, onCreateSubtask, hasSubtaskOverlap, getSnapCandidate]);
 
-    const handleCanvasClick = useCallback(() => {
+    const handleCanvasMouseDown = useCallback((e) => {
+        if (subtaskMode) return;
+        if (e.button !== 0) return;
+        const targetEl = e.target?.nodeType === 1 ? e.target : e.target?.parentElement;
+        if (!targetEl) return;
+        if (targetEl.closest('[data-gantt-bar="true"]')) return;
+        if (targetEl.closest('[data-link-id]')) return;
+        if (targetEl.closest('[data-subtask-item="true"]')) return;
+
         if (onSelectSubtask) onSelectSubtask(null);
-    }, [onSelectSubtask]);
+
+        const rect = chartAreaRef.current?.getBoundingClientRect();
+        if (!rect) return;
+        const startX = e.clientX - rect.left;
+        const startY = e.clientY - rect.top;
+        selectionRef.current = { startX, startY, moved: false, box: null };
+        setSelectionBox({ x: startX, y: startY, width: 0, height: 0 });
+
+        const handleMouseMove = (moveEvent) => {
+            const currentX = moveEvent.clientX - rect.left;
+            const currentY = moveEvent.clientY - rect.top;
+            const width = currentX - startX;
+            const height = currentY - startY;
+            if (Math.abs(width) > 2 || Math.abs(height) > 2) {
+                selectionRef.current.moved = true;
+            }
+            const nextBox = {
+                x: width < 0 ? currentX : startX,
+                y: height < 0 ? currentY : startY,
+                width: Math.abs(width),
+                height: Math.abs(height)
+            };
+            selectionRef.current.box = nextBox;
+            setSelectionBox(nextBox);
+        };
+
+        const handleMouseUp = () => {
+            const { moved } = selectionRef.current || {};
+            if (!moved) {
+                if (onSelectionChange) onSelectionChange([]);
+                setSelectionBox(null);
+                selectionRef.current = null;
+                document.removeEventListener('mousemove', handleMouseMove);
+                document.removeEventListener('mouseup', handleMouseUp);
+                return;
+            }
+
+            const box = selectionRef.current?.box || { x: startX, y: startY, width: 0, height: 0 };
+            const boxRight = box.x + box.width;
+            const boxBottom = box.y + box.height;
+            const nextSelected = [];
+
+            itemsWithTiming.forEach((item, index) => {
+                const leftPx = item.startDay * pxFactor;
+                const widthPx = Math.max(item.durationDays * pxFactor, 20);
+                const rightPx = leftPx + widthPx;
+                const rowTop = index * rowH;
+                const rowBottom = rowTop + rowH;
+
+                const intersects = rightPx >= box.x && leftPx <= boxRight && rowBottom >= box.y && rowTop <= boxBottom;
+                if (intersects) nextSelected.push(item.id);
+            });
+
+            if (onSelectionChange) onSelectionChange(nextSelected);
+            setSelectionBox(null);
+            selectionRef.current = null;
+            document.removeEventListener('mousemove', handleMouseMove);
+            document.removeEventListener('mouseup', handleMouseUp);
+        };
+
+        document.addEventListener('mousemove', handleMouseMove);
+        document.addEventListener('mouseup', handleMouseUp);
+    }, [subtaskMode, onSelectSubtask, onSelectionChange, itemsWithTiming, pxFactor, rowH]);
 
     const renderSubtask = (subtask) => {
         const itemData = itemIndexById.get(subtask.itemId);
@@ -356,10 +434,27 @@ const GanttChartArea = ({
             const startWidthPx = durationDays * pxFactor;
             const containerRect = chartAreaRef.current?.getBoundingClientRect();
 
+            const groupDragActive = mode === 'move'
+                && onGroupDrag
+                && Array.isArray(selectedItemIds)
+                && selectedItemIds.length > 0
+                && selectedItemIds.includes(subtask.itemId);
+            let groupDelta = 0;
+            let groupMoved = false;
+
             const handleMouseMove = (moveEvent) => {
                 const deltaX = moveEvent.clientX - startX;
 
                 if (mode === 'move') {
+                    if (groupDragActive) {
+                        const rawStart = (startLeftPx + deltaX) / pxFactor;
+                        groupDelta = rawStart - startDay;
+                        if (Math.abs(deltaX) > 2) groupMoved = true;
+                        if (onGroupDragPreview) {
+                            onGroupDragPreview(groupDelta);
+                        }
+                        return;
+                    }
                     let nextItemId = subtask.itemId;
                     if (containerRect) {
                         const deltaY = moveEvent.clientY - startY;
@@ -407,6 +502,13 @@ const GanttChartArea = ({
             };
 
             const handleMouseUp = () => {
+                if (groupDragActive) {
+                    if (onGroupDragPreview) {
+                        if (onGroupDragEnd) onGroupDragEnd();
+                    } else if (groupMoved && groupDelta) {
+                        onGroupDrag(groupDelta);
+                    }
+                }
                 document.removeEventListener('mousemove', handleMouseMove);
                 document.removeEventListener('mouseup', handleMouseUp);
             };
@@ -430,6 +532,7 @@ const GanttChartArea = ({
                         ${isSelected ? 'bg-slate-600/90 text-white ring-2 ring-slate-300' : 'bg-slate-300/90 text-slate-900'}
                     `}
                     style={{ left: `${leftPx}px`, top: `${top}px`, height: `${height}px`, width: `${widthPx}px` }}
+                    data-subtask-item="true"
                     onMouseDown={(e) => handleDragStart(e, 'move')}
                     onDoubleClick={(e) => {
                         e.stopPropagation();
@@ -442,10 +545,12 @@ const GanttChartArea = ({
                 >
                 <div
                     className="absolute left-0 top-1/2 -translate-x-1/2 -translate-y-1/2 w-3.5 h-3.5 rounded-full bg-white border-2 border-slate-500 cursor-ew-resize pointer-events-auto"
+                    data-subtask-item="true"
                     onMouseDown={(e) => handleDragStart(e, 'resize-start')}
                 />
                 <div
                     className="absolute right-0 top-1/2 translate-x-1/2 -translate-y-1/2 w-3.5 h-3.5 rounded-full bg-white border-2 border-slate-500 cursor-ew-resize pointer-events-auto"
+                    data-subtask-item="true"
                     onMouseDown={(e) => handleDragStart(e, 'resize-end')}
                 />
                 {linkMode && (
@@ -804,7 +909,18 @@ const GanttChartArea = ({
             </div>
 
             {/* Gantt Rows */}
-            <div ref={chartAreaRef} className="relative" onMouseDown={handleCanvasClick}>
+            <div ref={chartAreaRef} className="relative" onMouseDown={handleCanvasMouseDown}>
+                {selectionBox && (
+                    <div
+                        className="absolute z-50 border-2 border-blue-400 bg-blue-200/20 pointer-events-none"
+                        style={{
+                            left: `${selectionBox.x}px`,
+                            top: `${selectionBox.y}px`,
+                            width: `${selectionBox.width}px`,
+                            height: `${selectionBox.height}px`
+                        }}
+                    />
+                )}
                 {/* Subtask Layer */}
                 <div
                     className="absolute inset-0 z-40 pointer-events-none"
@@ -877,12 +993,14 @@ const GanttChartArea = ({
                             pixelsPerUnit={pixelsPerUnit}
                             dateScale={dateScale}
                             onBarDragStart={onBarDragStart}
+                            onBarDragPreview={onBarDragPreview}
+                            onBarDragEnd={onBarDragEnd}
                             onBarResize={onBarResize}
                             onBarResizing={onBarResizing}
                             setPopoverState={setPopoverState}
                             redStartDay={redS}
                             redEndDay={redE}
-                            selectedItemId={selectedItemId}
+                            isSelected={Array.isArray(selectedItemIds) && selectedItemIds.includes(item.id)}
                             onItemClick={onItemClick}
                             linkMode={linkMode}
                             onLinkAnchorClick={onLinkAnchorClick}
