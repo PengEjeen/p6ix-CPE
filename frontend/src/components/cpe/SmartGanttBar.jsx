@@ -151,7 +151,7 @@ const SmartGanttBar = ({
 
             {/* Smart Active Bar (Node Style) */}
             <div
-                className={`absolute top-2 h-7 flex items-center cursor-grab z-10 ${aiActive ? "ring-2 ring-blue-400/80" : ""}`}
+                className={`absolute top-2 h-7 flex items-center cursor-grab z-20 ${aiActive ? "ring-2 ring-blue-400/80" : ""}`}
                 style={{
                     left: `${leftPx}px`,
                     width: `${widthPx}px`,

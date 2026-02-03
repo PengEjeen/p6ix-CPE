@@ -1,7 +1,6 @@
 import React, { useMemo, useState, useCallback } from "react";
-import { Activity, Calendar, Sparkles, Users, Zap } from "lucide-react";
+import { Users, Zap } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import { solveForCrewSize } from "../../utils/solver";
 import { useScheduleStore } from "../../stores/scheduleStore";
 import { generateTimeline } from "./ganttUtils";
 import GanttSidebar from "./GanttSidebar";
@@ -9,6 +8,12 @@ import GanttTimelineHeader from "./GanttTimelineHeader";
 import GanttChartArea from "./GanttChartArea";
 import ContextualBrainPopover from "./ContextualBrainPopover";
 import OverlapResolvePopover from "./OverlapResolvePopover";
+import { buildDragPreviewState, buildItemDragUpdates, buildSubtaskDragUpdates } from "./gantt/controllers/dragPreview";
+import { buildLink, isDuplicateLink } from "./gantt/controllers/linkController";
+import { buildMoveUpdatesByDelta } from "./gantt/utils/moveUpdates";
+import { useAutoScale } from "./gantt/hooks/useAutoScale";
+import GanttToolbar from "./gantt/ui/GanttToolbar";
+import LinkEditorPopover from "./gantt/ui/LinkEditorPopover";
 
 export default function GanttChart({
     items,
@@ -24,39 +29,32 @@ export default function GanttChart({
     onUpdateSubtask,
     onDeleteSubtask
 }) {
-    // DEBUG: Log when items change
-    React.useEffect(() => {
-        console.log('[GanttChart] Items prop changed! Count:', items.length);
-        const earth1 = items.find(i => i.id === 'earth-1');
-        if (earth1) {
-            console.log('[GanttChart] earth-1 parallel periods:', {
-                front: earth1.front_parallel_days,
-                back: earth1.back_parallel_days
-            });
-        }
-    }, [items]);
+    const pixelsPerUnit = 40;
 
+    // Refs
+    const sidebarRef = React.useRef(null);
+    const chartRef = React.useRef(null);
+    const [popover, setPopover] = useState(null); // { visible, item, oldDuration, newDuration, x, y }
+    const [overlapPopover, setOverlapPopover] = useState(null);  // For drag overlap
+    const lastOverlapRef = React.useRef(new Map()); // draggedId -> overlappingId
+    const dragPreviewRef = React.useRef(null);
+    const groupPreviewRef = React.useRef(null);
+
+    // Selection / interaction state
+    const [selectedItemIds, setSelectedItemIds] = useState([]);
+    const [selectedLinkId, setSelectedLinkId] = useState(null);
+    const [selectedSubtaskIds, setSelectedSubtaskIds] = useState([]);
+    const [linkDraft, setLinkDraft] = useState(null); // { fromId, fromAnchor }
+    const [linkEditor, setLinkEditor] = useState(null); // { id, x, y }
+
+    // UI state
     // eslint-disable-next-line no-unused-vars
     const [draggedItem, setDraggedItem] = useState(null);
     const [dateScale, setDateScale] = useState(1);
     const [hasUserScaled, setHasUserScaled] = useState(false);
-    const [selectedItemIds, setSelectedItemIds] = useState([]);
-    const [selectedLinkId, setSelectedLinkId] = useState(null);
     const [linkMode, setLinkMode] = useState(false);
-    const [linkDraft, setLinkDraft] = useState(null); // { fromId, fromAnchor }
-    const [linkEditor, setLinkEditor] = useState(null); // { id, x, y }
     const [subtaskMode, setSubtaskMode] = useState(false);
-    const [selectedSubtaskId, setSelectedSubtaskId] = useState(null);
-    const pixelsPerUnit = 40;
-
-    // Refs for scrolling
-    const sidebarRef = React.useRef(null);
-    const chartRef = React.useRef(null);
-
-    // Popover State
-    const [popover, setPopover] = useState(null); // { visible, item, oldDuration, newDuration, x, y }
-    const [overlapPopover, setOverlapPopover] = useState(null);  // For drag overlap
-    const lastOverlapRef = React.useRef(new Map()); // draggedId -> overlappingId
+    const [isScrolling, setIsScrolling] = useState(false);
 
     // Simulation Tooltip State
     const [simulation, setSimulation] = useState(null);
@@ -66,8 +64,6 @@ export default function GanttChart({
     // eslint-disable-next-line no-unused-vars
     // eslint-disable-next-line no-unused-vars
     const [expandedProcesses, setExpandedProcesses] = useState({});
-
-    const [isScrolling, setIsScrolling] = useState(false);
     const handleScroll = useCallback(() => {
         setIsScrolling(true);
         clearTimeout(window.ganttChartScrollTimeout);
@@ -199,6 +195,18 @@ export default function GanttChart({
         setSelectedItemIds(ids);
     }, []);
 
+    const handleSubtaskSelect = useCallback((subtaskId, event) => {
+        const isMulti = event?.shiftKey || event?.metaKey || event?.ctrlKey;
+        setSelectedSubtaskIds((prev) => {
+            if (!isMulti) return subtaskId ? [subtaskId] : [];
+            if (!subtaskId) return [];
+            if (prev.includes(subtaskId)) {
+                return prev.filter((id) => id !== subtaskId);
+            }
+            return [...prev, subtaskId];
+        });
+    }, []);
+
     const handleBarResizing = useCallback((itemId, duration, x, y) => {
         if (!itemId) {
             setSimulation(null);
@@ -237,21 +245,14 @@ export default function GanttChart({
         setDateScale(scale);
     }, []);
 
-    React.useEffect(() => {
-        if (hasUserScaled) return;
-        if (!chartRef.current || totalDays <= 0) return;
-
-        const containerWidth = chartRef.current.clientWidth;
-        if (!containerWidth) return;
-
-        const requiredScale = (totalDays * pixelsPerUnit) / containerWidth;
-        const scaleOptions = [1, 5, 10, 30];
-        const nextScale = scaleOptions.find((s) => s >= requiredScale) || scaleOptions[scaleOptions.length - 1];
-
-        if (nextScale !== dateScale) {
-            setDateScale(nextScale);
-        }
-    }, [hasUserScaled, totalDays, pixelsPerUnit, dateScale]);
+    useAutoScale({
+        hasUserScaled,
+        totalDays,
+        pixelsPerUnit,
+        dateScale,
+        chartRef,
+        setDateScale
+    });
 
     const addLink = useScheduleStore((state) => state.addLink);
     const updateLink = useScheduleStore((state) => state.updateLink);
@@ -259,16 +260,10 @@ export default function GanttChart({
     const moveTaskBars = useScheduleStore((state) => state.moveTaskBars);
     const moveSubTasks = useScheduleStore((state) => state.moveSubTasks);
     const shiftSubTasksForItem = useScheduleStore((state) => state.shiftSubTasksForItem);
-    const dragPreviewRef = React.useRef(null);
-    const groupPreviewRef = React.useRef(null);
 
     const handleGroupDrag = useCallback((deltaDays) => {
         if (!deltaDays || !Array.isArray(selectedItemIds) || selectedItemIds.length < 1) return;
-        const updates = selectedItemIds.map((id) => {
-            const timing = itemsWithTiming.find(i => i.id === id);
-            const start = timing ? timing.startDay : 0;
-            return { id, newStartDay: Math.max(0, start + deltaDays) };
-        });
+        const updates = buildMoveUpdatesByDelta(selectedItemIds, itemsWithTiming, deltaDays);
         moveTaskBars(updates);
         selectedItemIds.forEach((id) => {
             shiftSubTasksForItem(id, deltaDays);
@@ -279,31 +274,14 @@ export default function GanttChart({
         if (!deltaDays || !Array.isArray(selectedItemIds) || selectedItemIds.length < 1) return;
 
         if (!groupPreviewRef.current) {
-            const base = new Map();
-            selectedItemIds.forEach((id) => {
-                const timing = itemsWithTiming.find(i => i.id === id);
-                base.set(id, timing ? timing.startDay : 0);
-            });
-            const subtaskBase = new Map();
-            (subTasks || []).forEach((subtask) => {
-                if (selectedItemIds.includes(subtask.itemId)) {
-                    subtaskBase.set(subtask.id, subtask.startDay);
-                }
-            });
-            groupPreviewRef.current = { base, subtaskBase };
+            groupPreviewRef.current = buildDragPreviewState(selectedItemIds, itemsWithTiming, subTasks);
         }
 
-        const updates = selectedItemIds.map((id) => {
-            const start = groupPreviewRef.current.base.get(id) ?? 0;
-            return { id, newStartDay: Math.max(0, start + deltaDays) };
-        });
+        const updates = buildItemDragUpdates(selectedItemIds, groupPreviewRef.current.base, deltaDays);
         moveTaskBars(updates);
 
-        if (groupPreviewRef.current.subtaskBase?.size) {
-            const subtaskUpdates = [];
-            groupPreviewRef.current.subtaskBase.forEach((start, id) => {
-                subtaskUpdates.push({ id, startDay: start + deltaDays });
-            });
+        const subtaskUpdates = buildSubtaskDragUpdates(groupPreviewRef.current.subtaskBase, deltaDays);
+        if (subtaskUpdates.length > 0) {
             moveSubTasks(subtaskUpdates);
         }
     }, [itemsWithTiming, moveSubTasks, moveTaskBars, selectedItemIds, subTasks]);
@@ -313,39 +291,30 @@ export default function GanttChart({
     }, []);
 
     const handleBarDragPreview = useCallback((draggedId, newStartDay) => {
+        if (Array.isArray(selectedItemIds) && selectedItemIds.length > 1) return;
+        if (draggedId && newStartDay !== null && newStartDay !== undefined) {
+            moveTaskBars([{ id: draggedId, newStartDay }]);
+        }
         const isSelected = Array.isArray(selectedItemIds) && selectedItemIds.includes(draggedId);
         const targetIds = (isSelected && selectedItemIds.length > 1) ? selectedItemIds : null;
         if (!targetIds) return;
 
         if (!dragPreviewRef.current) {
-            const base = new Map();
-            targetIds.forEach((id) => {
-                const timing = itemsWithTiming.find(i => i.id === id);
-                base.set(id, timing ? timing.startDay : 0);
-            });
-            const subtaskBase = new Map();
-            (subTasks || []).forEach((subtask) => {
-                if (targetIds.includes(subtask.itemId)) {
-                    subtaskBase.set(subtask.id, subtask.startDay);
-                }
-            });
-            dragPreviewRef.current = { draggedId, targetIds, base, subtaskBase };
+            dragPreviewRef.current = {
+                draggedId,
+                targetIds,
+                ...buildDragPreviewState(targetIds, itemsWithTiming, subTasks)
+            };
         }
 
         const baseStart = dragPreviewRef.current.base.get(draggedId);
         const delta = newStartDay - (baseStart ?? newStartDay);
         if (!delta) return;
 
-        const updates = targetIds.map((id) => {
-            const start = dragPreviewRef.current.base.get(id) ?? 0;
-            return { id, newStartDay: Math.max(0, start + delta) };
-        });
+        const updates = buildItemDragUpdates(targetIds, dragPreviewRef.current.base, delta);
         moveTaskBars(updates);
-        if (dragPreviewRef.current.subtaskBase?.size) {
-            const subtaskUpdates = [];
-            dragPreviewRef.current.subtaskBase.forEach((start, id) => {
-                subtaskUpdates.push({ id, startDay: start + delta });
-            });
+        const subtaskUpdates = buildSubtaskDragUpdates(dragPreviewRef.current.subtaskBase, delta);
+        if (subtaskUpdates.length > 0) {
             moveSubTasks(subtaskUpdates);
         }
     }, [itemsWithTiming, moveSubTasks, moveTaskBars, selectedItemIds, subTasks]);
@@ -354,13 +323,6 @@ export default function GanttChart({
         if (!dragPreviewRef.current) return;
         dragPreviewRef.current = null;
     }, []);
-
-    const deriveLinkType = (fromAnchor, toAnchor) => {
-        if (fromAnchor === "start" && toAnchor === "start") return "SS";
-        if (fromAnchor === "end" && toAnchor === "end") return "FF";
-        if (fromAnchor === "start" && toAnchor === "end") return "SF";
-        return "FS";
-    };
 
     const handleLinkAnchorClick = useCallback((itemId, anchor) => {
         if (!linkMode) return;
@@ -373,23 +335,8 @@ export default function GanttChart({
             return;
         }
 
-        const linkType = deriveLinkType(linkDraft.fromAnchor, anchor);
-        const newLink = {
-            id: `link-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-            from: linkDraft.fromId,
-            to: itemId,
-            type: linkType,
-            lag: 0
-        };
-
-        const alreadyExists = Array.isArray(links) && links.some(
-            (link) =>
-                link.from === newLink.from &&
-                link.to === newLink.to &&
-                link.type === newLink.type &&
-                (parseFloat(link.lag) || 0) === 0
-        );
-        if (!alreadyExists) {
+        const newLink = buildLink({ fromId: linkDraft.fromId, fromAnchor: linkDraft.fromAnchor, toId: itemId, toAnchor: anchor });
+        if (!isDuplicateLink(links, newLink)) {
             addLink(newLink);
         }
         setLinkDraft(null);
@@ -398,22 +345,8 @@ export default function GanttChart({
     const handleCreateLink = useCallback((fromId, fromAnchor, toId, toAnchor) => {
         if (!fromId || !toId) return;
         if (fromId === toId && fromAnchor === toAnchor) return;
-        const linkType = deriveLinkType(fromAnchor, toAnchor);
-        const newLink = {
-            id: `link-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-            from: fromId,
-            to: toId,
-            type: linkType,
-            lag: 0
-        };
-        const alreadyExists = Array.isArray(links) && links.some(
-            (link) =>
-                link.from === newLink.from &&
-                link.to === newLink.to &&
-                link.type === newLink.type &&
-                (parseFloat(link.lag) || 0) === 0
-        );
-        if (!alreadyExists) {
+        const newLink = buildLink({ fromId, fromAnchor, toId, toAnchor });
+        if (!isDuplicateLink(links, newLink)) {
             addLink(newLink);
         }
     }, [addLink, links]);
@@ -449,7 +382,7 @@ export default function GanttChart({
 
     const handleDeleteSubtask = useCallback((id) => {
         if (onDeleteSubtask) onDeleteSubtask(id);
-        setSelectedSubtaskId((prev) => (prev === id ? null : prev));
+        setSelectedSubtaskIds((prev) => prev.filter((subtaskId) => subtaskId !== id));
     }, [onDeleteSubtask]);
 
     // Calculate category completion milestones
@@ -558,9 +491,6 @@ export default function GanttChart({
 
     // Handlers
     const handleBarDrag = useCallback((itemId, newStartDay) => {
-        console.log('=== [DRAG START] ===');
-        console.log('[DRAG] Item ID:', itemId, 'New Start:', newStartDay);
-
         const item = items.find(i => i.id === itemId);
         if (!item) return;
         const isSelected = selectedItemIds.includes(itemId);
@@ -573,55 +503,25 @@ export default function GanttChart({
         const dragDelta = newStartDay - currentStartDay;
 
         if (activeSelection.length > 1) {
-            const updates = activeSelection.map((id) => {
-                const timing = itemsWithTiming.find(i => i.id === id);
-                const start = timing ? timing.startDay : 0;
-                return { id, newStartDay: Math.max(0, start + dragDelta) };
-            });
-            moveTaskBars(updates);
-            activeSelection.forEach((id) => {
-                if (dragDelta) shiftSubTasksForItem(id, dragDelta);
-            });
             return;
         }
 
         const duration = parseFloat(item.calendar_days) || 0;
         const newEnd = newStartDay + duration;
 
-        console.log('[DRAG] Item:', item.process, '-', item.work_type);
-        console.log('[DRAG] Duration:', duration, 'New End:', newEnd);
-        console.log('[DRAG] Current parallel periods:', {
-            front: item.front_parallel_days,
-            back: item.back_parallel_days
-        });
-
         // Check for overlaps with ALL other tasks
         let overlapInfo = null;
-
-        console.log('[DRAG] Checking overlaps with all tasks...');
         itemsWithTiming.forEach((otherItem) => {
             if (otherItem.id === itemId) return; // Skip self
 
             const otherStart = otherItem.startDay;
             const otherEnd = otherItem.startDay + otherItem.durationDays;
 
-            console.log(`[DRAG] Checking ${otherItem.process}-${otherItem.work_type}:`, {
-                otherStart,
-                otherEnd,
-                overlap: newStartDay < otherEnd && newEnd > otherStart,
-                otherParallel: {
-                    front: otherItem.front_parallel_days,
-                    back: otherItem.back_parallel_days
-                }
-            });
-
             // Check if there's time overlap
             if (newStartDay < otherEnd && newEnd > otherStart) {
                 const overlapStart = Math.max(newStartDay, otherStart);
                 const overlapEnd = Math.min(newEnd, otherEnd);
                 const overlapDays = overlapEnd - overlapStart;
-
-                console.log(`[DRAG] OVERLAP FOUND with ${otherItem.process}-${otherItem.work_type}! Days:`, overlapDays);
 
                 // Store first overlap found
                 if (!overlapInfo) {
@@ -655,15 +555,11 @@ export default function GanttChart({
         });
 
         if (overlapInfo) {
-            console.log('[DRAG] Result: OVERLAP → Showing popup');
             setOverlapPopover(overlapInfo);
             if (overlapInfo.overlappingTask?.id) {
                 lastOverlapRef.current.set(itemId, overlapInfo.overlappingTask.id);
             }
         } else {
-            console.log('[DRAG] Result: NO OVERLAP → Should clear grey');
-            console.log('[DRAG] What should we clear?');
-
             // TODO: Figure out which tasks to clear
 
             // Atomic update for Undo/Redo consistency
@@ -678,7 +574,6 @@ export default function GanttChart({
                 shiftSubTasksForItem(itemId, dragDelta);
             }
         }
-        console.log('=== [DRAG END] ===');
     }, [items, itemsWithTiming, moveTaskBars, selectedItemIds, shiftSubTasksForItem]);
 
     const handleBarResize = useCallback((itemId, newDuration, x, y) => {
@@ -722,79 +617,15 @@ export default function GanttChart({
         <div className="h-full flex flex-col bg-white rounded-2xl border border-gray-100 shadow-2xl overflow-hidden font-sans">
 
             {/* --- Toolbar --- */}
-            <div className={`px-6 py-4 flex items-center justify-between bg-white border-b border-gray-100 z-[2]`}>
-                <div className="flex items-center gap-4">
-                    <div>
-                        <h2 className="text-lg font-bold text-slate-900 tracking-tight">공사 일정 (Construction Schedule)</h2>
-                        <div className="text-xs text-slate-500 font-medium flex gap-3">
-                            <div className="flex items-center gap-3">
-                                {/* Date Scale Controls */}
-                                <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-lg border border-gray-200 shadow-sm">
-                                    <Calendar size={14} className="text-gray-500" />
-                                    <span className="text-xs font-medium text-gray-600">Scale:</span>
-                                    {[1, 5, 10, 30].map(scale => (
-                                        <button
-                                            key={scale}
-                                            onClick={() => handleSetScale(scale)}
-                                            className={`px-2 py-0.5 text-xs rounded transition-all ${dateScale === scale
-                                                ? 'bg-violet-500 text-white font-bold'
-                                                : 'bg-gray-50 text-gray-600 hover:bg-gray-100'
-                                                }`}
-                                        >
-                                            {scale}d
-                                        </button>
-                                    ))}
-                                </div>
-                                <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-lg border border-gray-200 shadow-sm">
-                                    <button
-                                        type="button"
-                                        onClick={() => setLinkMode((prev) => !prev)}
-                                        className={`px-3 py-1 text-xs rounded-full transition-all font-semibold border ${linkMode
-                                            ? 'bg-slate-900 text-amber-300 border-amber-400/60 shadow-[0_0_12px_rgba(251,191,36,0.25)]'
-                                            : 'bg-gray-50 text-gray-600 hover:bg-gray-100 border-gray-200'
-                                            }`}
-                                    >
-                                        링크 편집
-                                    </button>
-                                    {linkDraft && (
-                                        <span className="text-[10px] text-amber-600 font-semibold tracking-wide">대상 선택</span>
-                                    )}
-                                </div>
-                                <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-lg border border-gray-200 shadow-sm">
-                                    <button
-                                        type="button"
-                                        onClick={() => setSubtaskMode((prev) => !prev)}
-                                        className={`px-3 py-1 text-xs rounded-full transition-all font-semibold border ${subtaskMode
-                                            ? 'bg-slate-900 text-emerald-300 border-emerald-400/60 shadow-[0_0_12px_rgba(16,185,129,0.25)]'
-                                            : 'bg-gray-50 text-gray-600 hover:bg-gray-100 border-gray-200'
-                                            }`}
-                                    >
-                                        부공종 추가
-                                    </button>
-                                    {subtaskMode && (
-                                        <span className="text-[10px] text-emerald-600 font-semibold tracking-wide">드래그해서 그리기</span>
-                                    )}
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div className="flex items-center gap-3 bg-gray-50 p-1 rounded-lg border border-gray-100">
-                    {[1, 5, 10, 30].map(scale => (
-                        <button
-                            key={scale}
-                            onClick={() => handleSetScale(scale)}
-                            className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-all ${dateScale === scale
-                                ? "bg-white text-blue-600 shadow-sm ring-1 ring-gray-100"
-                                : "text-gray-500 hover:text-gray-900"
-                                }`}
-                        >
-                            {scale === 1 ? '일별' : scale === 30 ? '월별' : `${scale}일 단위`}
-                        </button>
-                    ))}
-                </div>
-            </div>
+            <GanttToolbar
+                dateScale={dateScale}
+                onSetScale={handleSetScale}
+                linkMode={linkMode}
+                setLinkMode={setLinkMode}
+                linkDraft={linkDraft}
+                subtaskMode={subtaskMode}
+                setSubtaskMode={setSubtaskMode}
+            />
 
             {/* --- Main Content --- */}
             <div className="flex flex-1 min-h-0 relative">
@@ -848,6 +679,7 @@ export default function GanttChart({
                             onGroupDrag={handleGroupDrag}
                             onGroupDragPreview={handleGroupDragPreview}
                             onGroupDragEnd={handleGroupDragEnd}
+                            onMoveSubtasks={moveSubTasks}
                             linkMode={linkMode}
                             onLinkAnchorClick={handleLinkAnchorClick}
                             onLinkClick={handleLinkClick}
@@ -858,8 +690,8 @@ export default function GanttChart({
                             onCreateLink={handleCreateLink}
                             subtaskMode={subtaskMode}
                             subTasks={subTasks}
-                            selectedSubtaskId={selectedSubtaskId}
-                            onSelectSubtask={setSelectedSubtaskId}
+                            selectedSubtaskIds={selectedSubtaskIds}
+                            onSelectSubtask={handleSubtaskSelect}
                             onCreateSubtask={handleCreateSubtask}
                             onUpdateSubtask={handleUpdateSubtask}
                             onDeleteSubtask={handleDeleteSubtask}
@@ -986,71 +818,13 @@ export default function GanttChart({
                     }}
                 />
 
-                {linkEditor && (
-                    <div
-                        className="fixed z-[120] rounded-2xl p-6 w-80 backdrop-blur-xl border border-amber-300/40 shadow-[0_20px_60px_rgba(15,23,42,0.35)] bg-gradient-to-br from-slate-950/95 via-slate-900/95 to-slate-800/95"
-                        style={{ left: linkEditor.x + 12, top: linkEditor.y + 12 }}
-                    >
-                        <div className="flex items-center justify-between mb-3">
-                            <div className="text-[12px] uppercase tracking-[0.2em] text-amber-300/80 font-semibold">Link Editor</div>
-                            <div className="w-3 h-3 rounded-full bg-amber-400 shadow-[0_0_12px_rgba(251,191,36,0.6)]"></div>
-                        </div>
-                        <div className="space-y-3">
-                            <div>
-                                <label className="block text-[12px] text-slate-300 mb-1">유형</label>
-                                <div className="grid grid-cols-4 gap-1 bg-slate-900/60 rounded-full p-1 border border-slate-700/60">
-                                    {["FS", "SS", "FF", "SF"].map((type) => {
-                                        const isActive = (links || []).find(l => l.id === linkEditor.id)?.type === type;
-                                        return (
-                                            <button
-                                                key={type}
-                                                type="button"
-                                                onClick={() => updateLink(linkEditor.id, { type })}
-                                                className={`text-[12px] py-1.5 rounded-full transition-all ${isActive
-                                                    ? "bg-amber-400 text-slate-900 font-bold shadow-[0_0_10px_rgba(251,191,36,0.45)]"
-                                                    : "text-slate-300 hover:text-white"
-                                                    }`}
-                                            >
-                                                {type}
-                                            </button>
-                                        );
-                                    })}
-                                </div>
-                            </div>
-                            <div>
-                                <label className="block text-[12px] text-slate-300 mb-1">Lag(일)</label>
-                                <div className="flex items-center gap-2">
-                                    <input
-                                        className="w-full bg-slate-900/70 border border-slate-700/60 rounded-lg px-3 py-2.5 text-base text-amber-100 focus:outline-none focus:ring-2 focus:ring-amber-400/50"
-                                        type="number"
-                                        value={(links || []).find(l => l.id === linkEditor.id)?.lag ?? 0}
-                                        onChange={(e) => updateLink(linkEditor.id, { lag: parseFloat(e.target.value) || 0 })}
-                                    />
-                                    <span className="text-[12px] text-slate-400">d</span>
-                                </div>
-                            </div>
-                        </div>
-                        <div className="flex justify-between mt-4">
-                            <button
-                                type="button"
-                                className="text-[13px] text-rose-300 hover:text-rose-200 font-semibold"
-                                onClick={() => {
-                                    deleteLink(linkEditor.id);
-                                    handleLinkEditorClose();
-                                }}
-                            >
-                                삭제
-                            </button>
-                            <button
-                                type="button"
-                                className="text-[13px] text-slate-300 hover:text-white font-semibold"
-                                onClick={handleLinkEditorClose}
-                            >
-                                닫기
-                            </button>
-                        </div>
-                    </div>
-                )}
+                <LinkEditorPopover
+                    linkEditor={linkEditor}
+                    links={links}
+                    updateLink={updateLink}
+                    deleteLink={deleteLink}
+                    onClose={handleLinkEditorClose}
+                />
             </div >
         </div >
     );
