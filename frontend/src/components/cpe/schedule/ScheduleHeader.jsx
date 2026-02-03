@@ -22,7 +22,8 @@ export default function ScheduleHeader({
     onAiTargetDaysChange,
     onAiRun,
     aiMode,
-    onAiCancel
+    onAiCancel,
+    onExportExcel
 }) {
     return (
         <div className="flex justify-between items-end mb-4 flex-shrink-0">
@@ -121,6 +122,12 @@ export default function ScheduleHeader({
                         취소/되돌리기
                     </button>
                 )}
+                <button
+                    onClick={onExportExcel}
+                    className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-gray-600 text-gray-200 hover:bg-[#3a3a4a] transition"
+                >
+                    엑셀 내보내기
+                </button>
                 <SaveButton onSave={onSave} saving={saving} />
                 <div className="ml-2 px-4 py-2 rounded-xl bg-[#181825] border border-gray-700 text-sm text-gray-300">
                     <span className="text-gray-400 mr-2">전체 기간</span>

@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useMemo, useCallback } from "react";
 import { useParams } from "react-router-dom";
-import { saveScheduleData, initializeDefaultItems, fetchScheduleItems } from "../api/cpe_all/construction_schedule";
+import { saveScheduleData, initializeDefaultItems, fetchScheduleItems, exportScheduleExcel } from "../api/cpe_all/construction_schedule";
 import { updateWorkCondition } from "../api/cpe/calc";
 import toast from "react-hot-toast";
 import { Plus } from "lucide-react";
@@ -147,6 +147,27 @@ export default function ScheduleMasterList() {
             setIsScrolling(false);
         }, 1000);
     }, []);
+
+    const handleExportExcel = useCallback(async () => {
+        try {
+            const response = await exportScheduleExcel(projectId);
+            const blob = new Blob([response.data], {
+                type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            });
+            const url = window.URL.createObjectURL(blob);
+            const link = document.createElement("a");
+            link.href = url;
+            const safeProject = (projectName || "프로젝트").replace(/[\\/:*?"<>|]/g, "_");
+            link.download = `공사기간_산정_기준_${safeProject}.xlsx`;
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            window.URL.revokeObjectURL(url);
+        } catch (error) {
+            console.error("엑셀 내보내기 실패:", error);
+            toast.error("엑셀 내보내기 실패");
+        }
+    }, [projectId, projectName]);
 
     // Dnd Sensors
     const sensors = useSensors(
@@ -490,317 +511,328 @@ export default function ScheduleMasterList() {
     </div>;
 
     const activeItem = activeId ? items.find(i => i.id === activeId) : null;
+    const renderTableView = ({ forPrint = false } = {}) => (
+        <div
+            className={`scroll-container flex-1 min-h-0 overflow-auto rounded-xl border border-gray-700 shadow-xl bg-[#2c2c3a] relative ${isScrolling ? 'scrolling' : ''} ${forPrint ? 'print-table' : ''}`}
+            onScroll={forPrint ? undefined : handleScroll}
+        >
+            <DndContext
+                sensors={sensors}
+                collisionDetection={closestCenter}
+                onDragStart={handleDragStart}
+                onDragEnd={handleDragEnd}
+            >
+                <table className="w-full text-m box-border table-fixed border-collapse bg-[#2c2c3a] rounded-lg text-gray-200">
+                    <colgroup>
+                        <col width="30" />
+                        <col width="120" />
+                        <col width="140" />
+                        <col width="240" />
+                        <col width="140" />
+                        <col width="60" />
+                        <col width="90" />
+                        <col width="90" />
+                        <col width="60" />
+                        <col width="100" />
+                        <col width="80" />
+                        <col width="90" />
+                        <col width="80" />
+                        <col width="800" />
+                        <col width="60" />
+
+                    </colgroup>
+                    <thead className="bg-[#3a3a4a] text-gray-200">
+                        <tr className="bg-[#2c2c3a] text-gray-300 font-medium sticky top-0 z-[2] shadow-sm border-b border-gray-700">
+                            <th className="sticky top-0 bg-[#2c2c3a] border-r border-gray-700 px-1 z-10"></th>
+                            <th className="sticky top-0 bg-[#2c2c3a] border-r border-gray-700 px-2 py-2 z-10">구분</th>
+                            <th className="sticky top-0 bg-[#2c2c3a] border-r border-gray-700 px-2 py-2 z-10">공정</th>
+                            <th className="sticky top-0 bg-[#2c2c3a] border-r border-gray-700 px-2 py-2 z-10">공종</th>
+                            <th className="sticky top-0 bg-[#2c2c3a] border-r border-gray-700 px-2 py-2 z-10">수량산출(개산)</th>
+                            <th className="sticky top-0 bg-[#2c2c3a] border-r border-gray-700 px-2 py-2 z-10">단위</th>
+                            <th className="sticky top-0 bg-[#2c2c3a] border-r border-gray-700 px-2 py-2 z-10">내역수량</th>
+                            <th className="sticky top-0 bg-[#2c2c3a] border-r border-gray-700 px-2 py-2 z-10">단위 작업량</th>
+                            <th className="sticky top-0 bg-[#2c2c3a] border-r border-gray-700 px-2 py-2 z-10">투입조</th>
+                            <th className="sticky top-0 bg-[#2c2c3a] border-r border-gray-700 px-2 py-2 z-10">생산량/일</th>
+                            <th className="sticky top-0 bg-[#2c2c3a] border-r border-gray-700 px-2 py-2 z-10">반영율</th>
+                            {/* <th className="sticky top-0 bg-[#2c2c3a] border-r border-gray-700 px-2 py-2 text-blue-300 z-10">작업기간(W.D)</th> */}
+                            <th className="sticky top-0 bg-[#2c2c3a] border-r border-gray-700 px-2 py-2 z-10">가동률</th>
+                            <th className="sticky top-0 bg-blue-900/40 border-r border-gray-700 px-2 py-2 text-blue-200 font-bold z-10">Calender Day</th>
+                            <th className="sticky top-0 bg-[#2c2c3a] border-r border-gray-700 px-2 py-2 z-10">비고</th>
+                            <th className="sticky top-0 bg-[#2c2c3a] border-r border-gray-700 px-2 py-2 z-10"></th>
+                        </tr>
+                    </thead>
+                    <SortableContext items={items} strategy={verticalListSortingStrategy}>
+                        <tbody className="divide-y divide-gray-700">
+                            {(() => {
+                                const groupedItems = items.reduce((acc, item) => {
+                                    const category = item.main_category || '기타';
+                                    if (!acc[category]) acc[category] = [];
+                                    acc[category].push(item);
+                                    return acc;
+                                }, {});
+
+                                return [
+                                    (
+                                        <tr key="add-main-category" className={`bg-[#232332] ${forPrint ? "no-print" : ""}`}>
+                                            <td colSpan="16" className="px-4 py-3">
+                                                <div className="flex flex-wrap items-center gap-3">
+                                                    <div className="text-sm font-semibold text-gray-200">대공종 추가</div>
+                                                    <input
+                                                        type="text"
+                                                        value={newMainCategory}
+                                                        onChange={(e) => setNewMainCategory(e.target.value)}
+                                                        placeholder="대공종명 입력"
+                                                        className="min-w-[220px] bg-[#1f1f2b] border border-gray-600 rounded px-3 py-1.5 text-sm text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500/40"
+                                                    />
+                                                    <button
+                                                        type="button"
+                                                        onClick={handleAddMainCategory}
+                                                        className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-blue-600 text-white hover:bg-blue-500"
+                                                    >
+                                                        추가
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    ),
+                                    ...Object.entries(groupedItems).map(([category, categoryItems]) => (
+                                        <React.Fragment key={category}>
+                                            <tr className="bg-gradient-to-r from-[#2c2c3a] to-[#242433] border-t border-gray-700">
+                                                <td colSpan="16" className="px-4 py-2.5">
+                                                    <div className="flex items-center justify-between gap-2">
+                                                        <div className="flex items-center gap-2">
+                                                            <div className="w-1 h-5 bg-blue-400 rounded-full"></div>
+                                                            <h3 className="font-bold text-gray-100 text-base tracking-tight">
+                                                                {category}
+                                                            </h3>
+                                                            <span className="text-xs text-gray-400 bg-[#1f1f2b] px-2 py-0.5 rounded-full border border-gray-700">
+                                                                {categoryItems.length}개 항목
+                                                            </span>
+                                                            {/* Category-specific Run Rate */}
+                                                            {(() => {
+                                                                const categoryRate = operatingRates.find(r => r.main_category === category);
+                                                                const currentRunRate = categoryRate?.work_week_days || 6;
+                                                                return (
+                                                                    <div className="flex items-center gap-2 ml-4">
+                                                                        <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Run Rate</label>
+                                                                        <select
+                                                                            className="bg-[#181825] text-gray-100 font-bold text-sm py-1 px-2 rounded-lg border border-gray-700 focus:border-blue-500"
+                                                                            value={currentRunRate}
+                                                                            onChange={(e) => handleCategoryRunRateChange(category, e.target.value)}
+                                                                            disabled={forPrint}
+                                                                        >
+                                                                            <option value="5">주5일</option>
+                                                                            <option value="6">주6일</option>
+                                                                            <option value="7">주7일</option>
+                                                                        </select>
+                                                                    </div>
+                                                                );
+                                                            })()}
+                                                        </div>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleDeleteCategory(category, categoryItems)}
+                                                            className={`px-3 py-1.5 rounded-lg text-xs font-semibold border border-red-500/40 text-red-200 hover:bg-red-500/10 ${forPrint ? "no-print" : ""}`}
+                                                        >
+                                                            대공종 삭제
+                                                        </button>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                            <TableToolbarRow
+                                                colSpan={16}
+                                                className={forPrint ? "no-print" : ""}
+                                                onImport={() => {
+                                                    const lastCategoryItem = categoryItems[categoryItems.length - 1] || items[0];
+                                                    if (lastCategoryItem) {
+                                                        handleOpenImport({
+                                                            ...lastCategoryItem,
+                                                            main_category: category
+                                                        });
+                                                    }
+                                                }}
+                                                onAdd={() => {
+                                                    const lastCategoryItem = categoryItems[categoryItems.length - 1] || items[0];
+                                                    if (lastCategoryItem) {
+                                                        handleAddItem({
+                                                            ...lastCategoryItem,
+                                                            main_category: category,
+                                                            process: category === lastCategoryItem.main_category ? lastCategoryItem.process : ''
+                                                        });
+                                                    }
+                                                }}
+                                                onEvidence={() => {
+                                                    const lastCategoryItem = categoryItems[categoryItems.length - 1] || items[0];
+                                                    setEvidenceTargetParent(lastCategoryItem || null);
+                                                    setEvidenceModalOpen(true);
+                                                }}
+                                            />
+                                            {categoryItems.map((item, rowIndex) => (
+                                                <ScheduleTableRow
+                                                    key={item.id}
+                                                    item={item}
+                                                    rowClassName={rowIndex % 2 === 0 ? "bg-[#232332]" : "bg-[#2c2c3a]"}
+                                                    operatingRates={operatingRates}
+                                                    workDayType={workDayType}
+                                                    isLinked={item.link_module_type && item.link_module_type !== 'NONE'}
+                                                    handleChange={handleChange}
+                                                    handleDeleteItem={handleDeleteItem}
+                                                    handleAddItem={handleAddItem}
+                                                    handleOpenImport={handleOpenImport}
+                                                    spanInfo={spanInfoMap[item.id] || { isMainFirst: true, isProcFirst: true, mainRowSpan: 1, procRowSpan: 1 }}
+                                                    standardItems={standardItems}
+                                                    onApplyStandard={handleApplyStandardToRow}
+                                                />
+                                            ))}
+                                        </React.Fragment>
+                                    ))
+                                ];
+                            })()}
+                        </tbody>
+                    </SortableContext>
+
+                    {!forPrint && (
+                        <DragOverlay>
+                            {activeItem ? (
+                                <table className="w-full text-sm box-border table-fixed border-collapse bg-[#2c2c3a] shadow-2xl skew-y-1 origin-top-left opacity-95">
+                                    <colgroup>
+                                        <col width="30" />
+                                        <col width="120" />
+                                        <col width="140" />
+                                        <col width="240" />
+                                        <col width="140" />
+                                        <col width="60" />
+                                        <col width="90" />
+                                        <col width="90" />
+                                        <col width="60" />
+                                        <col width="100" />
+                                        <col width="80" />
+                                        <col width="90" />
+                                        <col width="80" />
+                                        <col width="800" />
+                                        <col width="60" />
+
+                                    </colgroup>
+                                    <tbody>
+                                        <ScheduleTableRow
+                                            item={activeItem}
+                                            isLinked={activeItem.link_module_type && activeItem.link_module_type !== 'NONE'}
+                                            operatingRates={operatingRates}
+                                            workDayType={workDayType}
+                                            handleChange={() => { }}
+                                            handleDeleteItem={() => { }}
+                                            handleAddItem={() => { }}
+                                            handleOpenImport={() => { }}
+                                            spanInfo={{}}
+                                            isOverlay={true}
+                                            standardItems={[]}
+                                            onApplyStandard={() => { }}
+                                        />
+                                    </tbody>
+                                </table>
+                            ) : null}
+                        </DragOverlay>
+                    )}
+                </table>
+            </DndContext>
+        </div>
+    );
 
     return (
-        <div className="p-6 h-screen flex flex-col max-w-[2400px] mx-auto text-gray-200 overflow-hidden">
-            <ScheduleHeader
-                viewMode={viewMode}
-                onViewModeChange={setViewMode}
-                canUndo={canUndo}
-                canRedo={canRedo}
-                onUndo={undo}
-                onRedo={redo}
-                onSnapshotOpen={() => setSnapshotModalOpen(true)}
-                startDate={startDate}
-                onStartDateChange={(val) => {
-                    setStartDate(val);
-                    import("../api/cpe/project").then(({ updateProject }) =>
-                        updateProject(projectId, { start_date: val })
-                    );
-                }}
-                workDayType={workDayType}
-                onWorkDayTypeChange={setStoreWorkDayType}
-                onSave={handleSaveAll}
-                saving={saving}
-                totalCalendarDays={totalCalendarDays}
-                totalCalendarMonths={totalCalendarMonths}
-                aiTargetDays={aiTargetDays}
-                onAiTargetDaysChange={setAiTargetDays}
-                onAiRun={runAiAdjustment}
-                aiMode={aiMode}
-                onAiCancel={handleAiCancel}
-            />
-
-            {/* Content Area - Table or Gantt */}
-            {viewMode === "gantt" ? (
-                <ScheduleGanttPanel
-                    items={aiDisplayItems}
-                    links={links}
+        <>
+            <div className="p-6 h-screen flex flex-col max-w-[2400px] mx-auto text-gray-200 overflow-hidden">
+                <ScheduleHeader
+                    viewMode={viewMode}
+                    onViewModeChange={setViewMode}
+                    canUndo={canUndo}
+                    canRedo={canRedo}
+                    onUndo={undo}
+                    onRedo={redo}
+                    onSnapshotOpen={() => setSnapshotModalOpen(true)}
                     startDate={startDate}
-                    onResize={handleGanttResize}
-                    onSmartResize={handleSmartResize}
-                    aiPreviewItems={aiPreviewItems}
-                    aiOriginalItems={aiOriginalRef.current}
-                    aiActiveItemId={aiActiveItemId}
+                    onStartDateChange={(val) => {
+                        setStartDate(val);
+                        import("../api/cpe/project").then(({ updateProject }) =>
+                            updateProject(projectId, { start_date: val })
+                        );
+                    }}
+                    workDayType={workDayType}
+                    onWorkDayTypeChange={setStoreWorkDayType}
+                    onSave={handleSaveAll}
+                    saving={saving}
+                    totalCalendarDays={totalCalendarDays}
+                    totalCalendarMonths={totalCalendarMonths}
+                    aiTargetDays={aiTargetDays}
+                    onAiTargetDaysChange={setAiTargetDays}
+                    onAiRun={runAiAdjustment}
                     aiMode={aiMode}
-                    aiLogs={aiLogs}
-                    aiSummary={aiSummary}
-                    aiShowCompare={aiShowCompare}
-                    onToggleCompare={() => setAiShowCompare((prev) => !prev)}
-                    onApply={() => handleAiApply(confirm)}
-                    subTasks={subTasks}
-                    onCreateSubtask={handleCreateSubtask}
-                    onUpdateSubtask={handleUpdateSubtask}
-                    onDeleteSubtask={handleDeleteSubtask}
+                    onAiCancel={handleAiCancel}
+                    onExportExcel={handleExportExcel}
                 />
-            ) : (
-                <div
-                    className={`scroll-container flex-1 min-h-0 overflow-auto rounded-xl border border-gray-700 shadow-xl bg-[#2c2c3a] relative ${isScrolling ? 'scrolling' : ''}`}
-                    onScroll={handleScroll}
-                >
-                    <DndContext
-                        sensors={sensors}
-                        collisionDetection={closestCenter}
-                        onDragStart={handleDragStart}
-                        onDragEnd={handleDragEnd}
-                    >
-                        <table className="w-full text-m box-border table-fixed border-collapse bg-[#2c2c3a] rounded-lg text-gray-200">
-                            <colgroup>
-                                <col width="30" />
-                                <col width="120" />
-                                <col width="140" />
-                                <col width="240" />
-                                <col width="140" />
-                                <col width="60" />
-                                <col width="90" />
-                                <col width="90" />
-                                <col width="60" />
-                                <col width="100" />
-                                <col width="80" />
-                                <col width="90" />
-                                <col width="80" />
-                                <col width="800" />
-                                <col width="60" />
 
-                            </colgroup>
-                            <thead className="bg-[#3a3a4a] text-gray-200">
-                                <tr className="bg-[#2c2c3a] text-gray-300 font-medium sticky top-0 z-[2] shadow-sm border-b border-gray-700">
-                                    <th className="sticky top-0 bg-[#2c2c3a] border-r border-gray-700 px-1 z-10"></th>
-                                    <th className="sticky top-0 bg-[#2c2c3a] border-r border-gray-700 px-2 py-2 z-10">구분</th>
-                                    <th className="sticky top-0 bg-[#2c2c3a] border-r border-gray-700 px-2 py-2 z-10">공정</th>
-                                    <th className="sticky top-0 bg-[#2c2c3a] border-r border-gray-700 px-2 py-2 z-10">공종</th>
-                                    <th className="sticky top-0 bg-[#2c2c3a] border-r border-gray-700 px-2 py-2 z-10">수량산출(개산)</th>
-                                    <th className="sticky top-0 bg-[#2c2c3a] border-r border-gray-700 px-2 py-2 z-10">단위</th>
-                                    <th className="sticky top-0 bg-[#2c2c3a] border-r border-gray-700 px-2 py-2 z-10">내역수량</th>
-                                    <th className="sticky top-0 bg-[#2c2c3a] border-r border-gray-700 px-2 py-2 z-10">단위 작업량</th>
-                                    <th className="sticky top-0 bg-[#2c2c3a] border-r border-gray-700 px-2 py-2 z-10">투입조</th>
-                                    <th className="sticky top-0 bg-[#2c2c3a] border-r border-gray-700 px-2 py-2 z-10">생산량/일</th>
-                                    <th className="sticky top-0 bg-[#2c2c3a] border-r border-gray-700 px-2 py-2 z-10">반영율</th>
-                                    {/* <th className="sticky top-0 bg-[#2c2c3a] border-r border-gray-700 px-2 py-2 text-blue-300 z-10">작업기간(W.D)</th> */}
-                                    <th className="sticky top-0 bg-[#2c2c3a] border-r border-gray-700 px-2 py-2 z-10">가동률</th>
-                                    <th className="sticky top-0 bg-blue-900/40 border-r border-gray-700 px-2 py-2 text-blue-200 font-bold z-10">Calender Day</th>
-                                    <th className="sticky top-0 bg-[#2c2c3a] border-r border-gray-700 px-2 py-2 z-10">비고</th>
-                                    <th className="sticky top-0 bg-[#2c2c3a] border-r border-gray-700 px-2 py-2 z-10"></th>
-                                </tr>
-                            </thead>
-                            <SortableContext items={items} strategy={verticalListSortingStrategy}>
-                                <tbody className="divide-y divide-gray-700">
-                                    {(() => {
-                                        const groupedItems = items.reduce((acc, item) => {
-                                            const category = item.main_category || '기타';
-                                            if (!acc[category]) acc[category] = [];
-                                            acc[category].push(item);
-                                            return acc;
-                                        }, {});
+                {/* Content Area - Table or Gantt */}
+                {viewMode === "gantt" ? (
+                    <ScheduleGanttPanel
+                        items={aiDisplayItems}
+                        links={links}
+                        startDate={startDate}
+                        onResize={handleGanttResize}
+                        onSmartResize={handleSmartResize}
+                        aiPreviewItems={aiPreviewItems}
+                        aiOriginalItems={aiOriginalRef.current}
+                        aiActiveItemId={aiActiveItemId}
+                        aiMode={aiMode}
+                        aiLogs={aiLogs}
+                        aiSummary={aiSummary}
+                        aiShowCompare={aiShowCompare}
+                        onToggleCompare={() => setAiShowCompare((prev) => !prev)}
+                        onApply={() => handleAiApply(confirm)}
+                        subTasks={subTasks}
+                        onCreateSubtask={handleCreateSubtask}
+                        onUpdateSubtask={handleUpdateSubtask}
+                        onDeleteSubtask={handleDeleteSubtask}
+                    />
+                ) : (
+                    renderTableView()
+                )}
 
-                                        return [
-                                            (
-                                                <tr key="add-main-category" className="bg-[#232332]">
-                                                    <td colSpan="16" className="px-4 py-3">
-                                                        <div className="flex flex-wrap items-center gap-3">
-                                                            <div className="text-sm font-semibold text-gray-200">대공종 추가</div>
-                                                            <input
-                                                                type="text"
-                                                                value={newMainCategory}
-                                                                onChange={(e) => setNewMainCategory(e.target.value)}
-                                                                placeholder="대공종명 입력"
-                                                                className="min-w-[220px] bg-[#1f1f2b] border border-gray-600 rounded px-3 py-1.5 text-sm text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500/40"
-                                                            />
-                                                            <button
-                                                                type="button"
-                                                                onClick={handleAddMainCategory}
-                                                                className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-blue-600 text-white hover:bg-blue-500"
-                                                            >
-                                                                추가
-                                                            </button>
-                                                        </div>
-                                                    </td>
-                                                </tr>
-                                            ),
-                                            ...Object.entries(groupedItems).map(([category, categoryItems]) => (
-                                                <React.Fragment key={category}>
-                                                    <tr className="bg-gradient-to-r from-[#2c2c3a] to-[#242433] border-t border-gray-700">
-                                                        <td colSpan="16" className="px-4 py-2.5">
-                                                            <div className="flex items-center justify-between gap-2">
-                                                                <div className="flex items-center gap-2">
-                                                                    <div className="w-1 h-5 bg-blue-400 rounded-full"></div>
-                                                                    <h3 className="font-bold text-gray-100 text-base tracking-tight">
-                                                                        {category}
-                                                                    </h3>
-                                                                    <span className="text-xs text-gray-400 bg-[#1f1f2b] px-2 py-0.5 rounded-full border border-gray-700">
-                                                                        {categoryItems.length}개 항목
-                                                                    </span>
-                                                                    {/* Category-specific Run Rate */}
-                                                                    {(() => {
-                                                                        const categoryRate = operatingRates.find(r => r.main_category === category);
-                                                                        const currentRunRate = categoryRate?.work_week_days || 6;
-                                                                        return (
-                                                                            <div className="flex items-center gap-2 ml-4">
-                                                                                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Run Rate</label>
-                                                                                <select
-                                                                                    className="bg-[#181825] text-gray-100 font-bold text-sm py-1 px-2 rounded-lg border border-gray-700 focus:border-blue-500"
-                                                                                    value={currentRunRate}
-                                                                                    onChange={(e) => handleCategoryRunRateChange(category, e.target.value)}
-                                                                                >
-                                                                                    <option value="5">주5일</option>
-                                                                                    <option value="6">주6일</option>
-                                                                                    <option value="7">주7일</option>
-                                                                                </select>
-                                                                            </div>
-                                                                        );
-                                                                    })()}
-                                                                </div>
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={() => handleDeleteCategory(category, categoryItems)}
-                                                                    className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-red-500/40 text-red-200 hover:bg-red-500/10"
-                                                                >
-                                                                    대공종 삭제
-                                                                </button>
-                                                            </div>
-                                                        </td>
-                                                    </tr>
-                                                    <TableToolbarRow
-                                                        colSpan={16}
-                                                        onImport={() => {
-                                                            const lastCategoryItem = categoryItems[categoryItems.length - 1] || items[0];
-                                                            if (lastCategoryItem) {
-                                                                handleOpenImport({
-                                                                    ...lastCategoryItem,
-                                                                    main_category: category
-                                                                });
-                                                            }
-                                                        }}
-                                                        onAdd={() => {
-                                                            const lastCategoryItem = categoryItems[categoryItems.length - 1] || items[0];
-                                                            if (lastCategoryItem) {
-                                                                handleAddItem({
-                                                                    ...lastCategoryItem,
-                                                                    main_category: category,
-                                                                    process: category === lastCategoryItem.main_category ? lastCategoryItem.process : ''
-                                                                });
-                                                            }
-                                                        }}
-                                                        onEvidence={() => {
-                                                            const lastCategoryItem = categoryItems[categoryItems.length - 1] || items[0];
-                                                            setEvidenceTargetParent(lastCategoryItem || null);
-                                                            setEvidenceModalOpen(true);
-                                                        }}
-                                                    />
-                                                    {categoryItems.map((item, rowIndex) => (
-                                                        <ScheduleTableRow
-                                                            key={item.id}
-                                                            item={item}
-                                                            rowClassName={rowIndex % 2 === 0 ? "bg-[#232332]" : "bg-[#2c2c3a]"}
-                                                            operatingRates={operatingRates}
-                                                            workDayType={workDayType}
-                                                            isLinked={item.link_module_type && item.link_module_type !== 'NONE'}
-                                                            handleChange={handleChange}
-                                                            handleDeleteItem={handleDeleteItem}
-                                                            handleAddItem={handleAddItem}
-                                                            handleOpenImport={handleOpenImport}
-                                                            spanInfo={spanInfoMap[item.id] || { isMainFirst: true, isProcFirst: true, mainRowSpan: 1, procRowSpan: 1 }}
-                                                            standardItems={standardItems}
-                                                            onApplyStandard={handleApplyStandardToRow}
-                                                        />
-                                                    ))}
-                                                </React.Fragment>
-                                            ))
-                                        ];
-                                    })()}
-                                </tbody>
-                            </SortableContext>
+                <StandardImportModal
+                    isOpen={importModalOpen}
+                    onClose={() => setImportModalOpen(false)}
+                    onSelect={handleImportSelect}
+                    project_id={projectId}
+                />
 
-                            <DragOverlay>
-                                {activeItem ? (
-                                    <table className="w-full text-sm box-border table-fixed border-collapse bg-[#2c2c3a] shadow-2xl skew-y-1 origin-top-left opacity-95">
-                                        <colgroup>
-                                            <col width="30" />
-                                            <col width="120" />
-                                            <col width="140" />
-                                            <col width="240" />
-                                            <col width="140" />
-                                            <col width="60" />
-                                            <col width="90" />
-                                            <col width="90" />
-                                            <col width="60" />
-                                            <col width="100" />
-                                            <col width="80" />
-                                            <col width="90" />
-                                            <col width="80" />
-                                            <col width="800" />
-                                            <col width="60" />
+                <EvidenceResultModal
+                    isOpen={evidenceModalOpen}
+                    onClose={() => setEvidenceModalOpen(false)}
+                    cipResults={cipResult.map((row) => ({
+                        ...row,
+                        key: `cip-${row.id}`,
+                        label: row.diameter_selection ? `D${row.diameter_selection}` : "CIP"
+                    }))}
+                    pileResults={pileResult.map((row) => ({
+                        ...row,
+                        key: `pile-${row.id}`,
+                        label: row.diameter_selection ? `D${row.diameter_selection}` : "Pile"
+                    }))}
+                    boredResults={boredResult.map((row) => ({
+                        ...row,
+                        key: `bored-${row.id}`,
+                        label: row.diameter_selection ? `D${row.diameter_selection}` : "Bored"
+                    }))}
+                    cipStandards={cipStandards}
+                    pileStandards={pileStandards}
+                    boredStandards={boredStandards}
+                    onAddItem={handleAddEvidenceItem}
+                />
 
-                                        </colgroup>
-                                        <tbody>
-                                            <ScheduleTableRow
-                                                item={activeItem}
-                                                isLinked={activeItem.link_module_type && activeItem.link_module_type !== 'NONE'}
-                                                operatingRates={operatingRates}
-                                                workDayType={workDayType}
-                                                handleChange={() => { }}
-                                                handleDeleteItem={() => { }}
-                                                handleAddItem={() => { }}
-                                                handleOpenImport={() => { }}
-                                                spanInfo={{}}
-                                                isOverlay={true}
-                                                standardItems={[]}
-                                                onApplyStandard={() => { }}
-                                            />
-                                        </tbody>
-                                    </table>
-                                ) : null}
-                            </DragOverlay>
-                        </table>
-                    </DndContext>
-                </div>
-            )}
+                <SnapshotManager
+                    isOpen={snapshotModalOpen}
+                    onClose={() => setSnapshotModalOpen(false)}
+                />
+            </div>
 
-            <StandardImportModal
-                isOpen={importModalOpen}
-                onClose={() => setImportModalOpen(false)}
-                onSelect={handleImportSelect}
-                project_id={projectId}
-            />
-
-            <EvidenceResultModal
-                isOpen={evidenceModalOpen}
-                onClose={() => setEvidenceModalOpen(false)}
-                cipResults={cipResult.map((row) => ({
-                    ...row,
-                    key: `cip-${row.id}`,
-                    label: row.diameter_selection ? `D${row.diameter_selection}` : "CIP"
-                }))}
-                pileResults={pileResult.map((row) => ({
-                    ...row,
-                    key: `pile-${row.id}`,
-                    label: row.diameter_selection ? `D${row.diameter_selection}` : "Pile"
-                }))}
-                boredResults={boredResult.map((row) => ({
-                    ...row,
-                    key: `bored-${row.id}`,
-                    label: row.diameter_selection ? `D${row.diameter_selection}` : "Bored"
-                }))}
-                cipStandards={cipStandards}
-                pileStandards={pileStandards}
-                boredStandards={boredStandards}
-                onAddItem={handleAddEvidenceItem}
-            />
-
-            <SnapshotManager
-                isOpen={snapshotModalOpen}
-                onClose={() => setSnapshotModalOpen(false)}
-            />
-        </div>
+        </>
     );
 }

@@ -13,7 +13,7 @@ export default function GanttToolbar({
     setSubtaskMode
 }) {
     return (
-        <div className="px-6 py-4 flex items-center justify-between bg-white border-b border-gray-100 z-[2]">
+        <div className="gantt-toolbar px-6 py-4 flex items-center justify-between bg-white border-b border-gray-100 z-[2]">
             <div className="flex items-center gap-4">
                 <div>
                     <h2 className="text-lg font-bold text-slate-900 tracking-tight">공사 일정 (Construction Schedule)</h2>

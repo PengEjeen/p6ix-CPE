@@ -1,9 +1,9 @@
 import React from "react";
 import { RefreshCw, Plus, SlidersHorizontal } from "lucide-react";
 
-export default function TableToolbarRow({ colSpan, onImport, onAdd, onEvidence }) {
+export default function TableToolbarRow({ colSpan, onImport, onAdd, onEvidence, className = "" }) {
     return (
-        <tr className="bg-[#1f1f2b] border-b border-gray-700">
+        <tr className={`bg-[#1f1f2b] border-b border-gray-700 ${className}`}>
             <td colSpan={colSpan} className="px-4 py-2">
                 <div className="flex flex-wrap items-center gap-2">
                     <button
