@@ -9,6 +9,8 @@ const SmartGanttBar = ({
     pixelsPerUnit,
     dateScale,
     onBarDragStart,
+    onBarDragPreview,
+    onBarDragEnd,
     onBarResize,
     onResizing,
     setPopoverState,
@@ -60,18 +62,21 @@ const SmartGanttBar = ({
             if (Math.abs(deltaX) > 2) setHasMoved(true); // movement threshold
 
             const newLeftPx = Math.max(0, startLeftPx + deltaX);
-            const newStartDay = Math.round((newLeftPx / pixelsPerUnit) * dateScale);
+            const newStartDay = (newLeftPx / pixelsPerUnit) * dateScale;
             setTempStartDay(newStartDay);
+            if (onBarDragPreview) onBarDragPreview(item.id, newStartDay);
         };
 
         const handleMouseUp = () => {
             setIsDragging(false);
             if (hasMoved && tempStartDay !== null) {
                 onBarDragStart(item.id, tempStartDay);
+                if (onBarDragEnd) onBarDragEnd(item.id);
                 setTempStartDay(null);
             } else if (!hasMoved) {
                 // It was a click, not a drag
                 if (onItemClick) onItemClick(item.id, 'chart');
+                if (onBarDragEnd) onBarDragEnd(item.id);
             }
             document.removeEventListener('mousemove', handleMouseMove);
             document.removeEventListener('mouseup', handleMouseUp);
