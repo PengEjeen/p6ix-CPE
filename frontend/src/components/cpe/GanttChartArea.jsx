@@ -409,6 +409,20 @@ const GanttChartArea = ({
                     const load = dailyLoads.get(d.actualDay) || 0;
                     // Heatmap logic
                     let bg = "";
+
+                    // Season Logic
+                    // d.date is expected to be a Date object
+                    if (d.date) {
+                        const month = d.date.getMonth() + 1; // 1-12
+                        const isSummer = [6, 7, 8].includes(month);
+                        const isWinter = [12, 1, 2].includes(month);
+
+                        if (isSummer || isWinter) {
+                            bg = "bg-yellow-100/20"; // Very pale yellow
+                        }
+                    }
+
+                    // Overwrite with Heatmap if high load (optional priority)
                     if (load > 40) bg = "bg-red-50/50";
                     else if (load > 20) bg = "bg-amber-50/30";
 

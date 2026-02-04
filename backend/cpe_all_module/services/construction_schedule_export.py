@@ -1,4 +1,5 @@
 import math
+import unicodedata
 from datetime import timedelta
 
 from cpe_module.models.operating_rate_models import WorkScheduleWeight
@@ -171,11 +172,95 @@ def write_gantt_sheet(wb, items, sub_tasks, links, project_name, start_date):
     gantt_left_fmt = wb.add_format({'align': 'left', 'valign': 'vcenter', 'border': 1})
     gantt_right_fmt = wb.add_format({'align': 'right', 'valign': 'vcenter', 'border': 1, 'num_format': '#,##0.0'})
     gantt_grid_fmt = wb.add_format({
-        'top': 3,
-        'bottom': 3,
-        'left': 3,
-        'right': 3,
-        'border_color': '#000000'
+        'top': 4,      # Dotted
+        'bottom': 4,   # Dotted
+        'left': 4,     # Dotted
+        'right': 4,    # Dotted
+        'top_color': '#D3D3D3',
+        'bottom_color': '#D3D3D3',
+        'left_color': '#D3D3D3',
+        'right_color': '#D3D3D3'
+    })
+    # Border formats for outer edges (black solid outside, dotted gray inside)
+    gantt_grid_top_fmt = wb.add_format({
+        'top': 1,      # Solid black
+        'top_color': '#000000',
+        'bottom': 4,   # Dotted gray
+        'bottom_color': '#D3D3D3',
+        'left': 4,     # Dotted gray
+        'left_color': '#D3D3D3',
+        'right': 4,    # Dotted gray
+        'right_color': '#D3D3D3'
+    })
+    gantt_grid_bottom_fmt = wb.add_format({
+        'top': 4,      # Dotted gray
+        'top_color': '#D3D3D3',
+        'bottom': 1,   # Solid black
+        'bottom_color': '#000000',
+        'left': 4,     # Dotted gray
+        'left_color': '#D3D3D3',
+        'right': 4,    # Dotted gray
+        'right_color': '#D3D3D3'
+    })
+    gantt_grid_left_fmt = wb.add_format({
+        'top': 4,      # Dotted gray
+        'top_color': '#D3D3D3',
+        'bottom': 4,   # Dotted gray
+        'bottom_color': '#D3D3D3',
+        'left': 1,     # Solid black
+        'left_color': '#000000',
+        'right': 4,    # Dotted gray
+        'right_color': '#D3D3D3'
+    })
+    gantt_grid_right_fmt = wb.add_format({
+        'top': 4,      # Dotted gray
+        'top_color': '#D3D3D3',
+        'bottom': 4,   # Dotted gray
+        'bottom_color': '#D3D3D3',
+        'left': 4,     # Dotted gray
+        'left_color': '#D3D3D3',
+        'right': 1,    # Solid black
+        'right_color': '#000000'
+    })
+    gantt_grid_corner_tl_fmt = wb.add_format({
+        'top': 1,      # Solid black
+        'top_color': '#000000',
+        'bottom': 4,   # Dotted gray
+        'bottom_color': '#D3D3D3',
+        'left': 1,     # Solid black
+        'left_color': '#000000',
+        'right': 4,    # Dotted gray
+        'right_color': '#D3D3D3'
+    })
+    gantt_grid_corner_tr_fmt = wb.add_format({
+        'top': 1,      # Solid black
+        'top_color': '#000000',
+        'bottom': 4,   # Dotted gray
+        'bottom_color': '#D3D3D3',
+        'left': 4,     # Dotted gray
+        'left_color': '#D3D3D3',
+        'right': 1,    # Solid black
+        'right_color': '#000000'
+    })
+    gantt_grid_corner_bl_fmt = wb.add_format({
+        'top': 4,      # Dotted gray
+        'top_color': '#D3D3D3',
+        'bottom': 1,   # Solid black
+        'bottom_color': '#000000',
+        'left': 1,     # Solid black
+        'left_color': '#000000',
+        'right': 4,    # Dotted gray
+        'right_color': '#D3D3D3'
+    })
+    gantt_grid_corner_br_fmt = wb.add_format({
+        'top': 4,      # Dotted gray
+        'top_color': '#D3D3D3',
+        'bottom': 1,   # Solid black
+        'bottom_color': '#000000',
+        'left': 4,     # Dotted gray
+        'left_color': '#D3D3D3',
+        'right': 1,    # Solid black
+        'right_color': '#000000'
     })
 
     # Title and headers
@@ -288,9 +373,35 @@ def write_gantt_sheet(wb, items, sub_tasks, links, project_name, start_date):
         gantt_ws.write(gantt_row, 1, item.get("process", ""), gantt_left_fmt)
         gantt_ws.write(gantt_row, 2, item.get("work_type", ""), gantt_left_fmt)
         gantt_ws.write(gantt_row, 3, item.get("calendar_days", ""), gantt_right_fmt)
+        # Apply border formats based on position
+        is_first_row = (gantt_row == data_start_row)
+        is_last_row = (gantt_row == data_start_row + len(items_with_timing) - 1)
+        
         gantt_ws.write(gantt_row, 4, "", gantt_grid_fmt)
         for col in range(timeline_start_col, last_col + 1):
-            gantt_ws.write(gantt_row, col, "", gantt_grid_fmt)
+            # Determine which format to use
+            fmt = gantt_grid_fmt
+            is_left_col = (col == timeline_start_col)
+            is_right_col = (col == last_col)
+            
+            if is_first_row and is_left_col:
+                fmt = gantt_grid_corner_tl_fmt
+            elif is_first_row and is_right_col:
+                fmt = gantt_grid_corner_tr_fmt
+            elif is_last_row and is_left_col:
+                fmt = gantt_grid_corner_bl_fmt
+            elif is_last_row and is_right_col:
+                fmt = gantt_grid_corner_br_fmt
+            elif is_first_row:
+                fmt = gantt_grid_top_fmt
+            elif is_last_row:
+                fmt = gantt_grid_bottom_fmt
+            elif is_left_col:
+                fmt = gantt_grid_left_fmt
+            elif is_right_col:
+                fmt = gantt_grid_right_fmt
+            
+            gantt_ws.write(gantt_row, col, "", fmt)
 
         item_positions[item.get("id")] = {
             "row": gantt_row,
@@ -806,6 +917,97 @@ def write_gantt_sheet(wb, items, sub_tasks, links, project_name, start_date):
             'text': f'{category} 완료({milestone_date_str})',
             'font': {'size': 8, 'color': '000000', 'bold': True}
         })
+    
+    # Vertical milestones for major category start points (대공종 시작)
+    # Find the start point of each major category
+    category_start_points = {}
+    category_rows = {}  # Track which rows belong to each category
+    
+    for idx, item_meta in enumerate(items_with_timing):
+        item = item_meta["item"]
+        category = item.get("main_category", "")
+        if not category:
+            continue
+        
+        row_num = data_start_row + idx
+        
+        # Track start point (earliest start_day for this category)
+        if category not in category_start_points:
+            category_start_points[category] = {
+                "start_day": item_meta["start_day"],
+                "row": row_num
+            }
+        
+        # Track all rows for this category
+        if category not in category_rows:
+            category_rows[category] = []
+        category_rows[category].append(row_num)
+    
+    # Add vertical milestone for each major category start
+    for category, data in category_start_points.items():
+        milestone_x = _day_to_px(data["start_day"])
+        
+        # Calculate vertical line range (from Row 4 to last row of this category)
+        if category in category_rows:
+            first_row = min(category_rows[category])
+            last_row = max(category_rows[category])
+            
+            # Category name box in the spacer column (column 4)
+            # Position it at the first row of the category for clarity
+            # Row height is 30, box height is 24, so offset is (30-24)/2 = 3
+            box_y = row_tops.get(first_row, 0) + 3
+            # Column 4 width is 9.625, position box to fit in that column
+            # Timeline starts at column 5, so we need negative X to go left
+            # Column 4 width is 9.625, position box to fit in that column
+            # Timeline starts at column 5, so we need negative X to go left
+            
+            # Estimate text width: ~13px per Korean char, ~8px per ASCII
+            text_width = 0
+            for char in category:
+                if unicodedata.east_asian_width(char) in ('F', 'W', 'A'):
+                    text_width += 13
+                else:
+                    text_width += 8
+            
+            col4_width_px = gantt_ws._size_col(4)  # ~72 pixels
+            min_width = col4_width_px - 4
+            
+            # Adjust box size to fit text, but at least column 4 width
+            box_width = max(min_width, text_width + 10)
+            box_height = 24
+            
+            # Position anchored at the left side of Column 4
+            # X=0 is the start of the timeline (Column 5).
+            # Column 4 is immediately to the left of the timeline.
+            # We want the box to start near the left edge of Column 4 and grow rightwards.
+            
+            # Start X = -(width of Column 4) + padding
+            box_x = -col4_width_px + 2
+            
+            # If box_width > col4_width_px, it will naturally extend into the timeline area (X > 0)
+            # This prevents covering the list data on the left (Columns 0-3).
+            
+            # Background box
+            shapes.append({
+                'type': 'rect',
+                'x': box_x,
+                'y': box_y,
+                'w': box_width,
+                'h': box_height,
+                'fill': '3B82F6',  # Blue background
+                'line': {'color': '3B82F6', 'width': 1}
+            })
+            
+            # Text label
+            shapes.append({
+                'type': 'text',
+                'x': box_x,
+                'y': box_y,
+                'w': box_width,
+                'h': box_height,
+                'text': category,
+                'font': {'size': 9, 'color': 'FFFFFF', 'bold': True}
+            })
 
     return {
         "shapes": shapes,

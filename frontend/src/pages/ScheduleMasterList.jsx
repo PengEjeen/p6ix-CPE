@@ -264,13 +264,14 @@ export default function ScheduleMasterList() {
         }
     };
 
-    const handleCreateSubtask = useCallback((itemId, startDay, durationDays) => {
+    const handleCreateSubtask = useCallback((itemId, startDay, durationDays, extraProps = {}) => {
         addSubTask({
             id: `sub-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
             itemId,
             startDay,
             durationDays,
-            label: "부공종"
+            label: "부공종",
+            ...extraProps
         });
     }, [addSubTask]);
 

@@ -14,6 +14,7 @@ import { buildMoveUpdatesByDelta } from "./gantt/utils/moveUpdates";
 import { useAutoScale } from "./gantt/hooks/useAutoScale";
 import GanttToolbar from "./gantt/ui/GanttToolbar";
 import LinkEditorPopover from "./gantt/ui/LinkEditorPopover";
+import toast from "react-hot-toast";
 
 export default function GanttChart({
     items,
@@ -68,6 +69,8 @@ export default function GanttChart({
     // eslint-disable-next-line no-unused-vars
     // eslint-disable-next-line no-unused-vars
     const [expandedProcesses, setExpandedProcesses] = useState({});
+    const [copiedSubtask, setCopiedSubtask] = useState(null);
+
     const handleScroll = useCallback(() => {
         setIsScrolling(true);
         clearTimeout(window.ganttChartScrollTimeout);
@@ -75,6 +78,66 @@ export default function GanttChart({
             setIsScrolling(false);
         }, 1000);
     }, []);
+
+    // Subtask Copy/Paste (Object Level)
+    React.useEffect(() => {
+        const handleKeyDown = async (e) => {
+            // Ignore if typing in an input
+            if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable) {
+                return;
+            }
+
+            // Copy: Ctrl+C
+            if ((e.ctrlKey || e.metaKey) && e.key === 'c') {
+                if (selectedSubtaskIds.length > 0) {
+                    const subtask = subTasks.find(s => s.id === selectedSubtaskIds[0]);
+                    if (subtask) {
+                        setCopiedSubtask({
+                            durationDays: subtask.durationDays,
+                            label: subtask.label,
+                            startDay: subtask.startDay
+                        });
+                        toast.success("부공종 복사됨");
+                    }
+                }
+            }
+
+            // Paste: Ctrl+V
+            if ((e.ctrlKey || e.metaKey) && e.key === 'v') {
+                if (copiedSubtask) {
+                    // Determine targets: Selected Rows OR Parent of Selected Subtasks
+                    const targetItemIds = new Set();
+
+                    // 1. Add explicitly selected rows
+                    selectedItemIds.forEach(id => targetItemIds.add(id));
+
+                    // 2. Add parents of selected subtasks
+                    selectedSubtaskIds.forEach(id => {
+                        const sub = subTasks.find(s => s.id === id);
+                        if (sub) targetItemIds.add(sub.itemId);
+                    });
+
+                    if (targetItemIds.size > 0 && onCreateSubtask) {
+                        targetItemIds.forEach(itemId => {
+                            onCreateSubtask(
+                                itemId,
+                                copiedSubtask.startDay,
+                                copiedSubtask.durationDays,
+                                { label: copiedSubtask.label }
+                            );
+                        });
+                        toast.success(`부공종 붙여넣기 완료 (${targetItemIds.size}개)`);
+                    } else {
+                        // Optional: If nothing selected, maybe warn? Or just silent.
+                        // toast("붙여넣을 공종(행)을 선택해주세요", { icon: "ℹ️" });
+                    }
+                }
+            }
+        };
+
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [selectedSubtaskIds, selectedItemIds, subTasks, copiedSubtask, onCreateSubtask]);
 
     // Calculate Grid Data FIRST (needed for handlers)
     const { itemsWithTiming, totalDays, dailyLoads } = useMemo(() => {
