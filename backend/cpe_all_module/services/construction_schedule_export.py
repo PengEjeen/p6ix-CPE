@@ -238,6 +238,14 @@ def write_gantt_sheet(wb, items, sub_tasks, links, project_name, start_date):
         col = timeline_start_col + idx
         gantt_ws.write(3, col, str(label).replace("일", ""), gantt_header_fmt)
 
+    # Sub-header row (row 4): "적정공기 계획" and "총간관리일"
+    subheader_fmt = wb.add_format({'align': 'center', 'valign': 'vcenter', 'border': 1})
+    gantt_ws.merge_range(4, 0, 4, 2, "적정공기 계획", subheader_fmt)
+    gantt_ws.write(4, 3, "총간관리일", subheader_fmt)
+    gantt_ws.write(4, 4, "", subheader_fmt)
+    for col in range(timeline_start_col, last_col + 1):
+        gantt_ws.write(4, col, "", subheader_fmt)
+
     # Column sizing (needed before shape positioning)
     gantt_ws.set_column(0, 0, 10.625)
     gantt_ws.set_column(1, 1, 13.375)
@@ -250,8 +258,9 @@ def write_gantt_sheet(wb, items, sub_tasks, links, project_name, start_date):
     gantt_ws.set_row(1, 30)
     gantt_ws.set_row(2, 30)
     gantt_ws.set_row(3, 30)
+    gantt_ws.set_row(4, 60)
 
-    data_start_row = 4
+    data_start_row = 5
     gantt_row = data_start_row
     item_positions = {}
 
@@ -689,6 +698,113 @@ def write_gantt_sheet(wb, items, sub_tasks, links, project_name, start_date):
             'w': 2,
             'h': gantt_ws._size_row(r),
             'line': {'color': 'FF0000', 'width': 1}
+        })
+
+    # Add milestone markers to Row 4 timeline area (착공/준공)
+    # Row 4 is the sub-header row ("적정공기 계획" and "총간관리일")
+    # CRITICAL: inject_gantt_drawing uses timeline_origin_y = sum(row_pixels[:data_start_row])
+    # This means shape Y coordinates are relative to Row 5 (data_start_row) top edge
+    # Row 4 is ABOVE the origin, so it needs NEGATIVE Y coordinate
+    row4_height = 60
+    
+    # 착공 milestone at Day 0
+    start_x = _day_to_px(0)
+    start_date_str = start_date.strftime('%y.%m.%d')
+    
+    triangle_size = 12
+    # Position triangle at the BOTTOM border of Row 4
+    # Row 4 bottom edge is at Y=0 (which is the top of data_start_row/Row 5)
+    # To attach triangle to bottom border, position it just above Y=0
+    triangle_y = -triangle_size
+    
+    shapes.append({
+        'type': 'triangle',
+        'x': start_x - (triangle_size / 2),
+        'y': triangle_y,
+        'w': triangle_size,
+        'h': triangle_size,
+        'fill': 'EF4444',
+        'line': {'color': 'EF4444', 'width': 1},
+        'rotation': 180
+    })
+    
+    shapes.append({
+        'type': 'text',
+        'x': max(0, start_x - 25),
+        'y': -(triangle_size + 14),  # Position text just above the triangle
+        'w': 50,
+        'h': 12,
+        'text': f'착공({start_date_str})',
+        'font': {'size': 8, 'color': '000000', 'bold': True}
+    })
+    
+    # 준공 milestone at end
+    end_x = _day_to_px(total_days)
+    end_date = start_date + timedelta(days=total_days)
+    end_date_str = end_date.strftime('%y.%m.%d')
+    
+    shapes.append({
+        'type': 'triangle',
+        'x': end_x - (triangle_size / 2),
+        'y': triangle_y,
+        'w': triangle_size,
+        'h': triangle_size,
+        'fill': 'EF4444',
+        'line': {'color': 'EF4444', 'width': 1},
+        'rotation': 180
+    })
+    
+    shapes.append({
+        'type': 'text',
+        'x': max(0, end_x - 25),
+        'y': -(triangle_size + 14),  # Position text just above the triangle
+        'w': 50,
+        'h': 12,
+        'text': f'준공({end_date_str})',
+        'font': {'size': 8, 'color': '000000', 'bold': True}
+    })
+    
+    # Major category completion milestones (대공종 완료)
+    # Find the end point of each major category
+    category_end_points = {}
+    for item_meta in items_with_timing:
+        item = item_meta["item"]
+        category = item.get("main_category", "")
+        if not category:
+            continue
+        end_day = item_meta["start_day"] + item_meta["duration"]
+        if category not in category_end_points or end_day > category_end_points[category]["end_day"]:
+            category_end_points[category] = {
+                "end_day": end_day,
+                "end_date": start_date + timedelta(days=int(end_day))
+            }
+    
+    # Add milestone for each major category
+    for category, data in category_end_points.items():
+        milestone_x = _day_to_px(data["end_day"])
+        milestone_date_str = data["end_date"].strftime('%y.%m.%d')
+        
+        # Sky blue triangle marker
+        shapes.append({
+            'type': 'triangle',
+            'x': milestone_x - (triangle_size / 2),
+            'y': triangle_y,
+            'w': triangle_size,
+            'h': triangle_size,
+            'fill': '38BDF8',  # Sky blue
+            'line': {'color': '38BDF8', 'width': 1},
+            'rotation': 180
+        })
+        
+        # Text label above triangle
+        shapes.append({
+            'type': 'text',
+            'x': max(0, milestone_x - 30),
+            'y': -(triangle_size + 14),
+            'w': 60,
+            'h': 12,
+            'text': f'{category} 완료({milestone_date_str})',
+            'font': {'size': 8, 'color': '000000', 'bold': True}
         })
 
     return {

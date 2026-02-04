@@ -289,6 +289,11 @@ def inject_gantt_drawing(xlsx_bytes, *, shapes, last_col, gantt_row, timeline_st
 
             sppr = ET.SubElement(sp, ET.QName(NS['xdr'], 'spPr'))
             xfrm = ET.SubElement(sppr, ET.QName(NS['a'], 'xfrm'))
+            # Add rotation if specified (in degrees, converted to 60000ths of a degree)
+            rotation = shape.get('rotation')
+            if rotation is not None:
+                # Excel uses 60000ths of a degree for rotation (e.g., 180° = 10800000)
+                xfrm.set('rot', str(int(rotation * 60000)))
             ET.SubElement(xfrm, ET.QName(NS['a'], 'off'), x="0", y="0")
             ET.SubElement(xfrm, ET.QName(NS['a'], 'ext'),
                           cx=str(px_to_emu(abs_w)), cy=str(px_to_emu(abs_h)))
