@@ -451,7 +451,7 @@ class ConstructionScheduleItemViewSet(viewsets.ModelViewSet):
 
                 row_height = gantt_ws._size_row(gantt_row)
                 row_top = row_tops.get(gantt_row, 0)
-                label_top_y = max(0, row_top + 2)
+                label_top_y = max(0, row_top - 4)
                 bar_height = 6
                 bar_y = row_top + 16
                 bar_start_px = _day_to_px(start_day)
@@ -483,9 +483,9 @@ class ConstructionScheduleItemViewSet(viewsets.ModelViewSet):
                     'x': max(0, bar_start_px),
                     'y': max(0, label_top_y),
                     'w': max(80, min(bar_width_px + 60, 220)),
-                    'h': 8,
+                    'h': 9,
                     'text': (item.get('work_type') or "").strip(),
-                    'font': {'size': 7, 'color': '000000'}
+                    'font': {'size': 8, 'color': '000000', 'bold': True}
                 })
 
                 # Precompute contained parallel segments for overlay
@@ -583,11 +583,11 @@ class ConstructionScheduleItemViewSet(viewsets.ModelViewSet):
                         shapes.append({
                             'type': 'text',
                             'x': max(0, sub_start_px),
-                            'y': max(0, row_top + row_height - 11),
+                            'y': max(0, row_top + row_height - 15),
                             'w': max(40, min(sub_width_px, 120)),
-                            'h': 8,
+                            'h': 9,
                             'text': sub.get("label") or "부공종",
-                            'font': {'size': 7, 'color': '111827'}
+                            'font': {'size': 8, 'color': '111827', 'bold': True}
                         })
                         node_size = 8
                         node_y = sub_y - int((node_size - sub_height) / 2)
@@ -598,7 +598,7 @@ class ConstructionScheduleItemViewSet(viewsets.ModelViewSet):
                             'w': node_size,
                             'h': node_size,
                             'fill': 'FFFFFF',
-                            'line': {'color': '111827', 'width': 0.5}
+                            'line': {'color': '111827', 'width': 1.5}
                         })
                         shapes.append({
                             'type': 'ellipse',
@@ -607,7 +607,7 @@ class ConstructionScheduleItemViewSet(viewsets.ModelViewSet):
                             'w': node_size,
                             'h': node_size,
                             'fill': 'FFFFFF',
-                            'line': {'color': '111827', 'width': 0.5}
+                            'line': {'color': '111827', 'width': 1.5}
                         })
                         sub_id = sub.get("subtask", {}).get("id") or sub.get("subtask", {}).get("pk") or sub.get("id")
                         if sub_id is not None:
@@ -628,7 +628,7 @@ class ConstructionScheduleItemViewSet(viewsets.ModelViewSet):
                     'w': node_size,
                     'h': node_size,
                     'fill': 'FFFFFF',
-                    'line': {'color': '111827', 'width': 0.5}
+                    'line': {'color': '111827', 'width': 1.5}
                 })
                 shapes.append({
                     'type': 'ellipse',
@@ -637,7 +637,7 @@ class ConstructionScheduleItemViewSet(viewsets.ModelViewSet):
                     'w': node_size,
                     'h': node_size,
                     'fill': 'FFFFFF',
-                    'line': {'color': '111827', 'width': 0.5}
+                    'line': {'color': '111827', 'width': 1.5}
                 })
 
                 gantt_row += 1
@@ -1088,7 +1088,14 @@ class ConstructionScheduleItemViewSet(viewsets.ModelViewSet):
                             ET.SubElement(tx, ET.QName(NS['a'], 'lstStyle'))
                             p = ET.SubElement(tx, ET.QName(NS['a'], 'p'))
                             r = ET.SubElement(p, ET.QName(NS['a'], 'r'))
-                            rpr = ET.SubElement(r, ET.QName(NS['a'], 'rPr'), lang="ko-KR", sz=str(int(shape.get('font', {}).get('size', 8) * 100)))
+                            rpr = ET.SubElement(
+                                r,
+                                ET.QName(NS['a'], 'rPr'),
+                                lang="ko-KR",
+                                sz=str(int(shape.get('font', {}).get('size', 8) * 100))
+                            )
+                            if shape.get('font', {}).get('bold'):
+                                rpr.set('b', '1')
                             color = shape.get('font', {}).get('color')
                             if color:
                                 solid = ET.SubElement(rpr, ET.QName(NS['a'], 'solidFill'))
