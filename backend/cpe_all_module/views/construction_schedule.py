@@ -269,7 +269,13 @@ class ConstructionScheduleItemViewSet(viewsets.ModelViewSet):
             gantt_header_fmt = wb.add_format({'bold': True, 'bg_color': '#D9D9D9', 'align': 'center', 'valign': 'vcenter', 'border': 1})
             gantt_left_fmt = wb.add_format({'align': 'left', 'valign': 'vcenter', 'border': 1})
             gantt_right_fmt = wb.add_format({'align': 'right', 'valign': 'vcenter', 'border': 1, 'num_format': '#,##0.0'})
-            gantt_grid_fmt = wb.add_format({'border': 1})
+            gantt_grid_fmt = wb.add_format({
+                'top': 3,
+                'bottom': 3,
+                'left': 3,
+                'right': 3,
+                'border_color': '#000000'
+            })
 
             # Title and headers
             gantt_ws.merge_range(0, 0, 0, last_col, "공 사 예 정 공 정 표", gantt_title_fmt)
@@ -377,7 +383,15 @@ class ConstructionScheduleItemViewSet(viewsets.ModelViewSet):
                 red_start = item_meta["start_day"] + front_parallel
                 red_end = (item_meta["start_day"] + item_meta["duration"]) - back_parallel
                 has_segment = red_end > red_start
-                is_cp = item.get("remarks") != "병행작업" and has_segment
+                remarks_text = (item.get("remarks") or "").strip()
+                is_parallel = (
+                    remarks_text == "병행작업"
+                    or bool(item.get("_parallelGroup"))
+                    or bool(item.get("parallelGroup"))
+                    or bool(item.get("parallel_group"))
+                    or bool(item.get("is_parallelism"))
+                )
+                is_cp = not is_parallel and has_segment
                 cp_meta[item.get("id")] = {
                     "red_start": red_start,
                     "red_end": red_end,
@@ -421,6 +435,8 @@ class ConstructionScheduleItemViewSet(viewsets.ModelViewSet):
                 red_start = meta.get("red_start", 0)
                 red_end = meta.get("red_end", 0)
                 is_cp = meta.get("is_cp", False)
+                front_parallel = float(item.get("front_parallel_days") or 0)
+                back_parallel = float(item.get("back_parallel_days") or 0)
                 contained = []
                 if is_cp:
                     for other in items_with_timing:
@@ -442,7 +458,17 @@ class ConstructionScheduleItemViewSet(viewsets.ModelViewSet):
                 bar_width_px = max(6, int((_day_to_px(start_day + duration) - bar_start_px)))
 
                 # Base bar - line (match sample)
+                parallel_color = "64748B"
                 bar_color = _category_color_hex(item.get("main_category"))
+                remarks_text = (item.get("remarks") or "").strip()
+                if (
+                    remarks_text == "병행작업"
+                    or bool(item.get("_parallelGroup"))
+                    or bool(item.get("parallelGroup"))
+                    or bool(item.get("parallel_group"))
+                    or bool(item.get("is_parallelism"))
+                ):
+                    bar_color = parallel_color
                 bar_mid_y = bar_y + (bar_height / 2)
                 shapes.append({
                     'type': 'line',
@@ -462,7 +488,19 @@ class ConstructionScheduleItemViewSet(viewsets.ModelViewSet):
                     'font': {'size': 7, 'color': '000000'}
                 })
 
-                # Critical path segment (red) with parallel exclusion
+                # Precompute contained parallel segments for overlay
+                contained_parallel = []
+                for other in items_with_timing:
+                    other_id = other["item"].get("id")
+                    if other_id == item.get("id"):
+                        continue
+                    other_meta = cp_meta.get(other_id)
+                    if not other_meta or not other_meta.get("is_cp"):
+                        continue
+                    if other_meta["red_start"] >= red_start and other_meta["red_end"] <= red_end:
+                        contained_parallel.append(other_meta)
+
+                # Critical path segment (red)
                 if is_cp and red_end > red_start:
                     red_start_px = _day_to_px(max(start_day, red_start))
                     red_end_px = _day_to_px(min(start_day + duration, red_end))
@@ -475,28 +513,52 @@ class ConstructionScheduleItemViewSet(viewsets.ModelViewSet):
                         'y2': bar_mid_y,
                         'line': {'color': 'EF4444', 'width': 4.0}
                     })
-                    # Overlay base color where parallel tasks are contained (match frontend grey-out)
-                    contained = []
-                    for other in items_with_timing:
-                        other_id = other["item"].get("id")
-                        if other_id == item.get("id"):
-                            continue
-                        other_meta = cp_meta.get(other_id)
-                        if not other_meta or not other_meta.get("is_cp"):
-                            continue
-                        if other_meta["red_start"] >= red_start and other_meta["red_end"] <= red_end:
-                            contained.append(other_meta)
-                    for seg in contained:
-                        seg_start_px = _day_to_px(seg["red_start"])
-                        seg_end_px = _day_to_px(seg["red_end"])
-                        shapes.append({
-                            'type': 'line',
-                            'x1': seg_start_px,
-                            'y1': bar_mid_y,
-                            'x2': seg_end_px,
-                            'y2': bar_mid_y,
-                            'line': {'color': bar_color, 'width': 4.0}
-                        })
+
+                # Parallel segments (grey) for front/back parallel days
+                if not (
+                    remarks_text == "병행작업"
+                    or bool(item.get("_parallelGroup"))
+                    or bool(item.get("parallelGroup"))
+                    or bool(item.get("parallel_group"))
+                    or bool(item.get("is_parallelism"))
+                ):
+                    if front_parallel > 0:
+                        seg_start_px = _day_to_px(start_day)
+                        seg_end_px = _day_to_px(min(start_day + duration, start_day + front_parallel))
+                        if seg_end_px > seg_start_px:
+                            shapes.append({
+                                'type': 'line',
+                                'x1': seg_start_px,
+                                'y1': bar_mid_y,
+                                'x2': seg_end_px,
+                                'y2': bar_mid_y,
+                                'line': {'color': parallel_color, 'width': 4.0}
+                            })
+                    if back_parallel > 0:
+                        seg_start_px = _day_to_px(max(start_day, start_day + duration - back_parallel))
+                        seg_end_px = _day_to_px(start_day + duration)
+                        if seg_end_px > seg_start_px:
+                            shapes.append({
+                                'type': 'line',
+                                'x1': seg_start_px,
+                                'y1': bar_mid_y,
+                                'x2': seg_end_px,
+                                'y2': bar_mid_y,
+                                'line': {'color': parallel_color, 'width': 4.0}
+                            })
+
+                # Overlay base color where parallel tasks are contained (ensure last to override)
+                for seg in contained_parallel:
+                    seg_start_px = _day_to_px(seg["red_start"])
+                    seg_end_px = _day_to_px(seg["red_end"])
+                    shapes.append({
+                        'type': 'line',
+                        'x1': seg_start_px,
+                        'y1': bar_mid_y,
+                        'x2': seg_end_px,
+                        'y2': bar_mid_y,
+                        'line': {'color': parallel_color, 'width': 4.0}
+                    })
 
                 # Node circles at start/end
                 node_size = 8
@@ -538,7 +600,7 @@ class ConstructionScheduleItemViewSet(viewsets.ModelViewSet):
                             'y1': sub_mid_y,
                             'x2': sub_start_px + sub_width_px,
                             'y2': sub_mid_y,
-                            'line': {'color': 'CBD5E1', 'width': 3.0}
+                            'line': {'color': '64748B', 'width': 3.0}
                         })
                         shapes.append({
                             'type': 'text',
@@ -779,7 +841,7 @@ class ConstructionScheduleItemViewSet(viewsets.ModelViewSet):
                                      'arrow_dir': _arrow_dir_by_vector(up_x, inner_y, up_x, outer_y)}
                         })
 
-            # Vertical reference line at Day 0 (dashed)
+            # Vertical reference line at Day 0 (solid)
             ref_x_px = 0
             for r in range(data_start_row, gantt_row):
                 y = row_tops.get(r, 0)
@@ -789,7 +851,7 @@ class ConstructionScheduleItemViewSet(viewsets.ModelViewSet):
                     'y': y,
                     'w': 2,
                     'h': gantt_ws._size_row(r),
-                    'line': {'color': 'FF0000', 'width': 1, 'dash': 'sysDash'}
+                    'line': {'color': 'FF0000', 'width': 1}
                 })
 
             print(f"[export-excel] gantt_shapes_count={len(shapes)}")
