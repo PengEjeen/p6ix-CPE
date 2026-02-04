@@ -33,6 +33,7 @@ export default function ScheduleMasterList() {
     const links = useScheduleStore((state) => state.links);
     const subTasks = useScheduleStore((state) => state.subTasks);
     const workDayType = useScheduleStore((state) => state.workDayType);
+    const ganttDateScale = useScheduleStore((state) => state.ganttDateScale);
 
     // Actions
     const setStoreItems = useScheduleStore((state) => state.setItems);
@@ -150,7 +151,7 @@ export default function ScheduleMasterList() {
 
     const handleExportExcel = useCallback(async () => {
         try {
-            const response = await exportScheduleExcel(projectId);
+            const response = await exportScheduleExcel(projectId, { dateScale: ganttDateScale });
             const blob = new Blob([response.data], {
                 type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             });
@@ -167,7 +168,7 @@ export default function ScheduleMasterList() {
             console.error("엑셀 내보내기 실패:", error);
             toast.error("엑셀 내보내기 실패");
         }
-    }, [projectId, projectName]);
+    }, [projectId, projectName, ganttDateScale]);
 
     // Dnd Sensors
     const sensors = useSensors(

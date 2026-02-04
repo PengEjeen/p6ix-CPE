@@ -18,6 +18,7 @@ export const useScheduleStore = create(
             subTasks: [],
             operatingRates: [],
             workDayType: '6d', // '5d', '6d', '7d'
+            ganttDateScale: 1,
 
             // Actions
             setItems: (items) => set((state) => {
@@ -63,6 +64,9 @@ export const useScheduleStore = create(
                 state.items = state.items.map(item =>
                     calculateItem(item, state.operatingRates, type)
                 );
+            }),
+            setGanttDateScale: (scale) => set((state) => {
+                state.ganttDateScale = scale;
             }),
 
             // Individual Item Update (from Table)

@@ -30,6 +30,7 @@ export default function GanttChart({
     onDeleteSubtask
 }) {
     const pixelsPerUnit = 40;
+    const setGanttDateScale = useScheduleStore((state) => state.setGanttDateScale);
 
     // Refs
     const sidebarRef = React.useRef(null);
@@ -58,6 +59,9 @@ export default function GanttChart({
 
     // Simulation Tooltip State
     const [simulation, setSimulation] = useState(null);
+    React.useEffect(() => {
+        if (setGanttDateScale) setGanttDateScale(dateScale);
+    }, [dateScale, setGanttDateScale]);
 
     // Tree View State
     const [expandedCategories, setExpandedCategories] = useState({});
