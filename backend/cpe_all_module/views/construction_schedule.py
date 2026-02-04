@@ -560,28 +560,6 @@ class ConstructionScheduleItemViewSet(viewsets.ModelViewSet):
                         'line': {'color': parallel_color, 'width': 4.0}
                     })
 
-                # Node circles at start/end
-                node_size = 8
-                node_y = bar_y - int((node_size - bar_height) / 2)
-                shapes.append({
-                    'type': 'ellipse',
-                    'x': bar_start_px - int(node_size / 2),
-                    'y': node_y,
-                    'w': node_size,
-                    'h': node_size,
-                    'fill': None,
-                    'line': {'color': '111827', 'width': 0.5}
-                })
-                shapes.append({
-                    'type': 'ellipse',
-                    'x': bar_start_px + bar_width_px - int(node_size / 2),
-                    'y': node_y,
-                    'w': node_size,
-                    'h': node_size,
-                    'fill': None,
-                    'line': {'color': '111827', 'width': 0.5}
-                })
-
                 item_positions[item.get("id")]["y_px"] = bar_mid_y
 
                 # Subtasks as thin blue bar near bottom of row
@@ -619,7 +597,7 @@ class ConstructionScheduleItemViewSet(viewsets.ModelViewSet):
                             'y': node_y,
                             'w': node_size,
                             'h': node_size,
-                            'fill': None,
+                            'fill': 'FFFFFF',
                             'line': {'color': '111827', 'width': 0.5}
                         })
                         shapes.append({
@@ -628,7 +606,7 @@ class ConstructionScheduleItemViewSet(viewsets.ModelViewSet):
                             'y': node_y,
                             'w': node_size,
                             'h': node_size,
-                            'fill': None,
+                            'fill': 'FFFFFF',
                             'line': {'color': '111827', 'width': 0.5}
                         })
                         sub_id = sub.get("subtask", {}).get("id") or sub.get("subtask", {}).get("pk") or sub.get("id")
@@ -639,6 +617,28 @@ class ConstructionScheduleItemViewSet(viewsets.ModelViewSet):
                                 "end_day": sub_start + sub_duration,
                                 "y_px": sub_mid_y
                             }
+
+                # Node circles at start/end (draw last so they stay on top)
+                node_size = 8
+                node_y = bar_y - int((node_size - bar_height) / 2)
+                shapes.append({
+                    'type': 'ellipse',
+                    'x': bar_start_px - int(node_size / 2),
+                    'y': node_y,
+                    'w': node_size,
+                    'h': node_size,
+                    'fill': 'FFFFFF',
+                    'line': {'color': '111827', 'width': 0.5}
+                })
+                shapes.append({
+                    'type': 'ellipse',
+                    'x': bar_start_px + bar_width_px - int(node_size / 2),
+                    'y': node_y,
+                    'w': node_size,
+                    'h': node_size,
+                    'fill': 'FFFFFF',
+                    'line': {'color': '111827', 'width': 0.5}
+                })
 
                 gantt_row += 1
 
@@ -938,6 +938,7 @@ class ConstructionScheduleItemViewSet(viewsets.ModelViewSet):
 
                 def add_shape(shape):
                     nonlocal shape_id
+                    is_ellipse = shape['type'] == 'ellipse'
                     if shape['type'] == 'line':
                         abs_x1 = timeline_origin_x + shape['x1']
                         abs_y1 = timeline_origin_y + shape['y1']
@@ -952,23 +953,42 @@ class ConstructionScheduleItemViewSet(viewsets.ModelViewSet):
                         abs_y = timeline_origin_y + shape['y']
                         abs_w = max(1, shape['w'])
                         abs_h = max(1, shape['h'])
+                        if is_ellipse:
+                            size = max(abs_w, abs_h)
+                            abs_w = size
+                            abs_h = size
 
                         col1, x1 = px_to_col_off(abs_x, col_pixels)
                         row1, y1 = px_to_row_off(abs_y, row_pixels)
-                        col2, x2 = px_to_col_off(abs_x + abs_w, col_pixels)
-                        row2, y2 = px_to_row_off(abs_y + abs_h, row_pixels)
+                        if not is_ellipse:
+                            col2, x2 = px_to_col_off(abs_x + abs_w, col_pixels)
+                            row2, y2 = px_to_row_off(abs_y + abs_h, row_pixels)
 
-                    anchor = ET.SubElement(wsdr, ET.QName(NS['xdr'], 'twoCellAnchor'))
-                    frm = ET.SubElement(anchor, ET.QName(NS['xdr'], 'from'))
-                    ET.SubElement(frm, ET.QName(NS['xdr'], 'col')).text = str(col1)
-                    ET.SubElement(frm, ET.QName(NS['xdr'], 'colOff')).text = str(px_to_emu(x1))
-                    ET.SubElement(frm, ET.QName(NS['xdr'], 'row')).text = str(row1)
-                    ET.SubElement(frm, ET.QName(NS['xdr'], 'rowOff')).text = str(px_to_emu(y1))
-                    to = ET.SubElement(anchor, ET.QName(NS['xdr'], 'to'))
-                    ET.SubElement(to, ET.QName(NS['xdr'], 'col')).text = str(col2)
-                    ET.SubElement(to, ET.QName(NS['xdr'], 'colOff')).text = str(px_to_emu(x2))
-                    ET.SubElement(to, ET.QName(NS['xdr'], 'row')).text = str(row2)
-                    ET.SubElement(to, ET.QName(NS['xdr'], 'rowOff')).text = str(px_to_emu(y2))
+                    if is_ellipse:
+                        anchor = ET.SubElement(wsdr, ET.QName(NS['xdr'], 'oneCellAnchor'))
+                        frm = ET.SubElement(anchor, ET.QName(NS['xdr'], 'from'))
+                        ET.SubElement(frm, ET.QName(NS['xdr'], 'col')).text = str(col1)
+                        ET.SubElement(frm, ET.QName(NS['xdr'], 'colOff')).text = str(px_to_emu(x1))
+                        ET.SubElement(frm, ET.QName(NS['xdr'], 'row')).text = str(row1)
+                        ET.SubElement(frm, ET.QName(NS['xdr'], 'rowOff')).text = str(px_to_emu(y1))
+                        ET.SubElement(
+                            anchor,
+                            ET.QName(NS['xdr'], 'ext'),
+                            cx=str(px_to_emu(abs_w)),
+                            cy=str(px_to_emu(abs_h))
+                        )
+                    else:
+                        anchor = ET.SubElement(wsdr, ET.QName(NS['xdr'], 'twoCellAnchor'))
+                        frm = ET.SubElement(anchor, ET.QName(NS['xdr'], 'from'))
+                        ET.SubElement(frm, ET.QName(NS['xdr'], 'col')).text = str(col1)
+                        ET.SubElement(frm, ET.QName(NS['xdr'], 'colOff')).text = str(px_to_emu(x1))
+                        ET.SubElement(frm, ET.QName(NS['xdr'], 'row')).text = str(row1)
+                        ET.SubElement(frm, ET.QName(NS['xdr'], 'rowOff')).text = str(px_to_emu(y1))
+                        to = ET.SubElement(anchor, ET.QName(NS['xdr'], 'to'))
+                        ET.SubElement(to, ET.QName(NS['xdr'], 'col')).text = str(col2)
+                        ET.SubElement(to, ET.QName(NS['xdr'], 'colOff')).text = str(px_to_emu(x2))
+                        ET.SubElement(to, ET.QName(NS['xdr'], 'row')).text = str(row2)
+                        ET.SubElement(to, ET.QName(NS['xdr'], 'rowOff')).text = str(px_to_emu(y2))
 
                     if shape['type'] in ('cxn', 'cxn_bend'):
                         sp = ET.SubElement(anchor, ET.QName(NS['xdr'], 'cxnSp'))
