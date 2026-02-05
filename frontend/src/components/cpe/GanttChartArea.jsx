@@ -76,6 +76,17 @@ const GanttChartArea = ({
     const chartAreaRef = useRef(null);
     const selectionRef = useRef(null);
 
+    const isParallelItem = useCallback((item) => {
+        const remarksText = (item?.remarks || "").trim();
+        return (
+            remarksText === "병행작업"
+            || Boolean(item?._parallelGroup)
+            || Boolean(item?.parallelGroup)
+            || Boolean(item?.parallel_group)
+            || Boolean(item?.is_parallelism)
+        );
+    }, []);
+
     const cpMeta = useMemo(() => {
         const map = new Map();
         itemsWithTiming.forEach((item) => {
@@ -84,11 +95,11 @@ const GanttChartArea = ({
             const redStart = item.startDay + frontParallel;
             const redEnd = (item.startDay + item.durationDays) - backParallel;
             const hasCriticalSegment = redEnd > redStart;
-            const isCp = item.remarks !== '병행작업' && hasCriticalSegment;
+            const isCp = !isParallelItem(item) && hasCriticalSegment;
             map.set(item.id, { redStart, redEnd, isCp });
         });
         return map;
-    }, [itemsWithTiming]);
+    }, [itemsWithTiming, isParallelItem]);
 
     const containedCpMap = useMemo(() => {
         const map = new Map();

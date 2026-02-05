@@ -833,20 +833,28 @@ export default function GanttChart({
                         const { currentTask, overlappingTask, overlapDays, draggedItemId, newStartDay } = overlapPopover;
                         const currentStart = newStartDay;
                         const overlappingStart = overlappingTask.start;
+                        const currentEnd = currentTask.end;
+                        const overlappingEnd = overlappingTask.end;
+                        const currentContainsOther = currentStart < overlappingStart && currentEnd > overlappingEnd;
+                        const otherContainsCurrent = overlappingStart < currentStart && overlappingEnd > currentEnd;
 
                         const updates = [];
-                        if (currentStart < overlappingStart) {
+                        if (otherContainsCurrent) {
+                            // Current is inner CP -> use detour (middle-only parallel) on outer.
+                            updates.push({ id: currentTask.id, front: 0, back: 0 });
+                            updates.push({ id: overlappingTask.id, front: 0, back: 0 });
+                        } else if (currentStart < overlappingStart) {
                             // A starts before B
                             // A is CP (Current) → Clear A's back
                             // B becomes parallel (Overlapping) → Set B's front
-                            updates.push({ id: currentTask.id, back: 0 }); // CLEAR A's back
-                            updates.push({ id: overlappingTask.id, front: overlapDays }); // SET B's front
+                            updates.push({ id: currentTask.id, back: 0, front: 0 }); // CLEAR A's front/back
+                            updates.push({ id: overlappingTask.id, front: overlapDays, back: 0 }); // SET B's front, CLEAR B's back
                         } else {
                             // A starts after B (B -> A)
                             // A is CP (Current) → Clear A's front
                             // B becomes parallel (Overlapping) → Set B's back
-                            updates.push({ id: currentTask.id, front: 0 }); // CLEAR A's front
-                            updates.push({ id: overlappingTask.id, back: overlapDays }); // SET B's back
+                            updates.push({ id: currentTask.id, front: 0, back: 0 }); // CLEAR A's front/back
+                            updates.push({ id: overlappingTask.id, back: overlapDays, front: 0 }); // SET B's back, CLEAR B's front
                         }
 
                         useScheduleStore.getState().resolveDragOverlap(draggedItemId, newStartDay, updates);
@@ -861,20 +869,28 @@ export default function GanttChart({
                         const { currentTask, overlappingTask, overlapDays, draggedItemId, newStartDay } = overlapPopover;
                         const currentStart = newStartDay;
                         const overlappingStart = overlappingTask.start;
+                        const currentEnd = currentTask.end;
+                        const overlappingEnd = overlappingTask.end;
+                        const currentContainsOther = currentStart < overlappingStart && currentEnd > overlappingEnd;
+                        const otherContainsCurrent = overlappingStart < currentStart && overlappingEnd > currentEnd;
 
                         const updates = [];
-                        if (currentStart < overlappingStart) {
+                        if (currentContainsOther) {
+                            // Overlapping (other) is inner CP -> use detour (middle-only parallel) on outer.
+                            updates.push({ id: currentTask.id, front: 0, back: 0 });
+                            updates.push({ id: overlappingTask.id, front: 0, back: 0 });
+                        } else if (currentStart < overlappingStart) {
                             // A starts before B
                             // B is CP (Overlapping) → Clear B's front
                             // A becomes parallel (Current) → Set A's back
-                            updates.push({ id: overlappingTask.id, front: 0 }); // CLEAR B's front
-                            updates.push({ id: currentTask.id, back: overlapDays }); // SET A's back
+                            updates.push({ id: overlappingTask.id, front: 0, back: 0 }); // CLEAR B's front/back
+                            updates.push({ id: currentTask.id, back: overlapDays, front: 0 }); // SET A's back, CLEAR A's front
                         } else {
                             // A starts after B (B -> A)
                             // B is CP (Overlapping) → Clear B's back
                             // A becomes parallel (Current) → Set A's front
-                            updates.push({ id: overlappingTask.id, back: 0 }); // CLEAR B's back
-                            updates.push({ id: currentTask.id, front: overlapDays }); // SET A's front
+                            updates.push({ id: overlappingTask.id, back: 0, front: 0 }); // CLEAR B's front/back
+                            updates.push({ id: currentTask.id, front: overlapDays, back: 0 }); // SET A's front, CLEAR A's back
                         }
 
                         useScheduleStore.getState().resolveDragOverlap(draggedItemId, newStartDay, updates);

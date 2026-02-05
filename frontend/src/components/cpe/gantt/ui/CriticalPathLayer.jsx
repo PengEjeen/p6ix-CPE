@@ -10,6 +10,27 @@ export default function CriticalPathLayer({
     itemIndexById,
     categoryMilestones
 }) {
+    const isParallelItem = (item) => {
+        const remarksText = (item?.remarks || "").trim();
+        return (
+            remarksText === "병행작업"
+            || Boolean(item?._parallelGroup)
+            || Boolean(item?.parallelGroup)
+            || Boolean(item?.parallel_group)
+            || Boolean(item?.is_parallelism)
+        );
+    };
+
+    const containedItemIds = new Set();
+    if (containedCpMap) {
+        containedCpMap.forEach((list) => {
+            if (!Array.isArray(list)) return;
+            list.forEach((entry) => {
+                if (entry?.item?.id) containedItemIds.add(entry.item.id);
+            });
+        });
+    }
+
     return (
         <svg className="absolute inset-0 pointer-events-none z-10" style={{ width: "100%", height: itemsWithTiming.length * rowH }}>
             <defs>
@@ -34,9 +55,13 @@ export default function CriticalPathLayer({
                 const redEnd = taskEnd - backParallel;
 
                 const hasCriticalSegment = redEnd > redStart;
-                const isParallelTask = item.remarks === "병행작업" || !hasCriticalSegment;
+                const isParallelTask = isParallelItem(item) || !hasCriticalSegment;
 
                 if (isParallelTask) return null;
+
+                // If this CP item is fully contained by another CP item,
+                // its link is rendered via the outer item's down/up detour.
+                if (containedItemIds.has(item.id)) return null;
 
                 const prevItem = i > 0 ? itemsWithTiming[i - 1] : null;
                 const prevEnd = prevItem ? prevItem.startDay + prevItem.durationDays : 0;
@@ -55,7 +80,7 @@ export default function CriticalPathLayer({
 
                     if (
                         redEnd <= (targetItem.startDay + targetItem.durationDays) &&
-                        targetItem.remarks !== "병행작업" &&
+                        !isParallelItem(targetItem) &&
                         targetHasCriticalLoop
                     ) {
                         break;

@@ -53,6 +53,8 @@ export default function ScheduleHeader({
                     </div>
                 </div>
             </div>
+
+            {/* 아래의 기능 헤더는 항상 오른쪽에 위치해서 어떤 페이지 크기여도 전체가 보여야함 */}
             <div className="flex gap-3 items-center bg-[#2c2c3a] px-4 py-2 rounded-xl border border-gray-700 shadow-sm flex-wrap">
                 <div className="flex items-center gap-1 mr-2 border-r border-gray-700 pr-3">
                     <button

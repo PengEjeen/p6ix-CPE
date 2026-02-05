@@ -515,7 +515,7 @@ export default function ScheduleMasterList() {
     const activeItem = activeId ? items.find(i => i.id === activeId) : null;
     const renderTableView = ({ forPrint = false } = {}) => (
         <div
-            className={`scroll-container flex-1 min-h-0 overflow-auto rounded-xl border border-gray-700 shadow-xl bg-[#2c2c3a] relative ${isScrolling ? 'scrolling' : ''} ${forPrint ? 'print-table' : ''}`}
+            className={`scroll-container w-full overflow-y-visible overflow-x-hidden rounded-xl border border-gray-700 shadow-xl bg-[#2c2c3a] relative ${isScrolling ? 'scrolling' : ''} ${forPrint ? 'print-table' : ''}`}
             onScroll={forPrint ? undefined : handleScroll}
         >
             <DndContext
@@ -742,7 +742,10 @@ export default function ScheduleMasterList() {
 
     return (
         <>
-            <div className="p-6 h-screen flex flex-col max-w-[2400px] mx-auto text-gray-200 overflow-hidden">
+            <div
+                className="p-6 flex flex-col max-w-[2400px] mx-auto text-gray-200"
+                style={{ zoom: viewMode === "table" ? 0.85 : 1 }}
+            >
                 <ScheduleHeader
                     viewMode={viewMode}
                     onViewModeChange={setViewMode}
