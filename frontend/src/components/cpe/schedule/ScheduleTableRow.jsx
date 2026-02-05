@@ -237,6 +237,7 @@ const ScheduleTableRow = ({
             {/* Working Days */}
             <td className="border-r border-gray-700 px-2 py-1 text-right text-gray-200 font-mono bg-[#1f1f2b] text-base font-semibold">
                 {item.working_days ? parseFloat(item.working_days).toFixed(1) : "0.0"}
+                <span className="ml-[2px] text-xs text-gray-400">일</span>
             </td>
 
             {/* Op Rate */}
@@ -250,6 +251,7 @@ const ScheduleTableRow = ({
             <td className="border-r border-gray-700 px-2 py-1 text-right text-blue-300 font-bold font-mono bg-blue-900/20 text-base">
                 {item.calendar_days}
                 <span className="ml-1 text-sm text-blue-200 font-semibold">일</span>
+                <span className="ml-2 text-sm text-blue-200 font-semibold">({item.calendar_months}개월)</span>
             </td>
 
             {/* Remarks (Note) */}
