@@ -300,6 +300,42 @@ const GanttChartArea = ({
         return { snapped: best, diff: bestDiff, within: bestDiff <= thresholdDays };
     }, [itemsWithTiming, subTasks, pxFactor]);
 
+    // Snap to all task bar start/end positions for vertical alignment
+    const getBarSnapCandidate = useCallback((day, excludeItemId = null) => {
+        const snapThresholdPx = 14; // 14px threshold for snapping
+        const thresholdDays = snapThresholdPx / pxFactor;
+        const candidates = [];
+
+        // Collect all task bar start and end positions
+        itemsWithTiming.forEach((item) => {
+            if (excludeItemId && item.id === excludeItemId) return;
+            candidates.push(item.startDay);
+            candidates.push(item.startDay + item.durationDays);
+
+            // Also include red segments for more precise alignment
+            const frontParallel = parseFloat(item.front_parallel_days) || 0;
+            const backParallel = parseFloat(item.back_parallel_days) || 0;
+            const redStart = item.startDay + frontParallel;
+            const redEnd = (item.startDay + item.durationDays) - backParallel;
+            if (redEnd > redStart) {
+                candidates.push(redStart);
+                candidates.push(redEnd);
+            }
+        });
+
+        let best = day;
+        let bestDiff = thresholdDays + 1;
+        candidates.forEach((candidate) => {
+            const diff = Math.abs(candidate - day);
+            if (diff <= thresholdDays && diff < bestDiff) {
+                best = candidate;
+                bestDiff = diff;
+            }
+        });
+
+        return { snapped: best, diff: bestDiff, within: bestDiff <= thresholdDays };
+    }, [itemsWithTiming, pxFactor]);
+
     const handleSubtaskDrawStart = useCallback((e) => {
         if (!subtaskMode) return;
         if (e.button !== 0) return;
@@ -599,6 +635,7 @@ const GanttChartArea = ({
                                 start: entry.meta.redStart,
                                 end: entry.meta.redEnd
                             }))}
+                            getBarSnapCandidate={getBarSnapCandidate}
                             dataChartRow
                         />
                     );

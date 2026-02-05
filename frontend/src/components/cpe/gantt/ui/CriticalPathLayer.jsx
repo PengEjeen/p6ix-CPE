@@ -89,8 +89,30 @@ export default function CriticalPathLayer({
                             // Calculate distance on x-axis between current redEnd and candidate redStart
                             const distance = candidateRedStart - redEnd;
 
-                            // Find the one with minimum distance (closest on x-axis)
-                            if (distance < minDistance) {
+                            // Check if vertical arrow would overlap with intermediate task bars
+                            // This is only necessary if the target is not adjacent (i.e., |i - j| > 1)
+                            let hasOverlap = false;
+                            if (Math.abs(i - j) > 1) {
+                                // Check all tasks between current (i) and candidate (j)
+                                const minRow = Math.min(i, j);
+                                const maxRow = Math.max(i, j);
+
+                                for (let k = minRow + 1; k < maxRow; k++) {
+                                    const intermediateTask = itemsWithTiming[k];
+                                    const intermediateStart = intermediateTask.startDay;
+                                    const intermediateEnd = intermediateTask.startDay + intermediateTask.durationDays;
+
+                                    // Check if intermediate task overlaps with the arrow path [redEnd, candidateRedStart]
+                                    // Overlap occurs if: intermediateStart < candidateRedStart AND intermediateEnd > redEnd
+                                    if (intermediateStart < candidateRedStart && intermediateEnd > redEnd) {
+                                        hasOverlap = true;
+                                        break;
+                                    }
+                                }
+                            }
+
+                            // Only accept this candidate if there's no overlap (or it's adjacent)
+                            if (!hasOverlap && distance < minDistance) {
                                 minDistance = distance;
                                 targetIndex = j;
                                 targetItem = candidateItem;

@@ -26,6 +26,7 @@ const SmartGanttBar = ({
     aiPreview,
     aiActive,
     greySegments = [],
+    getBarSnapCandidate,
     dataChartRow
 }) => {
     const [isResizing, setIsResizing] = useState(false);
@@ -62,7 +63,28 @@ const SmartGanttBar = ({
             if (Math.abs(deltaX) > 2) setHasMoved(true); // movement threshold
 
             const newLeftPx = Math.max(0, startLeftPx + deltaX);
-            const newStartDay = (newLeftPx / pixelsPerUnit) * dateScale;
+            let newStartDay = (newLeftPx / pixelsPerUnit) * dateScale;
+
+            // Apply vertical snap if function is provided
+            if (getBarSnapCandidate) {
+                const startSnap = getBarSnapCandidate(newStartDay, item.id);
+                const endSnap = getBarSnapCandidate(newStartDay + durationDays, item.id);
+
+                // Choose the best snap point (start or end, whichever is closer)
+                if (startSnap.within && endSnap.within) {
+                    // Both are within threshold, choose the closer one
+                    if (startSnap.diff < endSnap.diff) {
+                        newStartDay = startSnap.snapped;
+                    } else {
+                        newStartDay = endSnap.snapped - durationDays;
+                    }
+                } else if (startSnap.within) {
+                    newStartDay = startSnap.snapped;
+                } else if (endSnap.within) {
+                    newStartDay = endSnap.snapped - durationDays;
+                }
+            }
+
             setTempStartDay(newStartDay);
             if (onBarDragPreview) onBarDragPreview(item.id, newStartDay);
         };
@@ -96,7 +118,18 @@ const SmartGanttBar = ({
         const handleMouseMove = (moveEvent) => {
             const deltaX = moveEvent.clientX - startX;
             const newWidthPx = Math.max(20, startWidth + deltaX);
-            const newDuration = Math.max(1, Math.round((newWidthPx / pixelsPerUnit) * dateScale));
+            let newDuration = Math.max(1, Math.round((newWidthPx / pixelsPerUnit) * dateScale));
+
+            // Apply vertical snap for resize end position
+            if (getBarSnapCandidate) {
+                const endDay = startDay + newDuration;
+                const endSnap = getBarSnapCandidate(endDay, item.id);
+
+                if (endSnap.within) {
+                    newDuration = Math.max(1, endSnap.snapped - startDay);
+                }
+            }
+
             setTempDuration(newDuration);
             tempDurationRef.current = newDuration;
             if (onResizing) {
@@ -231,7 +264,7 @@ const SmartGanttBar = ({
                 </motion.div>
             </div>
 
-                {linkMode && (
+            {linkMode && (
                 <>
                     <button
                         type="button"
