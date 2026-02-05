@@ -12,13 +12,23 @@ export default function CriticalPathLayer({
 }) {
     const isParallelItem = (item) => {
         const remarksText = (item?.remarks || "").trim();
-        return (
+
+        // Check traditional parallel markers
+        const hasParallelMarker = (
             remarksText === "병행작업"
             || Boolean(item?._parallelGroup)
             || Boolean(item?.parallelGroup)
             || Boolean(item?.parallel_group)
             || Boolean(item?.is_parallelism)
         );
+
+        // Check if the task has parallel days that cover its entire duration
+        const frontParallel = parseFloat(item?.front_parallel_days) || 0;
+        const backParallel = parseFloat(item?.back_parallel_days) || 0;
+        const duration = item?.durationDays || 0;
+        const isFullyParallel = (frontParallel + backParallel) >= duration;
+
+        return hasParallelMarker || isFullyParallel;
     };
 
     const containedItemIds = new Set();
@@ -54,8 +64,22 @@ export default function CriticalPathLayer({
                 const redStart = taskStart + frontParallel;
                 const redEnd = taskEnd - backParallel;
 
-                const hasCriticalSegment = redEnd > redStart;
+                // MORE STRICT: must have at least 0.1 days of critical segment
+                const hasCriticalSegment = (redEnd - redStart) > 0.1;
                 const isParallelTask = isParallelItem(item) || !hasCriticalSegment;
+
+                // Debug log for grey tasks that still show arrows
+                if ((frontParallel > 0 || backParallel > 0) && !isParallelTask) {
+                    console.log(`[CP Arrow Debug] Task: ${item.process} - ${item.work_type}`, {
+                        frontParallel,
+                        backParallel,
+                        duration: item.durationDays,
+                        redStart,
+                        redEnd,
+                        hasCriticalSegment,
+                        isParallelTask
+                    });
+                }
 
                 if (isParallelTask) return null;
 

@@ -97,7 +97,25 @@ export const useScheduleData = (projectId, setStoreItems, setStoreOperatingRates
 
             // Store Init
             setStoreOperatingRates(rateData);
-            setStoreItems(scheduleItems); // Will calculate in store
+            // Store Init
+            setStoreOperatingRates(rateData);
+
+            // CRIMTICAL FIX: Deduplicate items based on ID to prevent rendering issues
+            // Backend might return duplicates or previous logic might have piled them up locally
+            const uniqueItems = [];
+            const seenIds = new Set();
+            if (Array.isArray(scheduleItems)) {
+                scheduleItems.forEach(item => {
+                    if (!seenIds.has(item.id)) {
+                        seenIds.add(item.id);
+                        uniqueItems.push(item);
+                    }
+                });
+            }
+
+            console.log(`[LoadData] Loaded ${scheduleItems?.length} items, deduped to ${uniqueItems.length}`);
+
+            setStoreItems(uniqueItems); // Will calculate in store
             setStoreLinks(scheduleLinks);
             if (setStoreSubTasks) {
                 setStoreSubTasks(scheduleSubTasks);
