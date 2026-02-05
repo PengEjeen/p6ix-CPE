@@ -63,31 +63,40 @@ export default function CriticalPathLayer({
                 // its link is rendered via the outer item's down/up detour.
                 if (containedItemIds.has(item.id)) return null;
 
-                const prevItem = i > 0 ? itemsWithTiming[i - 1] : null;
-                const prevEnd = prevItem ? prevItem.startDay + prevItem.durationDays : 0;
-                const isCurrentEnclosed = prevEnd > taskEnd;
-                if (isCurrentEnclosed) return null;
+                // Find the CP task with the minimum distance on x-axis (time)
+                // Search ALL tasks (both above and below) to find temporally closest CP task
+                let targetIndex = -1;
+                let targetItem = null;
+                let minDistance = Infinity;
 
-                let targetIndex = i + 1;
-                let targetItem = itemsWithTiming[targetIndex];
+                // Loop through ALL tasks to find the closest on x-axis
+                for (let j = 0; j < itemsWithTiming.length; j++) {
+                    // Skip the current item itself
+                    if (j === i) continue;
 
-                while (targetItem) {
-                    const targetFrontParallel = parseFloat(targetItem.front_parallel_days) || 0;
-                    const targetBackParallel = parseFloat(targetItem.back_parallel_days) || 0;
-                    const targetRedStartLoop = targetItem.startDay + targetFrontParallel;
-                    const targetRedEndLoop = (targetItem.startDay + targetItem.durationDays) - targetBackParallel;
-                    const targetHasCriticalLoop = targetRedEndLoop > targetRedStartLoop;
+                    const candidateItem = itemsWithTiming[j];
 
-                    if (
-                        redEnd <= (targetItem.startDay + targetItem.durationDays) &&
-                        !isParallelItem(targetItem) &&
-                        targetHasCriticalLoop
-                    ) {
-                        break;
+                    const candidateFrontParallel = parseFloat(candidateItem.front_parallel_days) || 0;
+                    const candidateBackParallel = parseFloat(candidateItem.back_parallel_days) || 0;
+                    const candidateRedStart = candidateItem.startDay + candidateFrontParallel;
+                    const candidateRedEnd = (candidateItem.startDay + candidateItem.durationDays) - candidateBackParallel;
+                    const candidateHasCritical = candidateRedEnd > candidateRedStart;
+
+                    // Skip parallel tasks and tasks without critical segments
+                    if (!isParallelItem(candidateItem) && candidateHasCritical) {
+                        // Only connect to tasks that start after current task ends (forward only in time)
+                        if (candidateRedStart >= redEnd) {
+                            // Calculate distance on x-axis between current redEnd and candidate redStart
+                            const distance = candidateRedStart - redEnd;
+
+                            // Find the one with minimum distance (closest on x-axis)
+                            if (distance < minDistance) {
+                                minDistance = distance;
+                                targetIndex = j;
+                                targetItem = candidateItem;
+                            }
+                        }
                     }
-
-                    targetIndex++;
-                    targetItem = itemsWithTiming[targetIndex];
                 }
 
                 if (!targetItem) return null;
