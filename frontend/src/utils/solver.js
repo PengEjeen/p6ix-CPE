@@ -15,22 +15,27 @@ export const calculateItem = (item, operatingRates = [], workDayType = '6d') => 
     const daily_production = productivity * crew_size;
     const working_days = daily_production > 0 ? quantity / daily_production : 0;
 
-    // 가동율 조회
-    const rateObj = operatingRates.find(r => r.type === item.operating_rate_type);
+    // 가동율 조회 (Match by main_category)
+    const rateObj = operatingRates.find(r => r.main_category === item.main_category);
     let rateValue = 100;
 
     if (item.operating_rate_value) {
-        // 이미 아이템에 저장된 값이 있으면 우선 사용? 
-        // 아니면 항상 최신 마스터 데이터 기준? -> 보통 마스터 기준이 맞음.
-        // 하지만 여기서는 편의상 마스터 데이터가 없으면 저장된 값 사용
         rateValue = parseFloat(item.operating_rate_value);
     }
 
-    // 마스터 데이터가 있으면 덮어씀
+    // 마스터 데이터 우선 적용 (If available)
     if (rateObj) {
-        if (workDayType === "7d") rateValue = parseFloat(rateObj.pct_7d);
-        else if (workDayType === "5d") rateValue = parseFloat(rateObj.pct_5d);
-        else rateValue = parseFloat(rateObj.pct_6d);
+        if (rateObj.operating_rate) {
+            rateValue = parseFloat(rateObj.operating_rate);
+        } else if (rateObj.work_week_days) {
+            // If only work_week_days is available but no calculated percentage, approximate it
+            rateValue = (rateObj.work_week_days / 7) * 100;
+        } else {
+            // Fallback to deprecated fields or 100
+            if (workDayType === "7d") rateValue = parseFloat(rateObj.pct_7d || 100);
+            else if (workDayType === "5d") rateValue = parseFloat(rateObj.pct_5d || 100);
+            else rateValue = parseFloat(rateObj.pct_6d || 100);
+        }
     }
 
     const calendar_days = rateValue > 0 ? working_days / (rateValue / 100) : 0;

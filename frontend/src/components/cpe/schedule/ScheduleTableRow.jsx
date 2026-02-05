@@ -133,12 +133,7 @@ const ScheduleTableRow = ({
                 <GripVertical size={14} className="mx-auto" />
             </td>
 
-            {/* Main Category */}
-            <td className="border-r border-gray-700 px-2 py-1 text-center text-gray-200 text-base font-medium">
-                {item.main_category}
-            </td>
-
-            {/* Process */}
+            {/* Process (Used as Classification '구분') */}
             {(spanInfo.isProcFirst || isOverlay) && (
                 <td
                     rowSpan={isOverlay ? 1 : spanInfo.procRowSpan}
@@ -239,6 +234,11 @@ const ScheduleTableRow = ({
                 />
             </td>
 
+            {/* Working Days */}
+            <td className="border-r border-gray-700 px-2 py-1 text-right text-gray-200 font-mono bg-[#1f1f2b] text-base font-semibold">
+                {item.working_days ? parseFloat(item.working_days).toFixed(1) : "0.0"}
+            </td>
+
             {/* Op Rate */}
             <td className="border-r border-gray-700 p-1">
                 <div className="w-full text-base text-center text-gray-200 bg-[#1f1f2b] rounded font-medium py-1">
@@ -252,9 +252,14 @@ const ScheduleTableRow = ({
                 <span className="ml-1 text-sm text-blue-200 font-semibold">일</span>
             </td>
 
-            {/* Remarks */}
+            {/* Remarks (Note) */}
             <td className="border-r border-gray-700 p-1">
-                <input className="w-full text-sm outline-none p-1 text-gray-200 bg-[#1f1f2b] rounded font-medium" value={item.remarks} onChange={(e) => handleChange(item.id, 'remarks', e.target.value)} />
+                <input className="w-full text-sm outline-none p-1 text-gray-200 bg-[#1f1f2b] rounded font-medium" value={item.note || ""} onChange={(e) => handleChange(item.id, 'note', e.target.value)} />
+            </td>
+
+            {/* Parallel Status (Remarks) */}
+            <td className="border-r border-gray-700 p-1">
+                <input className="w-full text-sm outline-none p-1 text-gray-200 bg-[#1f1f2b] rounded font-medium" value={item.remarks || ""} onChange={(e) => handleChange(item.id, 'remarks', e.target.value)} />
             </td>
 
             {/* Action */}
