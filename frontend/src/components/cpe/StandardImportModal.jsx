@@ -1,15 +1,20 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { X, Search, ChevronDown, Check } from 'lucide-react';
 import { fetchProductivities } from '../../api/cpe_all/productivity';
+import { useTutorial } from '../../hooks/useTutorial';
+import { standardImportSteps } from '../../config/tutorialSteps';
 
 /**
  * Reusable Accordion Component for the Modal (Dark Mode)
  */
-const ModalAccordion = ({ title, count, children, defaultOpen = false }) => {
+const ModalAccordion = ({ title, count, children, defaultOpen = false, isFirst = false }) => {
     const [isOpen, setIsOpen] = useState(defaultOpen);
 
     return (
-        <div className="border border-gray-700 rounded-lg overflow-hidden mb-2 bg-[#2c2c3a] shadow-md">
+        <div
+            data-tutorial={isFirst ? "import-accordion" : undefined}
+            className="border border-gray-700 rounded-lg overflow-hidden mb-2 bg-[#2c2c3a] shadow-md"
+        >
             <button
                 onClick={() => setIsOpen(!isOpen)}
                 className="w-full flex items-center justify-between px-4 py-3 bg-[#3a3a4a] hover:bg-[#424259] transition-colors text-left"
@@ -153,6 +158,7 @@ export default function StandardImportModal({ isOpen, onClose, onSelect, project
                     <div className="relative">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" size={16} />
                         <input
+                            data-tutorial="import-search"
                             type="text"
                             placeholder="공종명, 항목명, 규격 검색..."
                             className="w-full bg-[#1f1f2b] border border-gray-700 text-gray-200 pl-10 pr-4 py-2.5 rounded-xl focus:outline-none focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/50 transition text-sm font-medium placeholder-gray-600"

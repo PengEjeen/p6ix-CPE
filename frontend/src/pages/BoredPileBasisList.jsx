@@ -16,6 +16,8 @@ import EditableTable from "../components/cpe/EditableTable";
 import PageHeader from "../components/cpe/PageHeader";
 import SaveButton from "../components/cpe/SaveButton";
 import toast from "react-hot-toast";
+import { useTutorial } from "../hooks/useTutorial";
+import { boredPileBasisSteps } from "../config/tutorialSteps";
 
 export default function BoredPileBasisList() {
     const { id } = useParams(); // Project ID
@@ -25,6 +27,9 @@ export default function BoredPileBasisList() {
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [isScrolling, setIsScrolling] = useState(false);
+
+    // Tutorial
+    useTutorial('boredPileBasis', boredPileBasisSteps);
 
     const handleScroll = useCallback(() => {
         setIsScrolling(true);
@@ -540,7 +545,7 @@ export default function BoredPileBasisList() {
                 onScroll={handleScroll}
             >
                 {/* 1. Result Summary */}
-                <div className="bg-[#2c2c3a] border border-gray-700 rounded-xl p-4 shadow-lg">
+                <div data-tutorial="bored-result" className="bg-[#2c2c3a] border border-gray-700 rounded-xl p-4 shadow-lg">
                     <h2 className="text-xl font-bold mb-4 text-gray-200">작업 결과표</h2>
                     {resultSummary && (
                         <div className="overflow-x-auto">
@@ -556,7 +561,7 @@ export default function BoredPileBasisList() {
                 </div>
 
                 {/* 2. Standards */}
-                <div className="bg-[#2c2c3a] border border-gray-700 rounded-xl p-4 shadow-lg">
+                <div data-tutorial="bored-standard" className="bg-[#2c2c3a] border border-gray-700 rounded-xl p-4 shadow-lg">
                     <h2 className="text-xl font-bold mb-4 text-gray-200">※ 굴착 속도 기준표 (Hour/m)</h2>
                     <div className="max-w-5xl">
                         <EditableTable
@@ -570,7 +575,7 @@ export default function BoredPileBasisList() {
                 </div>
 
                 {/* 3. Basis Detail */}
-                <div className="bg-[#2c2c3a] border border-gray-700 rounded-xl p-4 shadow-lg">
+                <div data-tutorial="bored-basis" className="bg-[#2c2c3a] border border-gray-700 rounded-xl p-4 shadow-lg">
                     <h2 className="text-xl font-bold mb-4 text-gray-200">생산성 산출 내역</h2>
                     <div className="overflow-x-auto">
                         <EditableTable

@@ -15,6 +15,8 @@ import { useAutoScale } from "./gantt/hooks/useAutoScale";
 import GanttToolbar from "./gantt/ui/GanttToolbar";
 import LinkEditorPopover from "./gantt/ui/LinkEditorPopover";
 import toast from "react-hot-toast";
+import { useTutorial } from "../../hooks/useTutorial";
+import { ganttChartSteps } from "../../config/tutorialSteps";
 
 export default function GanttChart({
     items,
@@ -57,6 +59,9 @@ export default function GanttChart({
     const [linkMode, setLinkMode] = useState(false);
     const [subtaskMode, setSubtaskMode] = useState(false);
     const [isScrolling, setIsScrolling] = useState(false);
+
+    // Tutorial
+    useTutorial('ganttChart', ganttChartSteps);
 
     // Simulation Tooltip State
     const [simulation, setSimulation] = useState(null);
@@ -701,34 +706,39 @@ export default function GanttChart({
         <div className="h-full flex flex-col bg-white rounded-2xl border border-gray-100 shadow-2xl overflow-hidden font-sans">
 
             {/* --- Toolbar --- */}
-            <GanttToolbar
-                dateScale={dateScale}
-                onSetScale={handleSetScale}
-                linkMode={linkMode}
-                setLinkMode={setLinkMode}
-                linkDraft={linkDraft}
-                subtaskMode={subtaskMode}
-                setSubtaskMode={setSubtaskMode}
-            />
+            <div data-tutorial="gantt-toolbar">
+                <GanttToolbar
+                    dateScale={dateScale}
+                    onSetScale={handleSetScale}
+                    linkMode={linkMode}
+                    setLinkMode={setLinkMode}
+                    linkDraft={linkDraft}
+                    subtaskMode={subtaskMode}
+                    setSubtaskMode={setSubtaskMode}
+                />
+            </div>
 
             {/* --- Main Content --- */}
             <div className="flex flex-1 min-h-0 relative">
 
                 {/* Left Sidebar - Tree View */}
-                <GanttSidebar
-                    containerRef={sidebarRef}
-                    groupedItems={groupedItems}
-                    expandedCategories={expandedCategories}
-                    setExpandedCategories={setExpandedCategories}
-                    selectedItemIds={selectedItemIds}
-                    onItemClick={handleItemClick}
-                    aiPreviewItems={aiPreviewItems}
-                    aiOriginalItems={aiOriginalItems}
-                    aiActiveItemId={aiActiveItemId}
-                />
+                <div data-tutorial="gantt-sidebar">
+                    <GanttSidebar
+                        containerRef={sidebarRef}
+                        groupedItems={groupedItems}
+                        expandedCategories={expandedCategories}
+                        setExpandedCategories={setExpandedCategories}
+                        selectedItemIds={selectedItemIds}
+                        onItemClick={handleItemClick}
+                        aiPreviewItems={aiPreviewItems}
+                        aiOriginalItems={aiOriginalItems}
+                        aiActiveItemId={aiActiveItemId}
+                    />
+                </div>
 
                 {/* Right Timeline */}
                 <div
+                    data-tutorial="gantt-chart"
                     ref={chartRef}
                     className={`scroll-container flex-1 overflow-auto bg-white relative ${isScrolling ? 'scrolling' : ''}`}
                     onScroll={handleScroll}

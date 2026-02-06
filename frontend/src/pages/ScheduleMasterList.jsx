@@ -21,8 +21,10 @@ import { useConfirm } from "../contexts/ConfirmContext";
 import { useAIScheduleOptimizer } from "../hooks/useAIScheduleOptimizer";
 import { useScheduleData } from "../hooks/useScheduleData";
 import { useDragHandlers } from "../hooks/useDragHandlers";
+import { useTutorial } from "../hooks/useTutorial";
 import { calculateTotalCalendarDays, calculateTotalCalendarMonths } from "../utils/scheduleCalculations";
 import { fetchProductivities } from "../api/cpe_all/productivity";
+import { scheduleMasterListSteps } from "../config/tutorialSteps";
 
 export default function ScheduleMasterList() {
     const { id: projectId } = useParams();
@@ -123,6 +125,9 @@ export default function ScheduleMasterList() {
     } = useAIScheduleOptimizer(items, operatingRates, workDayType, projectName, setStoreItems);
 
     const { activeId, handleDragStart, handleDragEnd } = useDragHandlers(items, reorderItems);
+
+    // Tutorial Hook - driver.js handles everything automatically
+    useTutorial('scheduleMasterList', scheduleMasterListSteps);
 
     // Calculated Values
     const totalCalendarDays = useMemo(() => calculateTotalCalendarDays(items), [items]);
@@ -515,7 +520,9 @@ export default function ScheduleMasterList() {
     const activeItem = activeId ? items.find(i => i.id === activeId) : null;
     const renderTableView = ({ forPrint = false } = {}) => (
         <div
-            className={`scroll-container w-full overflow-y-visible overflow-x-hidden rounded-xl border border-gray-700 shadow-xl bg-[#2c2c3a] relative ${isScrolling ? 'scrolling' : ''} ${forPrint ? 'print-table' : ''}`}
+            data-tutorial="schedule-table"
+            className={`scroll-container w-full overflow-auto rounded-xl border border-gray-700 shadow-xl bg-[#2c2c3a] relative ${isScrolling ? 'scrolling' : ''} ${forPrint ? 'print-table' : ''}`}
+            style={{ maxHeight: 'calc(100vh - 50px)' }}
             onScroll={forPrint ? undefined : handleScroll}
         >
             <DndContext
@@ -557,7 +564,9 @@ export default function ScheduleMasterList() {
                             <th className="sticky top-0 bg-[#2c2c3a] border-r border-gray-700 px-2 py-2 z-10">반영율</th>
                             <th className="sticky top-0 bg-[#2c2c3a] border-r border-gray-700 px-2 py-2 z-10">작업기간 W/D</th>
                             <th className="sticky top-0 bg-[#2c2c3a] border-r border-gray-700 px-2 py-2 z-10">가동률</th>
-                            <th className="sticky top-0 bg-blue-900/40 border-r border-gray-700 px-2 py-2 text-blue-200 font-bold z-10">Calender Day</th>
+                            <th className="sticky top-0 bg-[#2c2c3a] border-r border-gray-700 px-2 py-2 z-10">비고</th>
+                            <th className="sticky top-0 bg-[#2c2c3a] border-r border-gray-700 px-2 py-2 z-10">병행여부</th>
+                            <th className="sticky top-0 bg-blue-900/40 border-r border-gray-700 px-2 py-2 text-blue-200 font-bold z-10" data-tutorial="calendar-day">Calender Day</th>
                             <th className="sticky top-0 bg-[#2c2c3a] border-r border-gray-700 px-2 py-2 z-10">비고</th>
                             <th className="sticky top-0 bg-[#2c2c3a] border-r border-gray-700 px-2 py-2 z-10">병행여부</th>
                             <th className="sticky top-0 bg-[#2c2c3a] border-r border-gray-700 px-2 py-2 z-10"></th>

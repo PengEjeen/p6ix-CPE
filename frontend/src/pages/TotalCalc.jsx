@@ -8,6 +8,8 @@ import AccordionSection from "../components/cpe/AccordionSection";
 import { Plus } from "lucide-react";
 import toast from "react-hot-toast";
 import { useConfirm } from "../contexts/ConfirmContext";
+import { useTutorial } from "../hooks/useTutorial";
+import { totalCalcSteps } from "../config/tutorialSteps";
 
 /**
  * EditableTitle Component
@@ -70,6 +72,9 @@ export default function TotalCalc() {
     const [rows, setRows] = useState([]);
     const [originalRows, setOriginalRows] = useState([]);
     const { confirm } = useConfirm();
+
+    // Tutorial
+    useTutorial('totalCalc', totalCalcSteps);
 
     // Trigger for auto-save (used for potential future features, currently Rename uses explicit save)
     const [triggerAutoSave, setTriggerAutoSave] = useState(false);
@@ -309,7 +314,7 @@ export default function TotalCalc() {
                     title="표준품셈"
                     description="전체 공기 산정을 위한 생산성 데이터를 관리합니다."
                 />
-                <SaveButton onSave={handleSaveAll} saving={saving} />
+                <SaveButton onSave={handleSaveAll} saving={saving} data-tutorial="save-button" />
             </div>
 
             <div className="space-y-6">
@@ -320,8 +325,10 @@ export default function TotalCalc() {
                         defaultOpen={true}
                         meta={`(Total: ${Object.values(groupedRows[mainCategory]).flat().length})`}
                         className="bg-[#2a2a35] border-blue-500/30"
+                        data-tutorial={Object.keys(groupedRows).indexOf(mainCategory) === 0 ? "main-category" : undefined}
                         action={
                             <button
+                                data-tutorial={Object.keys(groupedRows).indexOf(mainCategory) === 0 ? "add-subcategory" : undefined}
                                 onClick={(e) => {
                                     e.stopPropagation();
                                     handleAdd(mainCategory, "새 공종");
@@ -341,6 +348,7 @@ export default function TotalCalc() {
                                     title={<EditableTitle value={category} level="sub" parentName={mainCategory} onRename={handleRename} />}
                                     defaultOpen={false}
                                     meta={`항목 수: ${groupedRows[mainCategory][category].length}`}
+                                    data-tutorial={Object.keys(groupedRows).indexOf(mainCategory) === 0 && Object.keys(groupedRows[mainCategory]).indexOf(category) === 0 ? "subcategory" : undefined}
                                     action={
                                         <button
                                             onClick={(e) => {
@@ -354,7 +362,7 @@ export default function TotalCalc() {
                                         </button>
                                     }
                                 >
-                                    <div className="p-4">
+                                    <div className="p-4" data-tutorial={Object.keys(groupedRows).indexOf(mainCategory) === 0 && Object.keys(groupedRows[mainCategory]).indexOf(category) === 0 ? "data-table" : undefined}>
                                         <DataTable
                                             columns={columns}
                                             rows={groupedRows[mainCategory][category]}
@@ -377,6 +385,7 @@ export default function TotalCalc() {
 
                 {/* Main Category Add Button */}
                 <button
+                    data-tutorial="add-main-category"
                     onClick={() => handleAdd("새 대분류", "새 공종")}
                     className="w-full py-4 border-2 border-dashed border-gray-700 bg-[#2c2c3a]/50 hover:bg-[#2c2c3a] hover:border-blue-500/50 hover:text-blue-400 rounded-xl text-gray-500 transition-all flex items-center justify-center gap-2 font-medium"
                 >

@@ -7,6 +7,7 @@ export default function TableToolbarRow({ colSpan, onImport, onAdd, onEvidence, 
             <td colSpan={colSpan} className="px-4 py-2">
                 <div className="flex flex-wrap items-center gap-2">
                     <button
+                        data-tutorial="standard-import"
                         onClick={onImport}
                         className="flex items-center gap-1.5 px-3 py-1.5 bg-[#2c2c3a] hover:bg-[#38384a] text-gray-200 rounded-lg text-sm font-semibold border border-gray-700 transition"
                     >
@@ -14,6 +15,7 @@ export default function TableToolbarRow({ colSpan, onImport, onAdd, onEvidence, 
                         표준품셈 선택
                     </button>
                     <button
+                        data-tutorial="add-schedule"
                         onClick={onAdd}
                         className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm font-semibold transition"
                     >
