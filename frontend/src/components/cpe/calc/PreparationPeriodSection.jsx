@@ -115,10 +115,6 @@ export default function PreparationPeriodSection({ projectId, ground_floor, eart
     return {
       prepDays: prep,
       cleanDays: clean,
-      floorTermDays: floorTerm, // Keep original float for payload if needed, or use rounded? Payload uses Math.round(floorTermDays).
-      // Actually payload rounds it again: Math.round(floorTermDays).
-      // So if I pass float here, useMemo keeps float.
-      // But for calculating `totalDays` (which is displayed), I MUST use the rounded values.
 
       // Let's refine:
       floorTermDays: floorTerm,

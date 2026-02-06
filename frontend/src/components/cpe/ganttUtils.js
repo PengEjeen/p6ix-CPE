@@ -79,3 +79,58 @@ export const getCategoryColor = (mainCategory) => {
     if (lower.includes('조경')) return 'bg-amber-500';
     return 'bg-blue-400';
 };
+
+// Calculate Gantt items with timing (startDay, duration, CP logic)
+export const calculateGanttItems = (items) => {
+    if (!items || items.length === 0) return { itemsWithTiming: [], totalDays: 0, parallelGroups: new Map(), dailyLoads: new Map() };
+
+    const result = [];
+    const groups = new Map();
+    const loads = new Map();
+
+    // Track the cumulative CRITICAL PATH end across all tasks
+    let cumulativeCPEnd = 0;
+
+    for (let i = 0; i < items.length; i++) {
+        const originalItem = items[i];
+        const item = { ...originalItem };
+
+        const duration = parseFloat(item.calendar_days) || 0;
+        const crew = parseFloat(item.crew_size) || 0;
+        const frontParallel = parseFloat(item.front_parallel_days) || 0;
+        const backParallel = parseFloat(item.back_parallel_days) || 0;
+
+        let startDay;
+
+        if (item._startDay !== undefined && item._startDay !== null) {
+            startDay = item._startDay;
+        } else {
+            if (i === 0) {
+                startDay = 0;
+            } else {
+                // Critical Path Logic: startDay = cumulativeCPEnd - frontParallel
+                startDay = Math.max(0, cumulativeCPEnd - frontParallel);
+            }
+        }
+
+        // Calculate this task's CP end
+        const cpEnd = startDay + duration - backParallel;
+
+        // Update cumulative CP end
+        cumulativeCPEnd = Math.max(cumulativeCPEnd, cpEnd);
+
+        const endDay = Math.ceil(startDay + duration);
+        for (let d = Math.floor(startDay); d < endDay; d++) {
+            loads.set(d, (loads.get(d) || 0) + crew);
+        }
+
+        result.push({ ...item, startDay, durationDays: duration });
+
+        if (item._parallelGroup) {
+            if (!groups.has(item._parallelGroup)) groups.set(item._parallelGroup, []);
+            groups.get(item._parallelGroup).push(i);
+        }
+    }
+    const maxEndDay = result.reduce((max, item) => Math.max(max, item.startDay + item.durationDays), 0);
+    return { itemsWithTiming: result, totalDays: maxEndDay, parallelGroups: groups, dailyLoads: loads };
+};

@@ -2,7 +2,7 @@ import React, { useMemo, useState, useCallback } from "react";
 import { Users, Zap } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useScheduleStore } from "../../stores/scheduleStore";
-import { generateTimeline } from "./ganttUtils";
+import { generateTimeline, calculateGanttItems } from "./ganttUtils";
 import GanttSidebar from "./GanttSidebar";
 import GanttTimelineHeader from "./GanttTimelineHeader";
 import GanttChartArea from "./GanttChartArea";
@@ -146,66 +146,7 @@ export default function GanttChart({
 
     // Calculate Grid Data FIRST (needed for handlers)
     const { itemsWithTiming, totalDays, dailyLoads } = useMemo(() => {
-        if (!items || items.length === 0) return { itemsWithTiming: [], totalDays: 0, parallelGroups: new Map(), dailyLoads: new Map() };
-
-        const result = [];
-        const groups = new Map();
-        const loads = new Map();
-
-        // Track the cumulative CRITICAL PATH end across all tasks
-        let cumulativeCPEnd = 0;
-
-        for (let i = 0; i < items.length; i++) {
-            const originalItem = items[i];
-            // Clone first to allow mutation
-            const item = { ...originalItem };
-
-            const duration = parseFloat(item.calendar_days) || 0;
-            const crew = parseFloat(item.crew_size) || 0;
-            const frontParallel = parseFloat(item.front_parallel_days) || 0;
-            const backParallel = parseFloat(item.back_parallel_days) || 0;
-
-            let startDay;
-
-            if (item._startDay !== undefined && item._startDay !== null) {
-                startDay = item._startDay;
-
-            } else {
-                if (i === 0) {
-                    startDay = 0;
-                } else {
-                    // CRITICAL FIX: The task START should be pulled back by front_parallel_days
-                    // so that the RED START (startDay + frontParallel) aligns with the cumulative CP End.
-                    // Previous logic: startDay = cumulativeCPEnd (Result: Red Start = cumulativeCPEnd + frontParallel -> GAP!)
-                    // New logic: startDay = cumulativeCPEnd - frontParallel (Result: Red Start = cumulativeCPEnd -> ALIGNED!)
-                    startDay = Math.max(0, cumulativeCPEnd - frontParallel);
-                }
-            }
-
-            // Calculate this task's CP end (accounting for front/back parallel)
-            // CP Start = startDay + front_parallel_days
-            // CP End = startDay + duration - back_parallel_days
-            const cpEnd = startDay + duration - backParallel;
-
-            // Update cumulative CP end tracker
-            // Only advance if this task's CP extends beyond the current cumulative CP
-            cumulativeCPEnd = Math.max(cumulativeCPEnd, cpEnd);
-
-            const endDay = Math.ceil(startDay + duration);
-            for (let d = Math.floor(startDay); d < endDay; d++) {
-                loads.set(d, (loads.get(d) || 0) + crew);
-            }
-
-            // Push the MODIFIED clone
-            result.push({ ...item, startDay, durationDays: duration });
-
-            if (item._parallelGroup) {
-                if (!groups.has(item._parallelGroup)) groups.set(item._parallelGroup, []);
-                groups.get(item._parallelGroup).push(i);
-            }
-        }
-        const maxEndDay = result.reduce((max, item) => Math.max(max, item.startDay + item.durationDays), 0);
-        return { itemsWithTiming: result, totalDays: maxEndDay, parallelGroups: groups, dailyLoads: loads };
+        return calculateGanttItems(items);
     }, [items]);
 
     const handleItemClick = useCallback((itemId, source, event) => {

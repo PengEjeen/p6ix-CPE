@@ -85,8 +85,6 @@ export default function OperatingRate() {
             working_days: 0,
             climate_days_excl_dup: 0,
             legal_holidays: 0,
-            climate_days_excl_dup: 0,
-            legal_holidays: 0,
             operating_rate: 0,
             winter_criteria: "AVG",
           }

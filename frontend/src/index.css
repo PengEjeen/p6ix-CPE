@@ -1,9 +1,9 @@
+/* Custom scrollbar styles */
+@import './components/cpe/utils/scroll.css';
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
-
-/* Custom scrollbar styles */
-@import './components/cpe/utils/scroll.css';
 
 
 body {

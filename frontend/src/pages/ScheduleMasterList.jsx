@@ -23,6 +23,7 @@ import { useScheduleData } from "../hooks/useScheduleData";
 import { useDragHandlers } from "../hooks/useDragHandlers";
 import { useTutorial } from "../hooks/useTutorial";
 import { calculateTotalCalendarDays, calculateTotalCalendarMonths } from "../utils/scheduleCalculations";
+import { calculateGanttItems } from "../components/cpe/ganttUtils";
 import { fetchProductivities } from "../api/cpe_all/productivity";
 import { scheduleMasterListSteps } from "../config/tutorialSteps";
 
@@ -173,7 +174,7 @@ export default function ScheduleMasterList() {
             console.error("엑셀 내보내기 실패:", error);
             toast.error("엑셀 내보내기 실패");
         }
-    }, [projectId, projectName, ganttDateScale]);
+    }, [projectId, projectName, ganttDateScale, aiDisplayItems, items]);
 
     // Dnd Sensors
     const sensors = useSensors(

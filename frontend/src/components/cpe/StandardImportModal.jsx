@@ -1,8 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { X, Search, ChevronDown, Check } from 'lucide-react';
 import { fetchProductivities } from '../../api/cpe_all/productivity';
-import { useTutorial } from '../../hooks/useTutorial';
-import { standardImportSteps } from '../../config/tutorialSteps';
 
 /**
  * Reusable Accordion Component for the Modal (Dark Mode)
