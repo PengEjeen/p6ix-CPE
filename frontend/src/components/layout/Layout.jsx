@@ -51,7 +51,9 @@ function Layout() {
   }, [isMobile]);
 
   const handleLogout = () => {
-    localStorage.clear();
+    localStorage.removeItem("access");
+    localStorage.removeItem("refresh");
+    localStorage.removeItem("user");
     navigate("/login");
   };
 
