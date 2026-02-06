@@ -663,7 +663,7 @@ export default function GanttChart({
             <div className="flex flex-1 min-h-0 relative">
 
                 {/* Left Sidebar - Tree View */}
-                <div data-tutorial="gantt-sidebar">
+                <div data-tutorial="gantt-sidebar" className="h-full flex-shrink-0">
                     <GanttSidebar
                         containerRef={sidebarRef}
                         groupedItems={groupedItems}

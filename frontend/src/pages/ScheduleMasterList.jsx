@@ -523,7 +523,7 @@ export default function ScheduleMasterList() {
         <div
             data-tutorial="schedule-table"
             className={`scroll-container w-full overflow-auto rounded-xl border border-gray-700 shadow-xl bg-[#2c2c3a] relative ${isScrolling ? 'scrolling' : ''} ${forPrint ? 'print-table' : ''}`}
-            style={{ maxHeight: 'calc(100vh - 50px)' }}
+            style={{ height: '100%' }}
             onScroll={forPrint ? undefined : handleScroll}
         >
             <DndContext
@@ -751,11 +751,9 @@ export default function ScheduleMasterList() {
     );
 
     return (
-        <>
-            <div
-                className="p-6 flex flex-col max-w-[2400px] mx-auto text-gray-200"
-                style={{ zoom: viewMode === "table" ? 0.85 : 1 }}
-            >
+        <div className="h-screen w-full flex flex-col bg-[#1f1f2b] overflow-hidden text-gray-200">
+            {/* Header Section (Fixed) */}
+            <div className="flex-none w-full max-w-[2400px] mx-auto p-6 pb-2">
                 <ScheduleHeader
                     viewMode={viewMode}
                     onViewModeChange={setViewMode}
@@ -784,8 +782,13 @@ export default function ScheduleMasterList() {
                     onAiCancel={handleAiCancel}
                     onExportExcel={handleExportExcel}
                 />
+            </div>
 
-                {/* Content Area - Table or Gantt */}
+            {/* Content Section (Fills remaining height) */}
+            <div
+                className="flex-1 min-h-0 w-full max-w-[2400px] mx-auto p-6 pt-2 overflow-hidden flex flex-col"
+                style={{ zoom: viewMode === "table" ? 0.85 : 1 }}
+            >
                 {viewMode === "gantt" ? (
                     <ScheduleGanttPanel
                         items={aiDisplayItems}
@@ -810,17 +813,27 @@ export default function ScheduleMasterList() {
                 ) : (
                     renderTableView()
                 )}
+            </div>
 
+            {/* --- Modals --- */}
+            {importModalOpen && (
                 <StandardImportModal
                     isOpen={importModalOpen}
                     onClose={() => setImportModalOpen(false)}
                     onSelect={handleImportSelect}
                     project_id={projectId}
                 />
+            )}
 
+            {evidenceModalOpen && (
                 <EvidenceResultModal
                     isOpen={evidenceModalOpen}
-                    onClose={() => setEvidenceModalOpen(false)}
+                    onClose={() => {
+                        setEvidenceModalOpen(false);
+                        setEvidenceTargetParent(null);
+                    }}
+                    onAdd={handleAddEvidenceItem}
+                    targetItem={evidenceTargetParent}
                     cipResults={cipResult.map((row) => ({
                         ...row,
                         key: `cip-${row.id}`,
@@ -839,15 +852,22 @@ export default function ScheduleMasterList() {
                     cipStandards={cipStandards}
                     pileStandards={pileStandards}
                     boredStandards={boredStandards}
-                    onAddItem={handleAddEvidenceItem}
                 />
+            )}
 
+            {snapshotModalOpen && (
                 <SnapshotManager
+                    projectId={projectId}
+                    currentItems={items}
                     isOpen={snapshotModalOpen}
                     onClose={() => setSnapshotModalOpen(false)}
+                    onLoadSnapshot={(snapItems) => {
+                        setStoreItems(snapItems);
+                        toast.success("스냅샷 로드 완료");
+                        setSnapshotModalOpen(false);
+                    }}
                 />
-            </div>
-
-        </>
+            )}
+        </div>
     );
 }
