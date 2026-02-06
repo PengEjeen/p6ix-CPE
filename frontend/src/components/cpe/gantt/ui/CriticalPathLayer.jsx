@@ -62,11 +62,22 @@ export default function CriticalPathLayer({
                 const taskStart = item.startDay;
                 const taskEnd = item.startDay + item.durationDays;
                 const redStart = taskStart + frontParallel;
-                const redEnd = taskEnd - backParallel;
+                let redEnd = taskEnd - backParallel;
+                const logicalRedEnd = redEnd; // Keep original for logic
 
-                // MORE STRICT: must have at least 0.1 days of critical segment
-                const hasCriticalSegment = (redEnd - redStart) > 0.1;
+                // RELAXED: Treat any positive length as critical segment
+                const hasCriticalSegment = logicalRedEnd > redStart;
                 const isParallelTask = isParallelItem(item) || !hasCriticalSegment;
+
+                // Force minimum visual length for Arrow Anchor
+                const MIN_CP_WIDTH_PX = 12; // Enforce ~12px min
+                if (hasCriticalSegment && !isParallelItem(item)) {
+                    const currentPxLen = (redEnd - redStart) * pxFactor;
+                    if (currentPxLen < MIN_CP_WIDTH_PX) {
+                        const addedDays = (MIN_CP_WIDTH_PX - currentPxLen) / pxFactor;
+                        redEnd += addedDays;
+                    }
+                }
 
                 // Debug log for grey tasks that still show arrows
                 if ((frontParallel > 0 || backParallel > 0) && !isParallelTask) {
@@ -76,6 +87,7 @@ export default function CriticalPathLayer({
                         duration: item.durationDays,
                         redStart,
                         redEnd,
+                        logicalRedEnd,
                         hasCriticalSegment,
                         isParallelTask
                     });
@@ -109,9 +121,10 @@ export default function CriticalPathLayer({
                     // Skip parallel tasks and tasks without critical segments
                     if (!isParallelItem(candidateItem) && candidateHasCritical) {
                         // Only connect to tasks that start after current task ends (forward only in time)
-                        if (candidateRedStart >= redEnd) {
-                            // Calculate distance on x-axis between current redEnd and candidate redStart
-                            const distance = candidateRedStart - redEnd;
+                        // USE logicalRedEnd here to find correct topological successor
+                        if (candidateRedStart >= logicalRedEnd) {
+                            // Calculate distance on x-axis between current logicalRedEnd and candidate redStart
+                            const distance = candidateRedStart - logicalRedEnd;
 
                             // Check if vertical arrow would overlap with intermediate task bars
                             // This is only necessary if the target is not adjacent (i.e., |i - j| > 1)
@@ -126,9 +139,9 @@ export default function CriticalPathLayer({
                                     const intermediateStart = intermediateTask.startDay;
                                     const intermediateEnd = intermediateTask.startDay + intermediateTask.durationDays;
 
-                                    // Check if intermediate task overlaps with the arrow path [redEnd, candidateRedStart]
-                                    // Overlap occurs if: intermediateStart < candidateRedStart AND intermediateEnd > redEnd
-                                    if (intermediateStart < candidateRedStart && intermediateEnd > redEnd) {
+                                    // Check if intermediate task overlaps with the arrow path [logicalRedEnd, candidateRedStart]
+                                    // Overlap occurs if: intermediateStart < candidateRedStart AND intermediateEnd > logicalRedEnd
+                                    if (intermediateStart < candidateRedStart && intermediateEnd > logicalRedEnd) {
                                         hasOverlap = true;
                                         break;
                                     }

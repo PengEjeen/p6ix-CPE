@@ -44,14 +44,28 @@ def build_items_with_timing(items):
     cumulative_cp_end = 0.0
     for idx, item in enumerate(items):
         duration = float(item.get("calendar_days") or 0)
+        
+        # Parse parallel days
+        front_parallel = float(item.get("front_parallel_days") or 0)
+        back_parallel = float(item.get("back_parallel_days") or 0)
+
         start_override = item.get("_startDay")
         if start_override is not None:
             start_day = float(start_override)
         else:
-            start_day = 0.0 if idx == 0 else cumulative_cp_end
-        back_parallel = float(item.get("back_parallel_days") or 0)
+            if idx == 0:
+                start_day = 0.0
+            else:
+                # Critical Path Logic: adjust start day by front parallel
+                # startDay = cumulativeCPEnd - frontParallel
+                start_day = max(0.0, cumulative_cp_end - front_parallel)
+
+        # Calculate CP end for this item
         cp_end = start_day + duration - back_parallel
+        
+        # Update cumulative CP end
         cumulative_cp_end = max(cumulative_cp_end, cp_end)
+
         items_with_timing.append({
             "item": item,
             "start_day": start_day,
