@@ -13,10 +13,13 @@ export const calculateTotalCalendarDays = (items) => {
     let maxEnd = 0;
     items.forEach((item, index) => {
         const duration = parseFloat(item.calendar_days) || 0;
+        const frontParallel = parseFloat(item.front_parallel_days) || 0;
         const backParallel = parseFloat(item.back_parallel_days) || 0;
+
         const startDay = item._startDay !== undefined && item._startDay !== null
             ? item._startDay
-            : (index === 0 ? 0 : cumulativeCPEnd);
+            : (index === 0 ? 0 : Math.max(0, cumulativeCPEnd - frontParallel));
+
         const cpEnd = startDay + duration - backParallel;
         cumulativeCPEnd = Math.max(cumulativeCPEnd, cpEnd);
         maxEnd = Math.max(maxEnd, startDay + duration);
@@ -44,10 +47,13 @@ export const getCriticalIds = (items) => {
     const criticalIds = [];
     items.forEach((item, index) => {
         const duration = parseFloat(item.calendar_days) || 0;
+        const frontParallel = parseFloat(item.front_parallel_days) || 0;
         const backParallel = parseFloat(item.back_parallel_days) || 0;
+
         const startDay = item._startDay !== undefined && item._startDay !== null
             ? item._startDay
-            : (index === 0 ? 0 : cumulativeCPEnd);
+            : (index === 0 ? 0 : Math.max(0, cumulativeCPEnd - frontParallel));
+
         const cpEnd = startDay + duration - backParallel;
         if (cpEnd >= cumulativeCPEnd && item.remarks !== "병행작업") {
             criticalIds.push(item.id);

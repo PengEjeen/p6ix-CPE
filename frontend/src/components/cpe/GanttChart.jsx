@@ -2,7 +2,7 @@ import React, { useMemo, useState, useCallback } from "react";
 import { Users, Zap } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useScheduleStore } from "../../stores/scheduleStore";
-import { generateTimeline } from "./ganttUtils";
+import { generateTimeline, calculateGanttItems } from "./ganttUtils";
 import GanttSidebar from "./GanttSidebar";
 import GanttTimelineHeader from "./GanttTimelineHeader";
 import GanttChartArea from "./GanttChartArea";
@@ -14,6 +14,9 @@ import { buildMoveUpdatesByDelta } from "./gantt/utils/moveUpdates";
 import { useAutoScale } from "./gantt/hooks/useAutoScale";
 import GanttToolbar from "./gantt/ui/GanttToolbar";
 import LinkEditorPopover from "./gantt/ui/LinkEditorPopover";
+import toast from "react-hot-toast";
+import { useTutorial } from "../../hooks/useTutorial";
+import { ganttChartSteps } from "../../config/tutorialSteps";
 
 export default function GanttChart({
     items,
@@ -30,6 +33,7 @@ export default function GanttChart({
     onDeleteSubtask
 }) {
     const pixelsPerUnit = 40;
+    const setGanttDateScale = useScheduleStore((state) => state.setGanttDateScale);
 
     // Refs
     const sidebarRef = React.useRef(null);
@@ -56,14 +60,22 @@ export default function GanttChart({
     const [subtaskMode, setSubtaskMode] = useState(false);
     const [isScrolling, setIsScrolling] = useState(false);
 
+    // Tutorial
+    useTutorial('ganttChart', ganttChartSteps);
+
     // Simulation Tooltip State
     const [simulation, setSimulation] = useState(null);
+    React.useEffect(() => {
+        if (setGanttDateScale) setGanttDateScale(dateScale);
+    }, [dateScale, setGanttDateScale]);
 
     // Tree View State
     const [expandedCategories, setExpandedCategories] = useState({});
     // eslint-disable-next-line no-unused-vars
     // eslint-disable-next-line no-unused-vars
     const [expandedProcesses, setExpandedProcesses] = useState({});
+    const [copiedSubtask, setCopiedSubtask] = useState(null);
+
     const handleScroll = useCallback(() => {
         setIsScrolling(true);
         clearTimeout(window.ganttChartScrollTimeout);
@@ -72,65 +84,69 @@ export default function GanttChart({
         }, 1000);
     }, []);
 
-    // Calculate Grid Data FIRST (needed for handlers)
-    const { itemsWithTiming, totalDays, dailyLoads } = useMemo(() => {
-        if (!items || items.length === 0) return { itemsWithTiming: [], totalDays: 0, parallelGroups: new Map(), dailyLoads: new Map() };
+    // Subtask Copy/Paste (Object Level)
+    React.useEffect(() => {
+        const handleKeyDown = async (e) => {
+            // Ignore if typing in an input
+            if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable) {
+                return;
+            }
 
-        const result = [];
-        const groups = new Map();
-        const loads = new Map();
-
-        // Track the cumulative CRITICAL PATH end across all tasks
-        let cumulativeCPEnd = 0;
-
-        for (let i = 0; i < items.length; i++) {
-            const originalItem = items[i];
-            // Clone first to allow mutation
-            const item = { ...originalItem };
-
-            const duration = parseFloat(item.calendar_days) || 0;
-            const crew = parseFloat(item.crew_size) || 0;
-            let startDay;
-
-            if (item._startDay !== undefined && item._startDay !== null) {
-                startDay = item._startDay;
-
-            } else {
-                if (i === 0) {
-                    startDay = 0;
-                } else {
-                    // CRITICAL FIX: Use the cumulative CP end from ALL previous tasks
-                    // This ensures tasks align with CP only, not with parallel task ends
-                    startDay = cumulativeCPEnd;
+            // Copy: Ctrl+C
+            if ((e.ctrlKey || e.metaKey) && e.key === 'c') {
+                if (selectedSubtaskIds.length > 0) {
+                    const subtask = subTasks.find(s => s.id === selectedSubtaskIds[0]);
+                    if (subtask) {
+                        setCopiedSubtask({
+                            durationDays: subtask.durationDays,
+                            label: subtask.label,
+                            startDay: subtask.startDay
+                        });
+                        toast.success("부공종 복사됨");
+                    }
                 }
             }
 
-            // Calculate this task's CP end (accounting for front/back parallel)
-            // CP Start = startDay + front_parallel_days
-            // CP End = startDay + duration - back_parallel_days
-            const frontParallel = parseFloat(item.front_parallel_days) || 0;
-            const backParallel = parseFloat(item.back_parallel_days) || 0;
-            const cpEnd = startDay + duration - backParallel;
+            // Paste: Ctrl+V
+            if ((e.ctrlKey || e.metaKey) && e.key === 'v') {
+                if (copiedSubtask) {
+                    // Determine targets: Selected Rows OR Parent of Selected Subtasks
+                    const targetItemIds = new Set();
 
-            // Update cumulative CP end tracker
-            // Only advance if this task's CP extends beyond the current cumulative CP
-            cumulativeCPEnd = Math.max(cumulativeCPEnd, cpEnd);
+                    // 1. Add explicitly selected rows
+                    selectedItemIds.forEach(id => targetItemIds.add(id));
 
-            const endDay = Math.ceil(startDay + duration);
-            for (let d = Math.floor(startDay); d < endDay; d++) {
-                loads.set(d, (loads.get(d) || 0) + crew);
+                    // 2. Add parents of selected subtasks
+                    selectedSubtaskIds.forEach(id => {
+                        const sub = subTasks.find(s => s.id === id);
+                        if (sub) targetItemIds.add(sub.itemId);
+                    });
+
+                    if (targetItemIds.size > 0 && onCreateSubtask) {
+                        targetItemIds.forEach(itemId => {
+                            onCreateSubtask(
+                                itemId,
+                                copiedSubtask.startDay,
+                                copiedSubtask.durationDays,
+                                { label: copiedSubtask.label }
+                            );
+                        });
+                        toast.success(`부공종 붙여넣기 완료 (${targetItemIds.size}개)`);
+                    } else {
+                        // Optional: If nothing selected, maybe warn? Or just silent.
+                        // toast("붙여넣을 공종(행)을 선택해주세요", { icon: "ℹ️" });
+                    }
+                }
             }
+        };
 
-            // Push the MODIFIED clone
-            result.push({ ...item, startDay, durationDays: duration });
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [selectedSubtaskIds, selectedItemIds, subTasks, copiedSubtask, onCreateSubtask]);
 
-            if (item._parallelGroup) {
-                if (!groups.has(item._parallelGroup)) groups.set(item._parallelGroup, []);
-                groups.get(item._parallelGroup).push(i);
-            }
-        }
-        const maxEndDay = result.reduce((max, item) => Math.max(max, item.startDay + item.durationDays), 0);
-        return { itemsWithTiming: result, totalDays: maxEndDay, parallelGroups: groups, dailyLoads: loads };
+    // Calculate Grid Data FIRST (needed for handlers)
+    const { itemsWithTiming, totalDays, dailyLoads } = useMemo(() => {
+        return calculateGanttItems(items);
     }, [items]);
 
     const handleItemClick = useCallback((itemId, source, event) => {
@@ -509,8 +525,8 @@ export default function GanttChart({
         const duration = parseFloat(item.calendar_days) || 0;
         const newEnd = newStartDay + duration;
 
-        // Check for overlaps with ALL other tasks
-        let overlapInfo = null;
+        // Check for overlaps with ALL other tasks - COLLECT ALL OVERLAPS
+        const overlappingTasks = [];
         itemsWithTiming.forEach((otherItem) => {
             if (otherItem.id === itemId) return; // Skip self
 
@@ -523,53 +539,67 @@ export default function GanttChart({
                 const overlapEnd = Math.min(newEnd, otherEnd);
                 const overlapDays = overlapEnd - overlapStart;
 
-                // Store first overlap found
-                if (!overlapInfo) {
-                    overlapInfo = {
-                        visible: true,
-                        currentTask: {
-                            id: item.id,
-                            name: `${item.process} - ${item.work_type}`,
-                            start: newStartDay,
-                            end: newEnd,
-                            // CRITICAL: Pass existing parallel days to prevent overwriting
-                            front_parallel_days: item.front_parallel_days || 0,
-                            back_parallel_days: item.back_parallel_days || 0
-                        },
-                        overlappingTask: {
-                            id: otherItem.id,
-                            name: `${otherItem.process} - ${otherItem.work_type}`,
-                            start: otherStart,
-                            end: otherEnd,
-                            // CRITICAL: Pass existing parallel days to prevent overwriting
-                            front_parallel_days: otherItem.front_parallel_days || 0,
-                            back_parallel_days: otherItem.back_parallel_days || 0
-                        },
-                        overlapDays: overlapDays,
-                        draggedItemId: itemId,
-                        newStartDay: newStartDay,
-                        dragDelta: dragDelta
-                    };
-                }
+                // Collect ALL overlaps, not just the first
+                overlappingTasks.push({
+                    id: otherItem.id,
+                    name: `${otherItem.process} - ${otherItem.work_type}`,
+                    start: otherStart,
+                    end: otherEnd,
+                    overlapDays: overlapDays,
+                    // CRITICAL: Pass existing parallel days to prevent overwriting
+                    front_parallel_days: otherItem.front_parallel_days || 0,
+                    back_parallel_days: otherItem.back_parallel_days || 0
+                });
             }
         });
 
-        if (overlapInfo) {
+        if (overlappingTasks.length > 0) {
+            // Create multi-overlap data structure
+            const overlapInfo = {
+                visible: true,
+                currentTask: {
+                    id: item.id,
+                    name: `${item.process} - ${item.work_type}`,
+                    start: newStartDay,
+                    end: newEnd,
+                    // CRITICAL: Pass existing parallel days to prevent overwriting
+                    front_parallel_days: item.front_parallel_days || 0,
+                    back_parallel_days: item.back_parallel_days || 0
+                },
+                overlappingTasks: overlappingTasks, // Array of all overlaps
+                totalOverlaps: overlappingTasks.length,
+                draggedItemId: itemId,
+                newStartDay: newStartDay,
+                dragDelta: dragDelta
+            };
+
             setOverlapPopover(overlapInfo);
-            if (overlapInfo.overlappingTask?.id) {
-                lastOverlapRef.current.set(itemId, overlapInfo.overlappingTask.id);
-            }
+            // Store all overlapping task IDs for cleanup later
+            overlappingTasks.forEach(ot => {
+                lastOverlapRef.current.set(`${itemId}-${ot.id}`, ot.id);
+            });
         } else {
-            // TODO: Figure out which tasks to clear
+            // No overlaps - clear parallel days ONLY for this dragged task and its previous overlaps
 
             // Atomic update for Undo/Redo consistency
             const updates = [{ id: itemId, front: 0, back: 0 }];
-            const prevOverlapId = lastOverlapRef.current.get(itemId);
-            if (prevOverlapId) {
-                updates.push({ id: prevOverlapId, front: 0, back: 0 });
-                lastOverlapRef.current.delete(itemId);
+
+            // Clear ONLY the tasks that were previously overlapping with THIS specific task
+            const keysToDelete = [];
+            lastOverlapRef.current.forEach((value, key) => {
+                if (key.startsWith(`${itemId}-`)) {
+                    // Only clear if this task is no longer overlapping with anyone
+                    // Don't touch other tasks' overlap states
+                    updates.push({ id: value, front: 0, back: 0 });
+                    keysToDelete.push(key);
+                }
+            });
+            keysToDelete.forEach(key => lastOverlapRef.current.delete(key));
+
+            // IMPORTANT: Only call resolveDragOverlap if we actually have updates to apply
+            if (updates.length > 0) {
+                useScheduleStore.getState().resolveDragOverlap(itemId, newStartDay, updates);
             }
-            useScheduleStore.getState().resolveDragOverlap(itemId, newStartDay, updates);
             if (dragDelta) {
                 shiftSubTasksForItem(itemId, dragDelta);
             }
@@ -617,34 +647,39 @@ export default function GanttChart({
         <div className="h-full flex flex-col bg-white rounded-2xl border border-gray-100 shadow-2xl overflow-hidden font-sans">
 
             {/* --- Toolbar --- */}
-            <GanttToolbar
-                dateScale={dateScale}
-                onSetScale={handleSetScale}
-                linkMode={linkMode}
-                setLinkMode={setLinkMode}
-                linkDraft={linkDraft}
-                subtaskMode={subtaskMode}
-                setSubtaskMode={setSubtaskMode}
-            />
+            <div data-tutorial="gantt-toolbar">
+                <GanttToolbar
+                    dateScale={dateScale}
+                    onSetScale={handleSetScale}
+                    linkMode={linkMode}
+                    setLinkMode={setLinkMode}
+                    linkDraft={linkDraft}
+                    subtaskMode={subtaskMode}
+                    setSubtaskMode={setSubtaskMode}
+                />
+            </div>
 
             {/* --- Main Content --- */}
             <div className="flex flex-1 min-h-0 relative">
 
                 {/* Left Sidebar - Tree View */}
-                <GanttSidebar
-                    containerRef={sidebarRef}
-                    groupedItems={groupedItems}
-                    expandedCategories={expandedCategories}
-                    setExpandedCategories={setExpandedCategories}
-                    selectedItemIds={selectedItemIds}
-                    onItemClick={handleItemClick}
-                    aiPreviewItems={aiPreviewItems}
-                    aiOriginalItems={aiOriginalItems}
-                    aiActiveItemId={aiActiveItemId}
-                />
+                <div data-tutorial="gantt-sidebar" className="h-full flex-shrink-0">
+                    <GanttSidebar
+                        containerRef={sidebarRef}
+                        groupedItems={groupedItems}
+                        expandedCategories={expandedCategories}
+                        setExpandedCategories={setExpandedCategories}
+                        selectedItemIds={selectedItemIds}
+                        onItemClick={handleItemClick}
+                        aiPreviewItems={aiPreviewItems}
+                        aiOriginalItems={aiOriginalItems}
+                        aiActiveItemId={aiActiveItemId}
+                    />
+                </div>
 
                 {/* Right Timeline */}
                 <div
+                    data-tutorial="gantt-chart"
                     ref={chartRef}
                     className={`scroll-container flex-1 overflow-auto bg-white relative ${isScrolling ? 'scrolling' : ''}`}
                     onScroll={handleScroll}
@@ -763,24 +798,41 @@ export default function GanttChart({
                     onSelectCurrentAsCP={() => {
                         if (!overlapPopover) return;
 
-                        const { currentTask, overlappingTask, overlapDays, draggedItemId, newStartDay } = overlapPopover;
-                        const currentStart = newStartDay;
-                        const overlappingStart = overlappingTask.start;
+                        const { currentTask, draggedItemId, newStartDay } = overlapPopover;
+
+                        // Support both old (overlappingTask) and new (overlappingTasks array) formats
+                        const overlappingTasks = overlapPopover.overlappingTasks ||
+                            (overlapPopover.overlappingTask ? [overlapPopover.overlappingTask] : []);
 
                         const updates = [];
-                        if (currentStart < overlappingStart) {
-                            // A starts before B
-                            // A is CP (Current) → Clear A's back
-                            // B becomes parallel (Overlapping) → Set B's front
-                            updates.push({ id: currentTask.id, back: 0 }); // CLEAR A's back
-                            updates.push({ id: overlappingTask.id, front: overlapDays }); // SET B's front
-                        } else {
-                            // A starts after B (B -> A)
-                            // A is CP (Current) → Clear A's front
-                            // B becomes parallel (Overlapping) → Set B's back
-                            updates.push({ id: currentTask.id, front: 0 }); // CLEAR A's front
-                            updates.push({ id: overlappingTask.id, back: overlapDays }); // SET B's back
-                        }
+                        const currentStart = newStartDay;
+                        const currentEnd = currentTask.end;
+
+                        // Clear current task's parallel days (it becomes full CP)
+                        updates.push({ id: currentTask.id, front: 0, back: 0 });
+
+                        // Process each overlapping task
+                        overlappingTasks.forEach((overlappingTask) => {
+                            const overlappingStart = overlappingTask.start;
+                            const overlappingEnd = overlappingTask.end;
+                            const overlapDays = overlappingTask.overlapDays;
+
+                            const currentContainsOther = currentStart < overlappingStart && currentEnd > overlappingEnd;
+                            const otherContainsCurrent = overlappingStart < currentStart && overlappingEnd > currentEnd;
+
+                            if (otherContainsCurrent) {
+                                // Current is inner CP -> clear both (detour scenario)
+                                updates.push({ id: overlappingTask.id, front: 0, back: 0 });
+                            } else if (currentStart < overlappingStart) {
+                                // Current starts before overlapping
+                                // Overlapping task becomes parallel -> Set its front
+                                updates.push({ id: overlappingTask.id, front: overlapDays, back: 0 });
+                            } else {
+                                // Current starts after overlapping
+                                // Overlapping task becomes parallel -> Set its back
+                                updates.push({ id: overlappingTask.id, back: overlapDays, front: 0 });
+                            }
+                        });
 
                         useScheduleStore.getState().resolveDragOverlap(draggedItemId, newStartDay, updates);
                         if (overlapPopover.dragDelta) {
@@ -791,24 +843,52 @@ export default function GanttChart({
                     onSelectOtherAsCP={() => {
                         if (!overlapPopover) return;
 
-                        const { currentTask, overlappingTask, overlapDays, draggedItemId, newStartDay } = overlapPopover;
-                        const currentStart = newStartDay;
-                        const overlappingStart = overlappingTask.start;
+                        const { currentTask, draggedItemId, newStartDay } = overlapPopover;
+
+                        // Support both old (overlappingTask) and new (overlappingTasks array) formats
+                        const overlappingTasks = overlapPopover.overlappingTasks ||
+                            (overlapPopover.overlappingTask ? [overlapPopover.overlappingTask] : []);
 
                         const updates = [];
-                        if (currentStart < overlappingStart) {
-                            // A starts before B
-                            // B is CP (Overlapping) → Clear B's front
-                            // A becomes parallel (Current) → Set A's back
-                            updates.push({ id: overlappingTask.id, front: 0 }); // CLEAR B's front
-                            updates.push({ id: currentTask.id, back: overlapDays }); // SET A's back
-                        } else {
-                            // A starts after B (B -> A)
-                            // B is CP (Overlapping) → Clear B's back
-                            // A becomes parallel (Current) → Set A's front
-                            updates.push({ id: overlappingTask.id, back: 0 }); // CLEAR B's back
-                            updates.push({ id: currentTask.id, front: overlapDays }); // SET A's front
-                        }
+                        const currentStart = newStartDay;
+                        const currentEnd = currentTask.end;
+
+                        // Track max parallel days for current task
+                        let maxFrontParallel = 0;
+                        let maxBackParallel = 0;
+
+                        // Process each overlapping task
+                        overlappingTasks.forEach((overlappingTask) => {
+                            const overlappingStart = overlappingTask.start;
+                            const overlappingEnd = overlappingTask.end;
+                            const overlapDays = overlappingTask.overlapDays;
+
+                            const currentContainsOther = currentStart < overlappingStart && currentEnd > overlappingEnd;
+                            const otherContainsCurrent = overlappingStart < currentStart && overlappingEnd > currentEnd;
+
+                            if (currentContainsOther) {
+                                // Overlapping task is inner CP -> clear both (detour scenario)
+                                updates.push({ id: currentTask.id, front: 0, back: 0 });
+                                updates.push({ id: overlappingTask.id, front: 0, back: 0 });
+                            } else if (currentStart < overlappingStart) {
+                                // Current starts before overlapping
+                                // Current task becomes parallel -> Accumulate back
+                                updates.push({ id: overlappingTask.id, front: 0, back: 0 }); // Clear overlapping (it's CP)
+                                maxBackParallel = Math.max(maxBackParallel, overlapDays);
+                            } else {
+                                // Current starts after overlapping
+                                // Current task becomes parallel -> Accumulate front
+                                updates.push({ id: overlappingTask.id, back: 0, front: 0 }); // Clear overlapping (it's CP)
+                                maxFrontParallel = Math.max(maxFrontParallel, overlapDays);
+                            }
+                        });
+
+                        // Apply accumulated parallel days to current task ONCE
+                        updates.push({
+                            id: currentTask.id,
+                            front: maxFrontParallel,
+                            back: maxBackParallel
+                        });
 
                         useScheduleStore.getState().resolveDragOverlap(draggedItemId, newStartDay, updates);
                         if (overlapPopover.dragDelta) {

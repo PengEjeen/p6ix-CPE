@@ -158,7 +158,7 @@ export default function SubtaskLayer({
                     const endSnap = getSnapCandidate(subtask.itemId, rawEnd, subtask.id);
                     const snappedEnd = endSnap.within ? endSnap.snapped : rawEnd;
                     const nextDuration = Math.max(0.1, snappedEnd - startDay);
-                    if (hasSubtaskOverlap(subtask.itemId, startDay, nextDuration)) return;
+                    if (hasSubtaskOverlap(subtask.itemId, startDay, nextDuration, subtask.id)) return;
                     if (overlapsCriticalPath(subtask.itemId, startDay, nextDuration)) return;
                     if (onUpdateSubtask) onUpdateSubtask(subtask.id, { durationDays: nextDuration });
                 }
@@ -240,12 +240,14 @@ export default function SubtaskLayer({
                                 className="absolute -top-4 left-0 -translate-x-1/2 w-2.5 h-2.5 rounded-full bg-amber-400 ring-2 ring-white shadow-[0_0_6px_rgba(251,191,36,0.45)] z-30 opacity-0 group-hover/row:opacity-100 transition-opacity"
                                 onClick={(e) => {
                                     e.stopPropagation();
-                                    if (onLinkAnchorClick) onLinkAnchorClick(subtask.id, "start");
-                                }}
-                                onClickCapture={(e) => onLinkAnchorComplete && onLinkAnchorComplete(e, subtask.id, "start")}
-                                onClick={(e) => {
-                                    if (linkDrag) return;
-                                    if (onLinkDragStart) onLinkDragStart(e, subtask.id, "start");
+                                    // If dragging a link, complete it
+                                    if (linkDrag) {
+                                        if (onLinkAnchorComplete) onLinkAnchorComplete(e, subtask.id, "start");
+                                    } else {
+                                        // Otherwise, start dragging or just click
+                                        if (onLinkDragStart) onLinkDragStart(e, subtask.id, "start");
+                                        else if (onLinkAnchorClick) onLinkAnchorClick(subtask.id, "start");
+                                    }
                                 }}
                                 data-link-id={subtask.id}
                                 data-link-anchor="start"
@@ -257,12 +259,12 @@ export default function SubtaskLayer({
                                 style={{ left: "100%" }}
                                 onClick={(e) => {
                                     e.stopPropagation();
-                                    if (onLinkAnchorClick) onLinkAnchorClick(subtask.id, "end");
-                                }}
-                                onClickCapture={(e) => onLinkAnchorComplete && onLinkAnchorComplete(e, subtask.id, "end")}
-                                onClick={(e) => {
-                                    if (linkDrag) return;
-                                    if (onLinkDragStart) onLinkDragStart(e, subtask.id, "end");
+                                    if (linkDrag) {
+                                        if (onLinkAnchorComplete) onLinkAnchorComplete(e, subtask.id, "end");
+                                    } else {
+                                        if (onLinkDragStart) onLinkDragStart(e, subtask.id, "end");
+                                        else if (onLinkAnchorClick) onLinkAnchorClick(subtask.id, "end");
+                                    }
                                 }}
                                 data-link-id={subtask.id}
                                 data-link-anchor="end"

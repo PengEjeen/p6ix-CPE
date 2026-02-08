@@ -6,7 +6,8 @@ import EditableTable from "../components/cpe/EditableTable";
 import PageHeader from "../components/cpe/PageHeader";
 import SaveButton from "../components/cpe/SaveButton";
 import toast from "react-hot-toast";
-
+import { useTutorial } from "../hooks/useTutorial";
+import { pileBasisSteps } from "../config/tutorialSteps";
 export default function PileBasisList() {
     const { id } = useParams(); // Project ID
     const [data, setData] = useState([]);
@@ -15,6 +16,9 @@ export default function PileBasisList() {
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [isScrolling, setIsScrolling] = useState(false);
+
+    // Tutorial
+    useTutorial('pileBasis', pileBasisSteps);
 
     const handleScroll = useCallback(() => {
         setIsScrolling(true);
@@ -985,7 +989,7 @@ export default function PileBasisList() {
                 onScroll={handleScroll}
             >
                 {/* 3. NEW: CIP Result Summary Table (Single Row) */}
-                <div className="bg-[#2c2c3a] border border-gray-700 rounded-xl p-4 shadow-lg">
+                <div data-tutorial="pile-result" className="bg-[#2c2c3a] border border-gray-700 rounded-xl p-4 shadow-lg">
                     <h2 className="text-xl font-bold mb-4 text-gray-200">작업 결과표</h2>
                     {resultSummary ? (
                         <div className="overflow-auto">
@@ -1003,7 +1007,7 @@ export default function PileBasisList() {
                 </div>
 
                 {/* 1. Drilling Standard Table */}
-                <div className="bg-[#2c2c3a] border border-gray-700 rounded-xl p-4 shadow-lg">
+                <div data-tutorial="pile-standard" className="bg-[#2c2c3a] border border-gray-700 rounded-xl p-4 shadow-lg">
                     <h2 className="text-xl font-bold mb-4 text-gray-200">※ 항타 속도/시간 기준표 (참고)</h2>
                     <div className="max-w-4xl">
                         <EditableTable
@@ -1017,7 +1021,7 @@ export default function PileBasisList() {
                 </div>
 
                 {/* 2. Productivity Basis Table */}
-                <div className="bg-[#2c2c3a] border border-gray-700 rounded-xl p-4 shadow-lg">
+                <div data-tutorial="pile-basis" className="bg-[#2c2c3a] border border-gray-700 rounded-xl p-4 shadow-lg">
                     <h2 className="text-xl font-bold mb-4 text-gray-200">생산성 산출 내역</h2>
                     <div className="flex-1 overflow-auto">
                         <EditableTable

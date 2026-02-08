@@ -24,6 +24,10 @@ export const generateTimeline = (startDate, totalDays, dateScale = 1) => {
     let currentMonth = null;
 
     // Generate units based on scale
+    // Normalize start to midnight to avoid timezone/daylight savings drift in diff calcs
+    const startMidnight = new Date(start);
+    startMidnight.setHours(0, 0, 0, 0);
+
     for (let unit = 0; unit < totalUnits; unit++) {
         const dayNumber = unit * dateScale;
         const unitDate = new Date(start);
@@ -46,17 +50,28 @@ export const generateTimeline = (startDate, totalDays, dateScale = 1) => {
 
         // Generate day/week labels based on scale
         let label;
-        if (dateScale === 1) {
-            label = unitDate.getDate().toString();
-        } else if (dateScale === 5) {
-            label = `${Math.floor(unit / (7 / dateScale)) + 1}주`;
-        } else if (dateScale === 10) {
-            const dekad = Math.floor((unitDate.getDate() - 1) / 10);
-            label = ['상순', '중순', '하순'][dekad] || `${unit * 10 + 1}일~`;
-        } else if (dateScale === 30) {
-            label = `${unitDate.getMonth() + 1}월`;
+        if (dateScale === 30) {
+            // User Request: Cumulative End Days respecting Calendar Month lengths
+            // E.g. End of Jan = 31, End of Feb = 59 (31+28), End of Mar = 90 (59+31)...
+
+            // 1. Identify valid target month (Start + unit months)
+            const targetMonthDate = new Date(startMidnight);
+            targetMonthDate.setMonth(startMidnight.getMonth() + unit);
+
+            // 2. Get the LAST day of that month
+            // (Year, Month+1, 0) gives the last day of Month
+            const endOfMonth = new Date(targetMonthDate.getFullYear(), targetMonthDate.getMonth() + 1, 0);
+            endOfMonth.setHours(0, 0, 0, 0);
+
+            // 3. Calculate Diff from Project Start
+            const diffTime = endOfMonth.getTime() - startMidnight.getTime();
+            const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+
+            // Day 1 is start, so elapsed days = diff + 1
+            label = `${diffDays + 1}`;
         } else {
-            label = `${dayNumber + 1}일`;
+            // For 5, 10 days, strict arithmetic +5, +10 is correct
+            label = `${dayNumber + dateScale}`;
         }
 
         days.push({
@@ -78,4 +93,59 @@ export const getCategoryColor = (mainCategory) => {
     if (lower.includes('mep')) return 'bg-violet-500';
     if (lower.includes('조경')) return 'bg-amber-500';
     return 'bg-blue-400';
+};
+
+// Calculate Gantt items with timing (startDay, duration, CP logic)
+export const calculateGanttItems = (items) => {
+    if (!items || items.length === 0) return { itemsWithTiming: [], totalDays: 0, parallelGroups: new Map(), dailyLoads: new Map() };
+
+    const result = [];
+    const groups = new Map();
+    const loads = new Map();
+
+    // Track the cumulative CRITICAL PATH end across all tasks
+    let cumulativeCPEnd = 0;
+
+    for (let i = 0; i < items.length; i++) {
+        const originalItem = items[i];
+        const item = { ...originalItem };
+
+        const duration = parseFloat(item.calendar_days) || 0;
+        const crew = parseFloat(item.crew_size) || 0;
+        const frontParallel = parseFloat(item.front_parallel_days) || 0;
+        const backParallel = parseFloat(item.back_parallel_days) || 0;
+
+        let startDay;
+
+        if (item._startDay !== undefined && item._startDay !== null) {
+            startDay = item._startDay;
+        } else {
+            if (i === 0) {
+                startDay = 0;
+            } else {
+                // Critical Path Logic: startDay = cumulativeCPEnd - frontParallel
+                startDay = Math.max(0, cumulativeCPEnd - frontParallel);
+            }
+        }
+
+        // Calculate this task's CP end
+        const cpEnd = startDay + duration - backParallel;
+
+        // Update cumulative CP end
+        cumulativeCPEnd = Math.max(cumulativeCPEnd, cpEnd);
+
+        const endDay = Math.ceil(startDay + duration);
+        for (let d = Math.floor(startDay); d < endDay; d++) {
+            loads.set(d, (loads.get(d) || 0) + crew);
+        }
+
+        result.push({ ...item, startDay, durationDays: duration });
+
+        if (item._parallelGroup) {
+            if (!groups.has(item._parallelGroup)) groups.set(item._parallelGroup, []);
+            groups.get(item._parallelGroup).push(i);
+        }
+    }
+    const maxEndDay = result.reduce((max, item) => Math.max(max, item.startDay + item.durationDays), 0);
+    return { itemsWithTiming: result, totalDays: maxEndDay, parallelGroups: groups, dailyLoads: loads };
 };

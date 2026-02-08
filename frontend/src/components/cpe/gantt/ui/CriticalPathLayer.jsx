@@ -10,6 +10,37 @@ export default function CriticalPathLayer({
     itemIndexById,
     categoryMilestones
 }) {
+    const isParallelItem = (item) => {
+        const remarksText = (item?.remarks || "").trim();
+
+        // Check traditional parallel markers
+        const hasParallelMarker = (
+            remarksText === "병행작업"
+            || Boolean(item?._parallelGroup)
+            || Boolean(item?.parallelGroup)
+            || Boolean(item?.parallel_group)
+            || Boolean(item?.is_parallelism)
+        );
+
+        // Check if the task has parallel days that cover its entire duration
+        const frontParallel = parseFloat(item?.front_parallel_days) || 0;
+        const backParallel = parseFloat(item?.back_parallel_days) || 0;
+        const duration = item?.durationDays || 0;
+        const isFullyParallel = (frontParallel + backParallel) >= duration;
+
+        return hasParallelMarker || isFullyParallel;
+    };
+
+    const containedItemIds = new Set();
+    if (containedCpMap) {
+        containedCpMap.forEach((list) => {
+            if (!Array.isArray(list)) return;
+            list.forEach((entry) => {
+                if (entry?.item?.id) containedItemIds.add(entry.item.id);
+            });
+        });
+    }
+
     return (
         <svg className="absolute inset-0 pointer-events-none z-10" style={{ width: "100%", height: itemsWithTiming.length * rowH }}>
             <defs>
@@ -31,38 +62,100 @@ export default function CriticalPathLayer({
                 const taskStart = item.startDay;
                 const taskEnd = item.startDay + item.durationDays;
                 const redStart = taskStart + frontParallel;
-                const redEnd = taskEnd - backParallel;
+                let redEnd = taskEnd - backParallel;
+                const logicalRedEnd = redEnd; // Keep original for logic
 
-                const hasCriticalSegment = redEnd > redStart;
-                const isParallelTask = item.remarks === "병행작업" || !hasCriticalSegment;
+                // RELAXED: Treat any positive length as critical segment
+                const hasCriticalSegment = logicalRedEnd > redStart;
+                const isParallelTask = isParallelItem(item) || !hasCriticalSegment;
+
+                // Force minimum visual length for Arrow Anchor
+                const MIN_CP_WIDTH_PX = 12; // Enforce ~12px min
+                if (hasCriticalSegment && !isParallelItem(item)) {
+                    const currentPxLen = (redEnd - redStart) * pxFactor;
+                    if (currentPxLen < MIN_CP_WIDTH_PX) {
+                        const addedDays = (MIN_CP_WIDTH_PX - currentPxLen) / pxFactor;
+                        redEnd += addedDays;
+                    }
+                }
+
+                // Debug log for grey tasks that still show arrows
+                if ((frontParallel > 0 || backParallel > 0) && !isParallelTask) {
+                    console.log(`[CP Arrow Debug] Task: ${item.process} - ${item.work_type}`, {
+                        frontParallel,
+                        backParallel,
+                        duration: item.durationDays,
+                        redStart,
+                        redEnd,
+                        logicalRedEnd,
+                        hasCriticalSegment,
+                        isParallelTask
+                    });
+                }
 
                 if (isParallelTask) return null;
 
-                const prevItem = i > 0 ? itemsWithTiming[i - 1] : null;
-                const prevEnd = prevItem ? prevItem.startDay + prevItem.durationDays : 0;
-                const isCurrentEnclosed = prevEnd > taskEnd;
-                if (isCurrentEnclosed) return null;
+                // If this CP item is fully contained by another CP item,
+                // its link is rendered via the outer item's down/up detour.
+                if (containedItemIds.has(item.id)) return null;
 
-                let targetIndex = i + 1;
-                let targetItem = itemsWithTiming[targetIndex];
+                // Find the CP task with the minimum distance on x-axis (time)
+                // Search ALL tasks (both above and below) to find temporally closest CP task
+                let targetIndex = -1;
+                let targetItem = null;
+                let minDistance = Infinity;
 
-                while (targetItem) {
-                    const targetFrontParallel = parseFloat(targetItem.front_parallel_days) || 0;
-                    const targetBackParallel = parseFloat(targetItem.back_parallel_days) || 0;
-                    const targetRedStartLoop = targetItem.startDay + targetFrontParallel;
-                    const targetRedEndLoop = (targetItem.startDay + targetItem.durationDays) - targetBackParallel;
-                    const targetHasCriticalLoop = targetRedEndLoop > targetRedStartLoop;
+                // Loop through ALL tasks to find the closest on x-axis
+                for (let j = 0; j < itemsWithTiming.length; j++) {
+                    // Skip the current item itself
+                    if (j === i) continue;
 
-                    if (
-                        redEnd <= (targetItem.startDay + targetItem.durationDays) &&
-                        targetItem.remarks !== "병행작업" &&
-                        targetHasCriticalLoop
-                    ) {
-                        break;
+                    const candidateItem = itemsWithTiming[j];
+
+                    const candidateFrontParallel = parseFloat(candidateItem.front_parallel_days) || 0;
+                    const candidateBackParallel = parseFloat(candidateItem.back_parallel_days) || 0;
+                    const candidateRedStart = candidateItem.startDay + candidateFrontParallel;
+                    const candidateRedEnd = (candidateItem.startDay + candidateItem.durationDays) - candidateBackParallel;
+                    const candidateHasCritical = candidateRedEnd > candidateRedStart;
+
+                    // Skip parallel tasks and tasks without critical segments
+                    if (!isParallelItem(candidateItem) && candidateHasCritical) {
+                        // Only connect to tasks that start after current task ends (forward only in time)
+                        // USE logicalRedEnd here to find correct topological successor
+                        if (candidateRedStart >= logicalRedEnd) {
+                            // Calculate distance on x-axis between current logicalRedEnd and candidate redStart
+                            const distance = candidateRedStart - logicalRedEnd;
+
+                            // Check if vertical arrow would overlap with intermediate task bars
+                            // This is only necessary if the target is not adjacent (i.e., |i - j| > 1)
+                            let hasOverlap = false;
+                            if (Math.abs(i - j) > 1) {
+                                // Check all tasks between current (i) and candidate (j)
+                                const minRow = Math.min(i, j);
+                                const maxRow = Math.max(i, j);
+
+                                for (let k = minRow + 1; k < maxRow; k++) {
+                                    const intermediateTask = itemsWithTiming[k];
+                                    const intermediateStart = intermediateTask.startDay;
+                                    const intermediateEnd = intermediateTask.startDay + intermediateTask.durationDays;
+
+                                    // Check if intermediate task overlaps with the arrow path [logicalRedEnd, candidateRedStart]
+                                    // Overlap occurs if: intermediateStart < candidateRedStart AND intermediateEnd > logicalRedEnd
+                                    if (intermediateStart < candidateRedStart && intermediateEnd > logicalRedEnd) {
+                                        hasOverlap = true;
+                                        break;
+                                    }
+                                }
+                            }
+
+                            // Only accept this candidate if there's no overlap (or it's adjacent)
+                            if (!hasOverlap && distance < minDistance) {
+                                minDistance = distance;
+                                targetIndex = j;
+                                targetItem = candidateItem;
+                            }
+                        }
                     }
-
-                    targetIndex++;
-                    targetItem = itemsWithTiming[targetIndex];
                 }
 
                 if (!targetItem) return null;

@@ -33,7 +33,7 @@ const GanttSidebar = ({ groupedItems, expandedCategories, setExpandedCategories,
     return (
         <div
             ref={containerRef}
-            className={`scroll-container w-80 border-r border-gray-200 bg-white flex-shrink-0 overflow-y-auto font-sans scrollbar-thin scrollbar-thumb-gray-200 scrollbar-track-transparent ${isScrolling ? 'scrolling' : ''}`}
+            className={`scroll-container w-80 h-full border-r border-gray-200 bg-white flex-shrink-0 overflow-y-auto font-sans scrollbar-thin scrollbar-thumb-gray-200 scrollbar-track-transparent ${isScrolling ? 'scrolling' : ''}`}
             onScroll={handleScroll}
         >
             {/* Header */}

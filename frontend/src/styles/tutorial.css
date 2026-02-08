@@ -1,0 +1,156 @@
+/* Custom styling for driver.js tutorial - Enhanced Design */
+
+/* Main popover container - 더 크고 예쁘게 */
+.driver-popover {
+    background: linear-gradient(135deg, #1f2937 0%, #111827 100%) !important;
+    color: #f3f4f6 !important;
+    border-radius: 16px !important;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5), 0 0 1px rgba(59, 130, 246, 0.3) !important;
+    border: 1px solid rgba(59, 130, 246, 0.2) !important;
+    padding: 24px !important;
+    min-width: 400px !important;
+    max-width: 500px !important;
+}
+
+/* 제목 - 크고 눈에 띄게 */
+.driver-popover-title {
+    color: #ffffff !important;
+    font-size: 20px !important;
+    font-weight: 700 !important;
+    margin-bottom: 12px !important;
+    letter-spacing: -0.5px !important;
+}
+
+/* 설명 - 읽기 편하게 */
+.driver-popover-description {
+    color: #e5e7eb !important;
+    font-size: 16px !important;
+    line-height: 1.7 !important;
+    margin-bottom: 4px !important;
+}
+
+/* Footer - 버튼 영역 */
+.driver-popover-footer {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    margin-top: 24px !important;
+    gap: 12px !important;
+}
+
+/* Progress text - 진행도 표시 */
+.driver-popover-progress-text {
+    color: #9ca3af !important;
+    font-size: 14px !important;
+    font-weight: 600 !important;
+}
+
+/* 버튼 공통 스타일 - 크고 클릭하기 쉽게 */
+.driver-popover-next-btn,
+.driver-popover-prev-btn,
+.driver-popover-close-btn {
+    border: none !important;
+    border-radius: 8px !important;
+    font-size: 15px !important;
+    font-weight: 400 !important;
+    cursor: pointer !important;
+    transition: all 0.2s ease !important;
+    padding: 12px 24px !important;
+}
+
+/* 다음 버튼 - 눈에 확 띄게 */
+.driver-popover-next-btn {
+    background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%) !important;
+    color: white !important;
+    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4) !important;
+    min-width: 100px !important;
+}
+
+.driver-popover-next-btn:hover {
+    background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%) !important;
+    box-shadow: 0 6px 16px rgba(59, 130, 246, 0.6) !important;
+    transform: translateY(-1px) !important;
+}
+
+.driver-popover-next-btn:active {
+    transform: translateY(0) !important;
+}
+
+/* 이전 버튼 */
+.driver-popover-prev-btn {
+    background-color: rgba(255, 255, 255, 0.05) !important;
+    color: #d1d5db !important;
+    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+}
+
+.driver-popover-prev-btn:hover {
+    background-color: rgba(255, 255, 255, 0.1) !important;
+    color: #f3f4f6 !important;
+    border-color: rgba(255, 255, 255, 0.2) !important;
+}
+
+/* 닫기 버튼 - 오른쪽 위 */
+.driver-popover-close-btn {
+    color: #9ca3af !important;
+    position: absolute !important;
+    top: 12px !important;
+    right: 12px !important;
+    padding: 8px !important;
+    font-size: 24px !important;
+    background-color: rgba(255, 255, 255, 0.05) !important;
+    border-radius: 6px !important;
+    width: 36px !important;
+    height: 36px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    pointer-events: auto !important;
+    cursor: pointer !important;
+    z-index: 10001 !important;
+}
+
+.driver-popover-close-btn:hover {
+    color: #ffffff !important;
+    background-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+/* Overlay - 배경 밝게! */
+.driver-overlay {
+    background-color: rgba(0, 0, 0, 0.2) !important;
+}
+
+/* Highlighted element - 엄청 밝게 빛나게! */
+.driver-active-element {
+    outline: 4px solid #60a5fa !important;
+    outline-offset: 8px !important;
+    border-radius: 8px !important;
+    box-shadow: 0 0 0 4px rgba(96, 165, 250, 0.3),
+        0 0 40px rgba(96, 165, 250, 0.8),
+        0 0 80px rgba(96, 165, 250, 0.4) !important;
+    filter: brightness(1.2) !important;
+}
+
+/* 팝오버 화살표 */
+.driver-popover-arrow-side-left,
+.driver-popover-arrow-side-right,
+.driver-popover-arrow-side-top,
+.driver-popover-arrow-side-bottom {
+    border-color: #1f2937 !important;
+}
+
+/* 애니메이션 */
+.driver-popover {
+    animation: fadeInScale 0.3s ease-out !important;
+}
+
+@keyframes fadeInScale {
+    from {
+        opacity: 0;
+        transform: scale(0.95);
+    }
+
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}

@@ -1,0 +1,30 @@
+services:
+  backend:
+    image: p6ix-cpe:v1.0
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      - PORT=8000
+    volumes:
+      - django-static:/var/www/static
+      - frontend-dist:/shared/frontend
+    expose:
+      - "8000"
+
+  nginx:
+    image: p6ix-cpe-nginx:v1.0
+    build:
+      context: .
+      dockerfile: deploy/Dockerfile.nginx
+    depends_on:
+      - backend
+    ports:
+      - "80:80"
+    volumes:
+      - django-static:/var/www/static:ro
+      - frontend-dist:/usr/share/nginx/html:ro
+
+volumes:
+  django-static:
+  frontend-dist:

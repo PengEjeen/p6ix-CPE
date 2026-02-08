@@ -10,6 +10,8 @@ import { getWeatherStations } from "../api/operatio/weather";
 import PageHeader from "../components/cpe/PageHeader";
 import SaveButton from "../components/cpe/SaveButton";
 import { useConfirm } from "../contexts/ConfirmContext";
+import { useTutorial } from "../hooks/useTutorial";
+import { operatingRateSteps } from "../config/tutorialSteps";
 
 export default function OperatingRate() {
   const { id: projectId } = useParams();
@@ -23,6 +25,9 @@ export default function OperatingRate() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const { alert } = useConfirm();
+
+  // Tutorial
+  useTutorial('operatingRate', operatingRateSteps);
 
   // 지역 목록 로드
   useEffect(() => {
@@ -78,8 +83,6 @@ export default function OperatingRate() {
             dust_alert_level: "NONE",
             sector_type: "PRIVATE",
             working_days: 0,
-            climate_days_excl_dup: 0,
-            legal_holidays: 0,
             climate_days_excl_dup: 0,
             legal_holidays: 0,
             operating_rate: 0,
@@ -205,7 +208,7 @@ export default function OperatingRate() {
       <PageHeader title="가동률 입력" description="대공종별 가동률 및 기후 조건 입력" />
 
       {/* Header Controls */}
-      <div className="flex items-center gap-4 bg-[#20202a] p-4 rounded-xl border border-white/10 shadow-2xl">
+      <div data-tutorial="rate-settings" className="flex items-center gap-4 bg-[#20202a] p-4 rounded-xl border border-white/10 shadow-2xl">
         {/* 지역 */}
         <div>
           <label className="text-sm text-gray-400 mr-2">지역</label>
@@ -247,7 +250,7 @@ export default function OperatingRate() {
       </div>
 
       {/* Data Table */}
-      <div className="bg-[#20202a] border border-white/10 rounded-xl p-5 shadow-2xl">
+      <div data-tutorial="rate-table" className="bg-[#20202a] border border-white/10 rounded-xl p-5 shadow-2xl">
         <div className="overflow-x-auto rounded-lg border border-white/5">
           <table className="w-full text-sm">
             <thead>

@@ -1,14 +1,14 @@
 import axios from "axios";
 
 // 개발 환경에서는 localhost:8000/api 사용, 배포 환경에서는 .env 설정 사용
-const isDev = window.location.hostname === "localhost" && window.location.port === "3000";
+const isDev = import.meta.env.DEV;
 const baseURL = isDev
   ? "http://localhost:8000/api"
-  : (process.env.REACT_APP_API_BASE || "/api");
+  : (import.meta.env.VITE_API_BASE || "/api");
 
-// ▶ 테스트서버에서 계속 로그인 유지하고 싶으면 .env에 REACT_APP_PERSIST_LOGIN=true
+// ▶ 테스트서버에서 계속 로그인 유지하고 싶으면 .env에 VITE_PERSIST_LOGIN=true
 const PERSIST_LOGIN =
-  String(process.env.REACT_APP_PERSIST_LOGIN).toLowerCase() === "true";
+  String(import.meta.env.VITE_PERSIST_LOGIN).toLowerCase() === "true";
 
 const api = axios.create({
   baseURL: baseURL.endsWith("/") ? baseURL : `${baseURL}/`,

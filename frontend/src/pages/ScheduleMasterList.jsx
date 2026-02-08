@@ -21,8 +21,11 @@ import { useConfirm } from "../contexts/ConfirmContext";
 import { useAIScheduleOptimizer } from "../hooks/useAIScheduleOptimizer";
 import { useScheduleData } from "../hooks/useScheduleData";
 import { useDragHandlers } from "../hooks/useDragHandlers";
+import { useTutorial } from "../hooks/useTutorial";
 import { calculateTotalCalendarDays, calculateTotalCalendarMonths } from "../utils/scheduleCalculations";
+import { calculateGanttItems } from "../components/cpe/ganttUtils";
 import { fetchProductivities } from "../api/cpe_all/productivity";
+import { scheduleMasterListSteps } from "../config/tutorialSteps";
 
 export default function ScheduleMasterList() {
     const { id: projectId } = useParams();
@@ -33,6 +36,7 @@ export default function ScheduleMasterList() {
     const links = useScheduleStore((state) => state.links);
     const subTasks = useScheduleStore((state) => state.subTasks);
     const workDayType = useScheduleStore((state) => state.workDayType);
+    const ganttDateScale = useScheduleStore((state) => state.ganttDateScale);
 
     // Actions
     const setStoreItems = useScheduleStore((state) => state.setItems);
@@ -123,6 +127,9 @@ export default function ScheduleMasterList() {
 
     const { activeId, handleDragStart, handleDragEnd } = useDragHandlers(items, reorderItems);
 
+    // Tutorial Hook - driver.js handles everything automatically
+    useTutorial('scheduleMasterList', scheduleMasterListSteps);
+
     // Calculated Values
     const totalCalendarDays = useMemo(() => calculateTotalCalendarDays(items), [items]);
     const totalCalendarMonths = useMemo(() => calculateTotalCalendarMonths(totalCalendarDays), [totalCalendarDays]);
@@ -150,7 +157,7 @@ export default function ScheduleMasterList() {
 
     const handleExportExcel = useCallback(async () => {
         try {
-            const response = await exportScheduleExcel(projectId);
+            const response = await exportScheduleExcel(projectId, { dateScale: ganttDateScale });
             const blob = new Blob([response.data], {
                 type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             });
@@ -167,7 +174,7 @@ export default function ScheduleMasterList() {
             console.error("엑셀 내보내기 실패:", error);
             toast.error("엑셀 내보내기 실패");
         }
-    }, [projectId, projectName]);
+    }, [projectId, projectName, ganttDateScale, aiDisplayItems, items]);
 
     // Dnd Sensors
     const sensors = useSensors(
@@ -263,13 +270,14 @@ export default function ScheduleMasterList() {
         }
     };
 
-    const handleCreateSubtask = useCallback((itemId, startDay, durationDays) => {
+    const handleCreateSubtask = useCallback((itemId, startDay, durationDays, extraProps = {}) => {
         addSubTask({
             id: `sub-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
             itemId,
             startDay,
             durationDays,
-            label: "부공종"
+            label: "부공종",
+            ...extraProps
         });
     }, [addSubTask]);
 
@@ -513,7 +521,9 @@ export default function ScheduleMasterList() {
     const activeItem = activeId ? items.find(i => i.id === activeId) : null;
     const renderTableView = ({ forPrint = false } = {}) => (
         <div
-            className={`scroll-container flex-1 min-h-0 overflow-auto rounded-xl border border-gray-700 shadow-xl bg-[#2c2c3a] relative ${isScrolling ? 'scrolling' : ''} ${forPrint ? 'print-table' : ''}`}
+            data-tutorial="schedule-table"
+            className={`scroll-container w-full overflow-auto rounded-xl border border-gray-700 shadow-xl bg-[#2c2c3a] relative ${isScrolling ? 'scrolling' : ''} ${forPrint ? 'print-table' : ''}`}
+            style={{ height: '100%' }}
             onScroll={forPrint ? undefined : handleScroll}
         >
             <DndContext
@@ -525,19 +535,19 @@ export default function ScheduleMasterList() {
                 <table className="w-full text-m box-border table-fixed border-collapse bg-[#2c2c3a] rounded-lg text-gray-200">
                     <colgroup>
                         <col width="30" />
-                        <col width="120" />
                         <col width="140" />
-                        <col width="240" />
+                        <col width="300" />
                         <col width="140" />
                         <col width="60" />
                         <col width="90" />
-                        <col width="90" />
-                        <col width="60" />
+                        <col width="100" />
+                        <col width="70" />
                         <col width="100" />
                         <col width="80" />
+                        <col width="100" />
                         <col width="90" />
-                        <col width="80" />
-                        <col width="800" />
+                        <col width="200" />
+                        <col width="600" />
                         <col width="60" />
 
                     </colgroup>
@@ -545,7 +555,6 @@ export default function ScheduleMasterList() {
                         <tr className="bg-[#2c2c3a] text-gray-300 font-medium sticky top-0 z-[2] shadow-sm border-b border-gray-700">
                             <th className="sticky top-0 bg-[#2c2c3a] border-r border-gray-700 px-1 z-10"></th>
                             <th className="sticky top-0 bg-[#2c2c3a] border-r border-gray-700 px-2 py-2 z-10">구분</th>
-                            <th className="sticky top-0 bg-[#2c2c3a] border-r border-gray-700 px-2 py-2 z-10">공정</th>
                             <th className="sticky top-0 bg-[#2c2c3a] border-r border-gray-700 px-2 py-2 z-10">공종</th>
                             <th className="sticky top-0 bg-[#2c2c3a] border-r border-gray-700 px-2 py-2 z-10">수량산출(개산)</th>
                             <th className="sticky top-0 bg-[#2c2c3a] border-r border-gray-700 px-2 py-2 z-10">단위</th>
@@ -554,10 +563,13 @@ export default function ScheduleMasterList() {
                             <th className="sticky top-0 bg-[#2c2c3a] border-r border-gray-700 px-2 py-2 z-10">투입조</th>
                             <th className="sticky top-0 bg-[#2c2c3a] border-r border-gray-700 px-2 py-2 z-10">생산량/일</th>
                             <th className="sticky top-0 bg-[#2c2c3a] border-r border-gray-700 px-2 py-2 z-10">반영율</th>
-                            {/* <th className="sticky top-0 bg-[#2c2c3a] border-r border-gray-700 px-2 py-2 text-blue-300 z-10">작업기간(W.D)</th> */}
+                            <th className="sticky top-0 bg-[#2c2c3a] border-r border-gray-700 px-2 py-2 z-10">작업기간 W/D</th>
                             <th className="sticky top-0 bg-[#2c2c3a] border-r border-gray-700 px-2 py-2 z-10">가동률</th>
-                            <th className="sticky top-0 bg-blue-900/40 border-r border-gray-700 px-2 py-2 text-blue-200 font-bold z-10">Calender Day</th>
                             <th className="sticky top-0 bg-[#2c2c3a] border-r border-gray-700 px-2 py-2 z-10">비고</th>
+                            <th className="sticky top-0 bg-[#2c2c3a] border-r border-gray-700 px-2 py-2 z-10">병행여부</th>
+                            <th className="sticky top-0 bg-blue-900/40 border-r border-gray-700 px-2 py-2 text-blue-200 font-bold z-10" data-tutorial="calendar-day">Calender Day</th>
+                            <th className="sticky top-0 bg-[#2c2c3a] border-r border-gray-700 px-2 py-2 z-10">비고</th>
+                            <th className="sticky top-0 bg-[#2c2c3a] border-r border-gray-700 px-2 py-2 z-10">병행여부</th>
                             <th className="sticky top-0 bg-[#2c2c3a] border-r border-gray-700 px-2 py-2 z-10"></th>
                         </tr>
                     </thead>
@@ -574,7 +586,7 @@ export default function ScheduleMasterList() {
                                 return [
                                     (
                                         <tr key="add-main-category" className={`bg-[#232332] ${forPrint ? "no-print" : ""}`}>
-                                            <td colSpan="16" className="px-4 py-3">
+                                            <td colSpan="17" className="px-4 py-3">
                                                 <div className="flex flex-wrap items-center gap-3">
                                                     <div className="text-sm font-semibold text-gray-200">대공종 추가</div>
                                                     <input
@@ -598,7 +610,7 @@ export default function ScheduleMasterList() {
                                     ...Object.entries(groupedItems).map(([category, categoryItems]) => (
                                         <React.Fragment key={category}>
                                             <tr className="bg-gradient-to-r from-[#2c2c3a] to-[#242433] border-t border-gray-700">
-                                                <td colSpan="16" className="px-4 py-2.5">
+                                                <td colSpan="17" className="px-4 py-2.5">
                                                     <div className="flex items-center justify-between gap-2">
                                                         <div className="flex items-center gap-2">
                                                             <div className="w-1 h-5 bg-blue-400 rounded-full"></div>
@@ -640,7 +652,7 @@ export default function ScheduleMasterList() {
                                                 </td>
                                             </tr>
                                             <TableToolbarRow
-                                                colSpan={16}
+                                                colSpan={17}
                                                 className={forPrint ? "no-print" : ""}
                                                 onImport={() => {
                                                     const lastCategoryItem = categoryItems[categoryItems.length - 1] || items[0];
@@ -739,8 +751,9 @@ export default function ScheduleMasterList() {
     );
 
     return (
-        <>
-            <div className="p-6 h-screen flex flex-col max-w-[2400px] mx-auto text-gray-200 overflow-hidden">
+        <div className="h-screen w-full flex flex-col bg-[#1f1f2b] overflow-hidden text-gray-200">
+            {/* Header Section (Fixed) */}
+            <div className="flex-none w-full max-w-[2400px] mx-auto p-6 pb-2">
                 <ScheduleHeader
                     viewMode={viewMode}
                     onViewModeChange={setViewMode}
@@ -769,8 +782,13 @@ export default function ScheduleMasterList() {
                     onAiCancel={handleAiCancel}
                     onExportExcel={handleExportExcel}
                 />
+            </div>
 
-                {/* Content Area - Table or Gantt */}
+            {/* Content Section (Fills remaining height) */}
+            <div
+                className="flex-1 min-h-0 w-full max-w-[2400px] mx-auto p-6 pt-2 overflow-hidden flex flex-col"
+                style={{ zoom: viewMode === "table" ? 0.85 : 1 }}
+            >
                 {viewMode === "gantt" ? (
                     <ScheduleGanttPanel
                         items={aiDisplayItems}
@@ -795,17 +813,27 @@ export default function ScheduleMasterList() {
                 ) : (
                     renderTableView()
                 )}
+            </div>
 
+            {/* --- Modals --- */}
+            {importModalOpen && (
                 <StandardImportModal
                     isOpen={importModalOpen}
                     onClose={() => setImportModalOpen(false)}
                     onSelect={handleImportSelect}
                     project_id={projectId}
                 />
+            )}
 
+            {evidenceModalOpen && (
                 <EvidenceResultModal
                     isOpen={evidenceModalOpen}
-                    onClose={() => setEvidenceModalOpen(false)}
+                    onClose={() => {
+                        setEvidenceModalOpen(false);
+                        setEvidenceTargetParent(null);
+                    }}
+                    onAdd={handleAddEvidenceItem}
+                    targetItem={evidenceTargetParent}
                     cipResults={cipResult.map((row) => ({
                         ...row,
                         key: `cip-${row.id}`,
@@ -824,15 +852,22 @@ export default function ScheduleMasterList() {
                     cipStandards={cipStandards}
                     pileStandards={pileStandards}
                     boredStandards={boredStandards}
-                    onAddItem={handleAddEvidenceItem}
                 />
+            )}
 
+            {snapshotModalOpen && (
                 <SnapshotManager
+                    projectId={projectId}
+                    currentItems={items}
                     isOpen={snapshotModalOpen}
                     onClose={() => setSnapshotModalOpen(false)}
+                    onLoadSnapshot={(snapItems) => {
+                        setStoreItems(snapItems);
+                        toast.success("스냅샷 로드 완료");
+                        setSnapshotModalOpen(false);
+                    }}
                 />
-            </div>
-
-        </>
+            )}
+        </div>
     );
 }

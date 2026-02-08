@@ -63,9 +63,10 @@ export const saveScheduleData = async (containerId, payload) => {
     }
 };
 
-export const exportScheduleExcel = async (projectId) => {
+export const exportScheduleExcel = async (projectId, options = {}) => {
+    const { dateScale } = options;
     return api.get("/cpe-all/schedule-item/export-excel/", {
-        params: { project_id: projectId },
+        params: { project_id: projectId, date_scale: dateScale },
         responseType: "blob"
     });
 };

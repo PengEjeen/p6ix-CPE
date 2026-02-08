@@ -26,6 +26,7 @@ const SmartGanttBar = ({
     aiPreview,
     aiActive,
     greySegments = [],
+    getBarSnapCandidate,
     dataChartRow
 }) => {
     const [isResizing, setIsResizing] = useState(false);
@@ -62,7 +63,28 @@ const SmartGanttBar = ({
             if (Math.abs(deltaX) > 2) setHasMoved(true); // movement threshold
 
             const newLeftPx = Math.max(0, startLeftPx + deltaX);
-            const newStartDay = (newLeftPx / pixelsPerUnit) * dateScale;
+            let newStartDay = (newLeftPx / pixelsPerUnit) * dateScale;
+
+            // Apply vertical snap if function is provided
+            if (getBarSnapCandidate) {
+                const startSnap = getBarSnapCandidate(newStartDay, item.id);
+                const endSnap = getBarSnapCandidate(newStartDay + durationDays, item.id);
+
+                // Choose the best snap point (start or end, whichever is closer)
+                if (startSnap.within && endSnap.within) {
+                    // Both are within threshold, choose the closer one
+                    if (startSnap.diff < endSnap.diff) {
+                        newStartDay = startSnap.snapped;
+                    } else {
+                        newStartDay = endSnap.snapped - durationDays;
+                    }
+                } else if (startSnap.within) {
+                    newStartDay = startSnap.snapped;
+                } else if (endSnap.within) {
+                    newStartDay = endSnap.snapped - durationDays;
+                }
+            }
+
             setTempStartDay(newStartDay);
             if (onBarDragPreview) onBarDragPreview(item.id, newStartDay);
         };
@@ -96,7 +118,18 @@ const SmartGanttBar = ({
         const handleMouseMove = (moveEvent) => {
             const deltaX = moveEvent.clientX - startX;
             const newWidthPx = Math.max(20, startWidth + deltaX);
-            const newDuration = Math.max(1, Math.round((newWidthPx / pixelsPerUnit) * dateScale));
+            let newDuration = Math.max(1, Math.round((newWidthPx / pixelsPerUnit) * dateScale));
+
+            // Apply vertical snap for resize end position
+            if (getBarSnapCandidate) {
+                const endDay = startDay + newDuration;
+                const endSnap = getBarSnapCandidate(endDay, item.id);
+
+                if (endSnap.within) {
+                    newDuration = Math.max(1, endSnap.snapped - startDay);
+                }
+            }
+
             setTempDuration(newDuration);
             tempDurationRef.current = newDuration;
             if (onResizing) {
@@ -164,8 +197,19 @@ const SmartGanttBar = ({
                     const taskStart = startDay;
                     const taskEnd = startDay + durationDays;
                     const redStart = Math.max(taskStart, Math.min(taskEnd, redStartDay));
-                    const redEnd = Math.max(redStart, Math.min(taskEnd, redEndDay));
+                    let redEnd = Math.max(redStart, Math.min(taskEnd, redEndDay));
                     const total = Math.max(0.1, durationDays);
+
+                    // Enforce minimum visual width for Red Segment
+                    const MIN_CP_WIDTH_PX = 12;
+                    const currentPx = (redEnd - redStart) * (pixelsPerUnit / dateScale);
+
+                    // Only extend if it's a valid CP segment (positive length) but too small
+                    if (redEnd > redStart && currentPx < MIN_CP_WIDTH_PX) {
+                        const addedDays = (MIN_CP_WIDTH_PX - currentPx) / (pixelsPerUnit / dateScale);
+                        // Note: This might visually extend beyond taskEnd, but ensures visibility
+                        redEnd += addedDays;
+                    }
 
                     const overlaps = (greySegments || [])
                         .map((seg) => ({
@@ -193,6 +237,16 @@ const SmartGanttBar = ({
                             const inGrey = overlaps.some((seg) => mid >= seg.start && mid < seg.end);
                             color = inGrey ? "bg-slate-400" : "bg-red-600";
                         }
+
+                        // Use effective total for width calc since we might have extended redEnd
+                        // If redEnd > taskEnd, we need to treat total relative to the extended range?
+                        // Actually, just standard percentage on the bar container might be tricky if we flow out.
+                        // SmartGanttBar container width is fixed based on duration.
+                        // If we want to show extended red, we might need overflow-visible or absolute positioning.
+                        // BUT, to keep it simple, we just calculate % of the current bar width 'total'.
+                        // If redEnd > taskEnd, widthPct > 100%? No, the mapped 'b' is capped by redEnd.
+                        // We need to handle the case where redEnd > taskEnd visually.
+
                         const widthPct = ((b - a) / total) * 100;
                         if (widthPct > 0) segments.push({ color, widthPct });
                     }
@@ -231,7 +285,7 @@ const SmartGanttBar = ({
                 </motion.div>
             </div>
 
-                {linkMode && (
+            {linkMode && (
                 <>
                     <button
                         type="button"

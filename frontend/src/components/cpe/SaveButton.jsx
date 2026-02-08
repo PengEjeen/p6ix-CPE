@@ -1,6 +1,6 @@
 import React, { useEffect } from "react";
 
-export default function SaveButton({ onSave, saving }) {
+export default function SaveButton({ onSave, saving, ...props }) {
   // Ctrl + S 저장 핸들링
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -15,13 +15,13 @@ export default function SaveButton({ onSave, saving }) {
 
   return (
     <button
+      {...props}
       onClick={onSave}
       disabled={saving}
-      className={`px-4 py-2 text-sm rounded border transition font-medium ${
-        saving
+      className={`px-4 py-2 text-sm rounded border transition font-medium ${saving
           ? "bg-[#3b3b4f] border-gray-600 text-gray-400 cursor-not-allowed"
           : "bg-[#2c2c3a] hover:bg-[#3b3b4f] border-gray-600 text-gray-100 hover:text-white hover:border-gray-500"
-      }`}
+        }`}
     >
       {saving ? "저장 중..." : "저장"}
     </button>

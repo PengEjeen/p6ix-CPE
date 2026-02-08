@@ -76,6 +76,17 @@ const GanttChartArea = ({
     const chartAreaRef = useRef(null);
     const selectionRef = useRef(null);
 
+    const isParallelItem = useCallback((item) => {
+        const remarksText = (item?.remarks || "").trim();
+        return (
+            remarksText === "병행작업"
+            || Boolean(item?._parallelGroup)
+            || Boolean(item?.parallelGroup)
+            || Boolean(item?.parallel_group)
+            || Boolean(item?.is_parallelism)
+        );
+    }, []);
+
     const cpMeta = useMemo(() => {
         const map = new Map();
         itemsWithTiming.forEach((item) => {
@@ -84,11 +95,11 @@ const GanttChartArea = ({
             const redStart = item.startDay + frontParallel;
             const redEnd = (item.startDay + item.durationDays) - backParallel;
             const hasCriticalSegment = redEnd > redStart;
-            const isCp = item.remarks !== '병행작업' && hasCriticalSegment;
+            const isCp = !isParallelItem(item) && hasCriticalSegment;
             map.set(item.id, { redStart, redEnd, isCp });
         });
         return map;
-    }, [itemsWithTiming]);
+    }, [itemsWithTiming, isParallelItem]);
 
     const containedCpMap = useMemo(() => {
         const map = new Map();
@@ -289,6 +300,42 @@ const GanttChartArea = ({
         return { snapped: best, diff: bestDiff, within: bestDiff <= thresholdDays };
     }, [itemsWithTiming, subTasks, pxFactor]);
 
+    // Snap to all task bar start/end positions for vertical alignment
+    const getBarSnapCandidate = useCallback((day, excludeItemId = null) => {
+        const snapThresholdPx = 14; // 14px threshold for snapping
+        const thresholdDays = snapThresholdPx / pxFactor;
+        const candidates = [];
+
+        // Collect all task bar start and end positions
+        itemsWithTiming.forEach((item) => {
+            if (excludeItemId && item.id === excludeItemId) return;
+            candidates.push(item.startDay);
+            candidates.push(item.startDay + item.durationDays);
+
+            // Also include red segments for more precise alignment
+            const frontParallel = parseFloat(item.front_parallel_days) || 0;
+            const backParallel = parseFloat(item.back_parallel_days) || 0;
+            const redStart = item.startDay + frontParallel;
+            const redEnd = (item.startDay + item.durationDays) - backParallel;
+            if (redEnd > redStart) {
+                candidates.push(redStart);
+                candidates.push(redEnd);
+            }
+        });
+
+        let best = day;
+        let bestDiff = thresholdDays + 1;
+        candidates.forEach((candidate) => {
+            const diff = Math.abs(candidate - day);
+            if (diff <= thresholdDays && diff < bestDiff) {
+                best = candidate;
+                bestDiff = diff;
+            }
+        });
+
+        return { snapped: best, diff: bestDiff, within: bestDiff <= thresholdDays };
+    }, [itemsWithTiming, pxFactor]);
+
     const handleSubtaskDrawStart = useCallback((e) => {
         if (!subtaskMode) return;
         if (e.button !== 0) return;
@@ -409,6 +456,20 @@ const GanttChartArea = ({
                     const load = dailyLoads.get(d.actualDay) || 0;
                     // Heatmap logic
                     let bg = "";
+
+                    // Season Logic
+                    // d.date is expected to be a Date object
+                    if (d.date) {
+                        const month = d.date.getMonth() + 1; // 1-12
+                        const isSummer = [6, 7, 8].includes(month);
+                        const isWinter = [12, 1, 2].includes(month);
+
+                        if (isSummer || isWinter) {
+                            bg = "bg-yellow-100/20"; // Very pale yellow
+                        }
+                    }
+
+                    // Overwrite with Heatmap if high load (optional priority)
                     if (load > 40) bg = "bg-red-50/50";
                     else if (load > 20) bg = "bg-amber-50/30";
 
@@ -574,6 +635,7 @@ const GanttChartArea = ({
                                 start: entry.meta.redStart,
                                 end: entry.meta.redEnd
                             }))}
+                            getBarSnapCandidate={getBarSnapCandidate}
                             dataChartRow
                         />
                     );
