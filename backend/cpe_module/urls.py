@@ -1,5 +1,5 @@
 from django.urls import path
-from .views import operating_rate, project, criteria, calc, quotation, schedule_ai
+from .views import operating_rate, project, criteria, calc, quotation, schedule_ai, kg, vision
 
 app_name = 'cpe_module'
 
@@ -57,6 +57,18 @@ urlpatterns = [
     path("quotation/<str:project_id>/ai_update/", quotation.update_ai_quotation),
 
     # schedule ai
-    path("schedule-ai/summary/", schedule_ai.summarize_schedule_ai_log)
+    path("schedule-ai/summary/", schedule_ai.summarize_schedule_ai_log),
+
+    # knowledge graph (Neo4j)
+    path("kg/search/", kg.kg_search, name="kg_search"),
+    path("kg/answer/", kg.kg_answer, name="kg_answer"),
+    path("kg/card/", kg.kg_card, name="kg_card"),
+    path("kg/enrich-schedule/", kg.kg_enrich_schedule, name="kg_enrich_schedule"),
+    path("kg/enrich-schedule/jobs/<str:job_id>/", kg.kg_enrich_schedule_job, name="kg_enrich_schedule_job"),
+    path("kg/evidence-pack/", kg.kg_evidence_pack, name="kg_evidence_pack"),
+    path("kg/duration-agent/", kg.kg_duration_agent, name="kg_duration_agent"),
+
+    # multimodal safety check
+    path("vision/safety/", vision.safety_check, name="vision_safety"),
 
     ]

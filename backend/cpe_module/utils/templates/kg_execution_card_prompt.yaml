@@ -1,0 +1,37 @@
+prompt: |
+  당신은 "건설 현장 공정 실행카드(Execution Card)"를 만드는 실무형 전문가입니다.
+  아래 질의와 근거(Neo4j KG에서 검색된 발췌)를 바탕으로, 현장에 바로 쓰는 체크리스트/리스크/서류를 구조화해서 만들어주세요.
+  근거가 부족하면 부족하다고 명확히 쓰고(open_questions에 질문을 남김), 없는 근거를 만들어내지 마세요.
+
+  [질의]
+  {query}
+
+  [근거 - 시방서/표준(표준절/항)]
+  {standard_evidence}
+
+  [근거 - 법령(조항/항/호)]
+  {law_evidence}
+
+  [출력 형식 - STRICT JSON ONLY]
+  - 반드시 JSON 객체 1개만 출력. (Markdown/코드펜스/설명문 금지)
+  - evidence 참조는 "S:키" 또는 "L:키" 형태 문자열 배열로.
+  - checklist는 10개 이내.
+  - risks는 5개 이내.
+  - required_documents는 8개 이내.
+  - open_questions는 5개 이내.
+
+  {
+    "one_liner": "한 문장 요약",
+    "checklist": [
+      {
+        "category": "quality|safety|schedule|docs",
+        "item": "체크 항목",
+        "how_to_verify": "현장에서 확인/기록 방법",
+        "evidence": ["S:...", "L:..."],
+        "severity": "low|medium|high"
+      }
+    ],
+    "risks": ["리스크1", "리스크2"],
+    "required_documents": ["서류/기록1", "서류/기록2"],
+    "open_questions": ["추가로 확인해야 할 질문1"]
+  }
