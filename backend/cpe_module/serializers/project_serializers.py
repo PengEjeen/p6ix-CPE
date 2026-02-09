@@ -1,4 +1,5 @@
 from rest_framework import serializers
+from datetime import date
 from django.db import transaction
 from ..models.project_models import Project
 from ..models.calc_models import *
@@ -28,6 +29,10 @@ class ProjectSerializer(serializers.ModelSerializer):
 
     @transaction.atomic
     def create(self, validated_data):
+        # start_date 기본값 설정 (오늘)
+        if not validated_data.get('start_date'):
+            validated_data['start_date'] = date.today()
+
         user = self.context["request"].user
         project = Project.objects.create(user=user, **validated_data)
 
@@ -40,13 +45,131 @@ class ProjectSerializer(serializers.ModelSerializer):
             FrameWorkInput.objects.create(project=project)
 
             # 가동률 관련 (operating_rate_models)
-            WorkScheduleWeight.objects.bulk_create([
-                WorkScheduleWeight(project=project, type="EARTH"),
-                WorkScheduleWeight(project=project, type="FRAME"),
-                WorkScheduleWeight(project=project, type="EXT_FIN"),
-                WorkScheduleWeight(project=project, type="INT_FIN"),
-                WorkScheduleWeight(project=project, type="POUR"),
+            weights = WorkScheduleWeight.objects.bulk_create([
+                WorkScheduleWeight(
+                    project=project, 
+                    type="EARTH",
+                    main_category="토공사",
+                    winter_threshold="평균 -5℃ 이하",
+                    winter_threshold_value=-5,
+                    winter_threshold_enabled=True,
+                    summer_threshold="35℃ 이상",
+                    summer_threshold_value=35,
+                    summer_threshold_enabled=True,
+                    rainfall_threshold="10mm 이상",
+                    rainfall_threshold_value=10,
+                    rainfall_threshold_enabled=True,
+                    snowfall_threshold="1cm 이상",
+                    snowfall_threshold_value=1,
+                    snowfall_threshold_enabled=True,
+                    wind_threshold="15m/s 이상",
+                    visibility_threshold="미적용",
+                    dust_alert_level="ALERT",
+                    sector_type="PRIVATE",
+                    work_week_days=6,
+                    winter_criteria="AVG"
+                ),
+                WorkScheduleWeight(
+                    project=project, 
+                    type="FRAME",
+                    main_category="골조공사",
+                    winter_threshold="평균 -5℃ 이하",
+                    winter_threshold_value=-5,
+                    winter_threshold_enabled=True,
+                    summer_threshold="35℃ 이상",
+                    summer_threshold_value=35,
+                    summer_threshold_enabled=True,
+                    rainfall_threshold="10mm 이상",
+                    rainfall_threshold_value=10,
+                    rainfall_threshold_enabled=True,
+                    snowfall_threshold="1cm 이상",
+                    snowfall_threshold_value=1,
+                    snowfall_threshold_enabled=True,
+                    wind_threshold="15m/s 이상",
+                    visibility_threshold="미적용",
+                    dust_alert_level="ALERT",
+                    sector_type="PRIVATE",
+                    work_week_days=6,
+                    winter_criteria="AVG"
+                ),
+                WorkScheduleWeight(
+                    project=project, 
+                    type="EXT_FIN",
+                    main_category="외부 마감공사",
+                    winter_threshold="평균 -5℃ 이하",
+                    winter_threshold_value=-5,
+                    winter_threshold_enabled=True,
+                    summer_threshold="35℃ 이상",
+                    summer_threshold_value=35,
+                    summer_threshold_enabled=True,
+                    rainfall_threshold="10mm 이상",
+                    rainfall_threshold_value=10,
+                    rainfall_threshold_enabled=True,
+                    snowfall_threshold="1cm 이상",
+                    snowfall_threshold_value=1,
+                    snowfall_threshold_enabled=True,
+                    wind_threshold="15m/s 이상",
+                    visibility_threshold="미적용",
+                    dust_alert_level="ALERT",
+                    sector_type="PRIVATE",
+                    work_week_days=6,
+                    winter_criteria="AVG"
+                ),
+                WorkScheduleWeight(
+                    project=project, 
+                    type="INT_FIN",
+                    main_category="내부 마감공사",
+                    winter_threshold="평균 -5℃ 이하",
+                    winter_threshold_value=-5,
+                    winter_threshold_enabled=True,
+                    summer_threshold="35℃ 이상",
+                    summer_threshold_value=35,
+                    summer_threshold_enabled=True,
+                    rainfall_threshold="10mm 이상",
+                    rainfall_threshold_value=10,
+                    rainfall_threshold_enabled=True,
+                    snowfall_threshold="1cm 이상",
+                    snowfall_threshold_value=1,
+                    snowfall_threshold_enabled=True,
+                    wind_threshold="15m/s 이상",
+                    visibility_threshold="미적용",
+                    dust_alert_level="ALERT",
+                    sector_type="PRIVATE",
+                    work_week_days=6,
+                    winter_criteria="AVG"
+                ),
+                WorkScheduleWeight(
+                    project=project, 
+                    type="POUR",
+                    main_category="골조 타설",
+                    winter_threshold="평균 -5℃ 이하",
+                    winter_threshold_value=-5,
+                    winter_threshold_enabled=True,
+                    summer_threshold="35℃ 이상",
+                    summer_threshold_value=35,
+                    summer_threshold_enabled=True,
+                    rainfall_threshold="10mm 이상",
+                    rainfall_threshold_value=10,
+                    rainfall_threshold_enabled=True,
+                    snowfall_threshold="1cm 이상",
+                    snowfall_threshold_value=1,
+                    snowfall_threshold_enabled=True,
+                    wind_threshold="15m/s 이상",
+                    visibility_threshold="미적용",
+                    dust_alert_level="ALERT",
+                    sector_type="PRIVATE",
+                    work_week_days=6,
+                    winter_criteria="AVG"
+                ),
             ])
+            
+            from ..views.operating_rate import calculate_operating_rates
+            default_settings = {
+                "region": "서울", 
+                "dataYears": 10,
+                "workWeekDays": 6
+            }
+            calculate_operating_rates(project.id, weights, default_settings)
 
             # 적용기준 관련 (criteria_models)
             # admin의 기준데이터(is_admin=True) 복제
@@ -94,6 +217,15 @@ class ProjectSerializer(serializers.ModelSerializer):
             Quotation.objects.create(project=project)
 
         elif project.calc_type == "TOTAL":
+            # 공기산정 관련 (calc_models) - TOTAL도 WorkCondition 필요
+            WorkCondition.objects.create(
+                project=project,
+                earthwork_type="6",     # 기본값: 6일
+                framework_type="6",     # 기본값: 6일
+                region="서울",          # 기본값: 서울
+                data_years=10,          # 기본값: 10년
+            )
+
             # cpe_all_module 모델 초기화
             from cpe_all_module.models.construction_productivity_models import ConstructionProductivity
             

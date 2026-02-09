@@ -321,7 +321,8 @@ function Projects() {
                 onChange={(e) => setCalcType(e.target.value)}
                 className="w-full bg-[#1e1e2f] border border-gray-600 rounded-lg px-4 py-3 text-base text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
-                {/* <option value="APARTMENT">공기 계산</option> */}
+                {/* 이거 뺐을때 왜 오류나는지 분석 */}
+                <option value="APARTMENT">공기 계산</option>
                 <option value="TOTAL">전체 공기산정</option>
               </select>
               <textarea
