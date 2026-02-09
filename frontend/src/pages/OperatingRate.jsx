@@ -12,6 +12,7 @@ import SaveButton from "../components/cpe/SaveButton";
 import { useConfirm } from "../contexts/ConfirmContext";
 import { useTutorial } from "../hooks/useTutorial";
 import { operatingRateSteps } from "../config/tutorialSteps";
+import Combobox from "../components/common/Combobox";
 
 export default function OperatingRate() {
   const { id: projectId } = useParams();
@@ -210,28 +211,26 @@ export default function OperatingRate() {
       {/* Header Controls */}
       <div data-tutorial="rate-settings" className="flex items-center gap-4 bg-[#20202a] p-4 rounded-xl border border-white/10 shadow-2xl">
         {/* 지역 */}
-        <div>
+        {/* 지역 */}
+        <div className="flex items-center">
           <label className="text-sm text-gray-400 mr-2">지역</label>
-          <select
-            value={globalSettings.region}
-            onChange={(e) => setGlobalSettings({ ...globalSettings, region: e.target.value })}
-            className="bg-[#181825] border border-gray-700 rounded px-3 py-1.5 text-sm text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500/50"
-          >
-            {regions.map((r) => (
-              <option key={r.station_id} value={r.name}>
-                {r.name}
-              </option>
-            ))}
-          </select>
+          <div className="w-[180px]">
+            <Combobox
+              options={regions.map((r) => ({ value: r.name, label: r.name }))}
+              value={globalSettings.region}
+              onChange={(val) => setGlobalSettings({ ...globalSettings, region: val })}
+              placeholder="지역 선택"
+            />
+          </div>
         </div>
 
         {/* 데이터 적용 */}
-        <div>
+        <div className="flex items-center">
           <label className="text-sm text-gray-400 mr-2">데이터 적용</label>
           <select
             value={globalSettings.dataYears}
             onChange={(e) => setGlobalSettings({ ...globalSettings, dataYears: e.target.value })}
-            className="bg-[#1f1f2b] border border-gray-600 rounded px-3 py-1.5 text-sm text-gray-200"
+            className="bg-[#1f1f2b] border border-gray-600 rounded px-3 py-1.5 text-sm text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500/50"
           >
             {Array.from({ length: 10 }, (_, i) => i + 1).map((year) => (
               <option key={year} value={`${year}년`}>
