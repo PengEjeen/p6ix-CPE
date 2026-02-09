@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { useParams } from "react-router-dom";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   detailOperatingRate,
   updateOperatingRate,
@@ -13,6 +14,87 @@ import { useConfirm } from "../contexts/ConfirmContext";
 import { useTutorial } from "../hooks/useTutorial";
 import { operatingRateSteps } from "../config/tutorialSteps";
 import Combobox from "../components/common/Combobox";
+import {
+  ChevronDown,
+  Thermometer,
+  CloudRain,
+  Snowflake,
+  Wind,
+  Eye,
+  AlertTriangle,
+  Building2,
+  Calendar,
+  Check,
+  X,
+  Info,
+  MapPin,
+  Clock
+} from "lucide-react";
+
+// --- Enterprise Grid Components ---
+
+const GridToggle = ({ checked, onChange }) => (
+  <button
+    onClick={() => onChange(!checked)}
+    className={`
+      relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent 
+      transition-colors duration-200 ease-in-out focus:outline-none 
+      ${checked ? 'bg-blue-600' : 'bg-gray-600'}
+    `}
+  >
+    <span className="sr-only">Use setting</span>
+    <span
+      className={`
+        ${checked ? 'translate-x-4' : 'translate-x-0'}
+        pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 
+        transition duration-200 ease-in-out
+      `}
+    />
+  </button>
+);
+
+const GridSelect = ({ value, onChange, options, align = "left" }) => (
+  <div className="relative w-full">
+    <select
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      className={`
+        w-full appearance-none bg-[#1a1a20] border border-gray-600 rounded px-2 py-1.5 text-sm text-gray-200 
+        focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/50 
+        hover:border-gray-500 transition-colors cursor-pointer
+        ${align === "right" ? "text-right pr-7" : "pl-2 pr-6"}
+      `}
+    >
+      {options.map((opt) => (
+        <option key={opt.value} value={opt.value} className="bg-[#1a1a20]">
+          {opt.label}
+        </option>
+      ))}
+    </select>
+    <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
+  </div>
+);
+
+const GridInput = ({ value, onChange, placeholder, disabled, unit }) => (
+  <div className={`flex items-center gap-1.5 ${disabled ? 'opacity-40 pointer-events-none' : ''}`}>
+    <input
+      type="number"
+      value={value ?? ""}
+      onChange={(e) => onChange(e.target.value === "" ? null : Number(e.target.value))}
+      disabled={disabled}
+      placeholder={placeholder}
+      className="
+        w-16 bg-[#1a1a20] border border-gray-600 rounded px-2 py-1.5 text-right text-sm text-gray-200 
+        focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/50 
+        placeholder-gray-600 transition-colors
+        [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none
+      "
+    />
+    {unit && <span className="text-xs text-gray-400 select-none">{unit}</span>}
+  </div>
+);
+
+// --- Main Component ---
 
 export default function OperatingRate() {
   const { id: projectId } = useParams();
@@ -30,14 +112,12 @@ export default function OperatingRate() {
   // Tutorial
   useTutorial('operatingRate', operatingRateSteps);
 
-  // 지역 목록 로드
+  // Load Regions
   useEffect(() => {
     const loadRegions = async () => {
       try {
         const data = await getWeatherStations();
         setRegions(data || []);
-        // 기본값은 WorkCondition에서 로드된 후에만 설정하지 않음
-        // WorkCondition의 region이 비어있을 때만 첫 번째 지역을 기본값으로 사용
       } catch (error) {
         console.error("지역 목록 불러오기 실패:", error);
       }
@@ -45,7 +125,7 @@ export default function OperatingRate() {
     loadRegions();
   }, []);
 
-  // 데이터 로드
+  // Load Data
   useEffect(() => {
     const loadData = async () => {
       try {
@@ -94,9 +174,6 @@ export default function OperatingRate() {
         setWorkTypes(merged);
 
         const workCond = workCondData?.data || workCondData;
-        console.log('[DEBUG] workCondData:', workCondData);
-        console.log('[DEBUG] workCond:', workCond);
-        console.log('[DEBUG] workCond.region:', workCond?.region);
         if (workCond) {
           const weekDays = Number(workCond.earthwork_type);
           setGlobalSettings((prev) => ({
@@ -106,11 +183,9 @@ export default function OperatingRate() {
             dataYears: workCond.data_years ? `${workCond.data_years}년` : '10년',
             winterCriteria: workCond.winter_criteria || prev.winterCriteria || 'AVG',
           }));
-          console.log('[DEBUG] setGlobalSettings region:', workCond.region);
         }
       } catch (error) {
         console.error("가동률 불러오기 실패:", error);
-        // 404 오류여도 빈 배열 설정
         setWorkTypes([]);
       } finally {
         setLoading(false);
@@ -119,15 +194,13 @@ export default function OperatingRate() {
     loadData();
   }, [projectId]);
 
-  // region이 비어있고 지역 목록이 로드된 경우 기본값 설정
-  // WorkCondition 로드(loading=false) 후에만 실행
+  // Set default region
   useEffect(() => {
     if (!loading && !globalSettings.region && regions.length > 0) {
       setGlobalSettings(prev => ({ ...prev, region: regions[0].name }));
     }
   }, [regions, globalSettings.region, loading]);
 
-  // 값 변경 핸들러
   const handleCellChange = (workTypeIndex, field, value) => {
     const updated = [...workTypes];
     updated[workTypeIndex][field] = value;
@@ -141,11 +214,9 @@ export default function OperatingRate() {
     setWorkTypes(updated);
   };
 
-  // 저장 함수
   const handleSave = useCallback(async () => {
     try {
       setSaving(true);
-      // 1. 설정값(지역, 공종별 주간작업일) 먼저 저장
       await updateWorkCondition(projectId, {
         earthwork_type: String(globalSettings.workWeekDays),
         framework_type: String(globalSettings.workWeekDays),
@@ -153,7 +224,6 @@ export default function OperatingRate() {
         data_years: parseInt(globalSettings.dataYears),
       });
 
-      // 2. 가동률 업데이트 및 계산
       await updateOperatingRate(projectId, {
         weights: workTypes,
         settings: {
@@ -163,7 +233,6 @@ export default function OperatingRate() {
         },
       });
       await alert("저장되었습니다.");
-      // 저장 후 페이지 새로고침하여 최신 데이터 반영
       window.location.reload();
     } catch (error) {
       console.error("가동률 저장 실패:", error);
@@ -174,224 +243,202 @@ export default function OperatingRate() {
   }, [alert, projectId, workTypes, globalSettings]);
 
   if (loading) {
-    return <p className="p-6 text-gray-400">불러오는 중...</p>;
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <div className="animate-spin rounded-full h-12 w-12 border-4 border-blue-500 border-t-transparent"></div>
+        <span className="ml-3 text-gray-400">데이터 로딩중...</span>
+      </div>
+    );
   }
 
   const climateRows = [
-    { key: "winter_threshold", label: "동절기", type: "threshold", operator: "이하", unit: "℃", valueField: "winter_threshold_value", enabledField: "winter_threshold_enabled", color: "bg-[#20202a]" },
-    { key: "summer_threshold", label: "혹서기", type: "threshold", operator: "이상", unit: "℃", valueField: "summer_threshold_value", enabledField: "summer_threshold_enabled", color: "bg-[#20202a]" },
-    { key: "rainfall_threshold", label: "강우량", type: "threshold", operator: "이상", unit: "mm", valueField: "rainfall_threshold_value", enabledField: "rainfall_threshold_enabled", color: "bg-[#20202a]" },
-    { key: "snowfall_threshold", label: "강설량", type: "threshold", operator: "이상", unit: "cm", valueField: "snowfall_threshold_value", enabledField: "snowfall_threshold_enabled", color: "bg-[#20202a]" },
-    { key: "dust_alert_level", label: "미세먼지", type: "dust", color: "bg-[#20202a]" },
-    { key: "sector_type", label: "공공/민간", type: "sector", color: "bg-[#20202a]" },
-    { key: "work_week_days", label: "주간 작업일", type: "workWeek", color: "bg-[#20202a]" },
-  ];
-
-  const calculationRows = [
-    { key: "working_days", label: "작업일", type: "number", color: "bg-[#20202a]" },
-    { key: "climate_days_excl_dup", label: "기후불능일(중복 제외)", type: "number", color: "bg-[#20202a]" },
-    { key: "legal_holidays", label: "법정공휴일", type: "number", color: "bg-[#20202a]" },
-    { key: "operating_rate", label: "가동률", type: "number", color: "bg-[#20202a]" },
+    { key: "winter_threshold", label: "동절기", icon: Thermometer, type: "threshold", operator: "이하", unit: "℃", valueField: "winter_threshold_value", enabledField: "winter_threshold_enabled" },
+    { key: "summer_threshold", label: "혹서기", icon: Thermometer, type: "threshold", operator: "이상", unit: "℃", valueField: "summer_threshold_value", enabledField: "summer_threshold_enabled" },
+    { key: "rainfall_threshold", label: "강우량", icon: CloudRain, type: "threshold", operator: "이상", unit: "mm", valueField: "rainfall_threshold_value", enabledField: "rainfall_threshold_enabled" },
+    { key: "snowfall_threshold", label: "강설량", icon: Snowflake, type: "threshold", operator: "이상", unit: "cm", valueField: "snowfall_threshold_value", enabledField: "snowfall_threshold_enabled" },
+    { key: "dust_alert_level", label: "미세먼지", icon: Wind, type: "dust" },
+    { key: "sector_type", label: "공공/민간", icon: Building2, type: "sector" },
+    { key: "work_week_days", label: "주간 작업일", icon: Calendar, type: "workWeek" },
   ];
 
   return (
-    <div className="p-6 text-gray-200 space-y-6 relative">
+    <div className="h-full flex flex-col p-4 text-gray-200 bg-[#1e1e24] overflow-hidden">
       {/* Saving Overlay */}
-      {saving && (
-        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center backdrop-blur-sm">
-          <div className="bg-[#1f1f2b] p-8 rounded-xl shadow-2xl flex flex-col items-center border border-white/10">
-            <div className="animate-spin rounded-full h-12 w-12 border-4 border-blue-500 border-t-transparent mb-4"></div>
-            <p className="text-white text-lg font-bold">저장 및 다시 계산 중...</p>
-            <p className="text-gray-400 text-sm mt-2">잠시만 기다려주세요.</p>
-          </div>
-        </div>
-      )}
-      <PageHeader title="가동률 입력" description="대공종별 가동률 및 기후 조건 입력" />
-
-      {/* Header Controls */}
-      <div data-tutorial="rate-settings" className="flex items-center gap-4 bg-[#20202a] p-4 rounded-xl border border-white/10 shadow-2xl">
-        {/* 지역 */}
-        {/* 지역 */}
-        <div className="flex items-center">
-          <label className="text-sm text-gray-400 mr-2">지역</label>
-          <div className="w-[180px]">
-            <Combobox
-              options={regions.map((r) => ({ value: r.name, label: r.name }))}
-              value={globalSettings.region}
-              onChange={(val) => setGlobalSettings({ ...globalSettings, region: val })}
-              placeholder="지역 선택"
-            />
-          </div>
-        </div>
-
-        {/* 데이터 적용 */}
-        <div className="flex items-center">
-          <label className="text-sm text-gray-400 mr-2">데이터 적용</label>
-          <select
-            value={globalSettings.dataYears}
-            onChange={(e) => setGlobalSettings({ ...globalSettings, dataYears: e.target.value })}
-            className="bg-[#1f1f2b] border border-gray-600 rounded px-3 py-1.5 text-sm text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+      <AnimatePresence>
+        {saving && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center backdrop-blur-sm"
           >
-            {Array.from({ length: 10 }, (_, i) => i + 1).map((year) => (
-              <option key={year} value={`${year}년`}>
-                {year}년
-              </option>
-            ))}
-          </select>
+            <div className="bg-[#2a2a35] p-8 rounded-lg shadow-2xl flex flex-col items-center border border-gray-700">
+              <div className="animate-spin rounded-full h-10 w-10 border-4 border-blue-500 border-t-transparent mb-4"></div>
+              <p className="text-white text-lg font-bold">저장 중...</p>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <PageHeader
+        title="가동률 분석"
+        description="운영 가동률 상세 설정"
+        className="mb-4"
+      />
+
+      {/* Control Tools */}
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-4 bg-[#2a2a35] p-4 rounded-lg border border-gray-700 shadow-sm min-h-[48px]">
+        <div className="flex gap-6">
+          <div className="flex items-center gap-3">
+            <label className="text-sm font-bold text-gray-400">지역</label>
+            <div className="w-[180px]">
+              <Combobox
+                options={regions.map((r) => ({ value: r.name, label: r.name }))}
+                value={globalSettings.region}
+                onChange={(val) => setGlobalSettings({ ...globalSettings, region: val })}
+                placeholder="지역 선택"
+                className="bg-[#1a1a20] border-gray-600 text-sm"
+              />
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <label className="text-sm font-bold text-gray-400">데이터 기간</label>
+            <div className="w-[140px]">
+              <GridSelect
+                value={globalSettings.dataYears}
+                onChange={(val) => setGlobalSettings({ ...globalSettings, dataYears: val })}
+                options={Array.from({ length: 10 }, (_, i) => ({ value: `${i + 1}년`, label: `최근 ${i + 1}년` }))}
+              />
+            </div>
+          </div>
         </div>
-
-
-
-        {/* Save Button */}
-        <div className="ml-auto">
-          <SaveButton onSave={handleSave} saving={saving} />
-        </div>
+        <SaveButton onSave={handleSave} saving={saving} className="btn-blue px-6 py-2" />
       </div>
 
-      {/* Data Table */}
-      <div data-tutorial="rate-table" className="bg-[#20202a] border border-white/10 rounded-xl p-5 shadow-2xl">
-        <div className="overflow-x-auto rounded-lg border border-white/5">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="bg-[#2a2a35] text-gray-400 border-b border-white/5">
-                <th className="sticky left-0 bg-[#2a2a35] border-r border-white/5 px-4 py-3 text-left min-w-[140px]">
-                  구분
+      {/* Main Grid Table */}
+      <div className="flex-1 overflow-hidden bg-[#2a2a35] rounded-lg border border-gray-700 shadow-lg flex flex-col">
+        <div className="overflow-auto flex-1 custom-scrollbar">
+          <table className="w-full text-sm border-collapse">
+            <thead className="sticky top-0 z-20 shadow-md">
+              <tr className="bg-[#323240] border-b border-gray-600">
+                <th className="sticky left-0 bg-[#323240] py-3 px-4 text-left border-r border-gray-600 min-w-[180px] shadow-[4px_0_12px_-4px_rgba(0,0,0,0.3)]">
+                  <span className="text-xs font-bold text-gray-400 uppercase">조건 항목</span>
                 </th>
                 {workTypes.map((workType, index) => (
-                  <th
-                    key={index}
-                    className="bg-[#2a2a35] border-r border-white/5 px-4 py-3 text-center min-w-[120px]"
-                  >
-                    {workType.main_category}
+                  <th key={index} className="py-3 px-4 text-center min-w-[200px] border-r border-gray-600 font-bold text-gray-200">
+                    <span className="block truncate max-w-[180px] mx-auto" title={workType.main_category}>
+                      {workType.main_category}
+                    </span>
                   </th>
                 ))}
               </tr>
             </thead>
-            <tbody className="divide-y divide-white/5">
-              {/* Climate Conditions Header */}
-              <tr className="bg-[#2a2a35]">
-                <td className="sticky left-0 bg-[#2a2a35] border-r border-white/5 px-4 py-2 font-bold text-gray-200" colSpan={workTypes.length + 1}>
-                  기후불능일
-                </td>
-              </tr>
-
-              {/* Climate Rows */}
+            <tbody className="divide-y divide-gray-700">
               {climateRows.map((row) => (
-                <tr key={row.key} className="hover:bg-white/[0.03]">
-                  <td className={`sticky left-0 ${row.color} border-r border-white/5 px-4 py-2 font-medium`}>
-                    {row.label}
+                <tr key={row.key} className="bg-[#2a2a35] even:bg-[#252530] hover:bg-[#383845] transition-colors">
+                  <td className="sticky left-0 py-3 px-4 border-r border-gray-600 bg-inherit shadow-[4px_0_12px_-4px_rgba(0,0,0,0.3)] font-medium text-gray-300">
+                    <div className="flex items-center gap-2">
+                      <row.icon className="w-4 h-4 text-gray-500" />
+                      {row.label}
+                    </div>
                   </td>
                   {workTypes.map((workType, index) => (
-                    <td key={index} className={`${row.color} border-r border-white/5 px-2 py-1`}>
-                      {row.type === "threshold" && (
-                        <div className="flex items-center justify-center gap-2">
-                          {/* 동절기인 경우 기준 선택 셀렉터 추가 */}
-                          {row.key === "winter_threshold" && (
-                            <select
-                              value={workType.winter_criteria || "AVG"}
-                              onChange={(e) => handleCellChange(index, "winter_criteria", e.target.value)}
-                              className="bg-[#181825] border border-gray-700 rounded px-2 py-1 text-xs text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500/50 mr-1"
-                            >
-                              <option value="MIN">최저</option>
-                              <option value="AVG">평균</option>
-                              <option value="MAX">최고</option>
-                            </select>
-                          )}
-                          <select
-                            value={workType[row.enabledField] ? "apply" : "none"}
-                            onChange={(e) => handleCellChange(index, row.enabledField, e.target.value === "apply")}
-                            className="bg-[#181825] border border-gray-700 rounded px-2 py-1 text-xs text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500/50"
-                          >
-                            <option value="apply">적용</option>
-                            <option value="none">미적용</option>
-                          </select>
-                          <div className="flex items-center gap-1">
-                            <input
-                              type="number"
-                              value={workType[row.valueField] ?? ""}
-                              onChange={(e) => handleCellChange(index, row.valueField, e.target.value === "" ? null : Number(e.target.value))}
-                              disabled={!workType[row.enabledField]}
-                              className="w-20 bg-[#181825] border border-gray-700 text-center text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500/50 px-2 py-1 rounded disabled:opacity-50"
-                              placeholder="0"
+                    <td key={index} className="p-3 border-r border-gray-600 text-center align-middle">
+                      {row.type === "threshold" ? (
+                        <div className="flex items-center justify-center gap-3 h-full">
+                          {/* Toggle */}
+                          <div className="flex items-center gap-1.5">
+                            <GridToggle
+                              checked={workType[row.enabledField]}
+                              onChange={(val) => handleCellChange(index, row.enabledField, val)}
                             />
-                            <span className="text-xs text-gray-400">{row.unit}</span>
-                            <span className="text-xs text-gray-400">{row.operator}</span>
+                            {row.key === "winter_threshold" && workType[row.enabledField] && (
+                              <select
+                                value={workType.winter_criteria || "AVG"}
+                                onChange={(e) => handleCellChange(index, "winter_criteria", e.target.value)}
+                                className="bg-[#1a1a20] border border-gray-600 rounded text-[11px] px-0.5 py-0.5 text-gray-300 focus:border-blue-500"
+                              >
+                                <option value="MIN">최저</option>
+                                <option value="AVG">평균</option>
+                                <option value="MAX">최고</option>
+                              </select>
+                            )}
+                          </div>
+
+                          {/* Input Area */}
+                          <div className={`transition-opacity ${workType[row.enabledField] ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
+                            <GridInput
+                              value={workType[row.valueField]}
+                              onChange={(val) => handleCellChange(index, row.valueField, val)}
+                              unit={row.unit}
+                            />
                           </div>
                         </div>
+                      ) : (
+                        <div className="w-full">
+                          <GridSelect
+                            align="center"
+                            value={
+                              row.type === "dust" ? (workType.dust_alert_level || "NONE") :
+                                row.type === "sector" ? (workType.sector_type || "PRIVATE") :
+                                  (workType.work_week_days || 6)
+                            }
+                            onChange={(val) => handleCellChange(index, row.key === "work_week_days" ? "work_week_days" : row.type === "dust" ? "dust_alert_level" : "sector_type", row.type === "workWeek" ? Number(val) : val)}
+                            options={
+                              row.type === "dust" ? [
+                                { value: "NONE", label: "미적용" },
+                                { value: "WARNING", label: "주의보" },
+                                { value: "ALERT", label: "경보" },
+                              ] : row.type === "sector" ? [
+                                { value: "PUBLIC", label: "공공" },
+                                { value: "PRIVATE", label: "민간" },
+                              ] : [
+                                { value: 7, label: "주 7일" },
+                                { value: 6, label: "주 6일" },
+                                { value: 5, label: "주 5일" },
+                              ]
+                            }
+                          />
+                        </div>
                       )}
-                      {row.type === "dust" && (
-                        <select
-                          value={workType.dust_alert_level || "NONE"}
-                          onChange={(e) => handleCellChange(index, "dust_alert_level", e.target.value)}
-                          className="w-full bg-[#181825] border border-gray-700 rounded px-2 py-1 text-center text-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50"
-                        >
-                          <option value="NONE">미적용</option>
-                          <option value="WARNING">주의</option>
-                          <option value="ALERT">경보</option>
-                        </select>
-                      )}
-                      {row.type === "sector" && (
-                        <select
-                          value={workType.sector_type || "PRIVATE"}
-                          onChange={(e) => handleCellChange(index, "sector_type", e.target.value)}
-                          className="w-full bg-[#181825] border border-gray-700 rounded px-2 py-1 text-center text-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50"
-                        >
-                          <option value="PUBLIC">공공</option>
-                          <option value="PRIVATE">민간</option>
-                        </select>
-                      )}
-                      {row.type === "workWeek" && (
-                        <select
-                          value={workType.work_week_days || 6}
-                          onChange={(e) => handleCellChange(index, "work_week_days", Number(e.target.value))}
-                          className="w-full bg-[#181825] border border-gray-700 rounded px-2 py-1 text-center text-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50"
-                        >
-                          <option value={7}>7일</option>
-                          <option value={6}>6일</option>
-                          <option value={5}>5일</option>
-                        </select>
-                      )}
-                    </td>
-                  ))}
-                </tr>
-              ))}
-
-              {/* Calculation Header */}
-              <tr className="bg-[#2a2a35]">
-                <td className="sticky left-0 bg-[#2a2a35] border-r border-white/5 px-4 py-2 font-bold text-gray-200" colSpan={workTypes.length + 1}>
-                  산정일수
-                </td>
-              </tr>
-
-              {/* Calculation Rows */}
-              {calculationRows.map((row) => (
-                <tr key={row.key} className="hover:bg-white/[0.03]">
-                  <td className={`sticky left-0 ${row.color} border-r border-white/5 px-4 py-2 font-medium ${row.key === 'operating_rate' ? 'text-green-200 font-bold' : ''
-                    }`}>
-                    {row.label}
-                  </td>
-                  {workTypes.map((workType, index) => (
-                    <td key={index} className={`${row.color} border-r border-white/5 px-2 py-1`}>
-                      <span className={`inline-flex w-full justify-center rounded-md px-2 py-1 text-sm ${row.key === 'operating_rate'
-                        ? 'text-green-300 font-bold'
-                        : 'text-gray-200'
-                        }`}>
-                        {workType[row.key] ?? "-"}
-                      </span>
                     </td>
                   ))}
                 </tr>
               ))}
             </tbody>
+            <tfoot className="sticky bottom-0 z-20 bg-[#1e1e24] border-t-2 border-gray-600 shadow-inner">
+              <tr>
+                <td className="sticky left-0 bg-[#1e1e24] py-4 px-4 border-r border-gray-600 shadow-[4px_0_12px_-4px_rgba(0,0,0,0.3)]">
+                  <div className="flex items-center gap-2 font-bold text-gray-200">
+                    <Check className="w-5 h-5 text-green-500" />
+                    산출 결과
+                  </div>
+                </td>
+                {workTypes.map((workType, index) => (
+                  <td key={index} className="p-4 border-r border-gray-600 bg-[#22222b] hover:bg-[#2a2a35] transition-colors">
+                    <div className="flex flex-col items-center justify-center gap-2">
+                      <span className="text-2xl font-black text-green-400 tracking-tight">
+                        {workType.operating_rate}<span className="text-sm font-bold ml-0.5">%</span>
+                      </span>
+                      <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-gray-400 w-full px-2">
+                        <div className="flex justify-between"><span>작업</span><span className="text-gray-200 font-mono">{workType.working_days}일</span></div>
+                        <div className="flex justify-between"><span>불능</span><span className="text-gray-200 font-mono">{workType.climate_days_excl_dup}일</span></div>
+                        <div className="flex justify-between col-span-2 border-t border-gray-600 pt-1 mt-1"><span>휴일</span><span className="text-gray-200 font-mono">{workType.legal_holidays}일</span></div>
+                      </div>
+                    </div>
+                  </td>
+                ))}
+              </tr>
+            </tfoot>
           </table>
         </div>
       </div>
 
       {/* Empty State */}
-      {workTypes.length === 0 && (
-        <div className="text-center py-12 text-gray-400 bg-[#20202a] border border-white/10 rounded-xl shadow-2xl">
-          <p>대공종이 없습니다.</p>
-          <p className="text-sm mt-2">공사기간 산정 페이지에서 대공종을 먼저 생성해주세요.</p>
+      {workTypes.length === 0 && !loading && (
+        <div className="mt-8 text-center p-12 bg-[#2a2a35] border border-gray-700 rounded-lg">
+          <Info className="w-10 h-10 text-gray-500 mx-auto mb-3" />
+          <p className="text-lg font-medium text-gray-300">데이터가 없습니다</p>
         </div>
       )}
     </div>
