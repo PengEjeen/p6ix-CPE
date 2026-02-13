@@ -1,4 +1,5 @@
 import React from "react";
+import { deriveParallelMeta, getParallelSegmentsFromItem } from "../../../../utils/parallelSegments";
 
 export default function CriticalPathLayer({
     itemsWithTiming,
@@ -10,6 +11,20 @@ export default function CriticalPathLayer({
     itemIndexById,
     categoryMilestones
 }) {
+    const getEffectiveRedRange = (item) => {
+        const taskStart = parseFloat(item?.startDay) || 0;
+        const durationDays = parseFloat(item?.durationDays) || 0;
+        const taskEnd = taskStart + durationDays;
+        const relativeParallelSegments = getParallelSegmentsFromItem(item, durationDays);
+        const parallelMeta = deriveParallelMeta(durationDays, relativeParallelSegments);
+        const rawRedStart = taskStart + parallelMeta.frontParallelDays;
+        const rawRedEnd = taskEnd - parallelMeta.backParallelDays;
+        const redStart = Math.max(taskStart, Math.min(taskEnd, rawRedStart));
+        const redEnd = Math.max(redStart, Math.min(taskEnd, rawRedEnd));
+
+        return { taskStart, taskEnd, redStart, redEnd, hasCriticalSegment: parallelMeta.criticalDays > 0 };
+    };
+
     const isParallelItem = (item) => {
         const remarksText = (item?.remarks || "").trim();
 
@@ -23,10 +38,10 @@ export default function CriticalPathLayer({
         );
 
         // Check if the task has parallel days that cover its entire duration
-        const frontParallel = parseFloat(item?.front_parallel_days) || 0;
-        const backParallel = parseFloat(item?.back_parallel_days) || 0;
         const duration = item?.durationDays || 0;
-        const isFullyParallel = (frontParallel + backParallel) >= duration;
+        const relativeParallelSegments = getParallelSegmentsFromItem(item, duration);
+        const parallelMeta = deriveParallelMeta(duration, relativeParallelSegments);
+        const isFullyParallel = parallelMeta.parallelDays >= duration;
 
         return hasParallelMarker || isFullyParallel;
     };
@@ -56,67 +71,36 @@ export default function CriticalPathLayer({
 
                 const pxFactor = pixelsPerUnit / dateScale;
 
-                // Calculate RED end (excluding grey periods)
-                const frontParallel = parseFloat(item.front_parallel_days) || 0;
-                const backParallel = parseFloat(item.back_parallel_days) || 0;
-                const taskStart = item.startDay;
-                const taskEnd = item.startDay + item.durationDays;
-                const redStart = taskStart + frontParallel;
-                let redEnd = taskEnd - backParallel;
-                const logicalRedEnd = redEnd; // Keep original for logic
+                const { redStart, redEnd: baseRedEnd, hasCriticalSegment } = getEffectiveRedRange(item);
+                const contained = containedCpMap?.get(item.id) || [];
+                const firstContainedStart = contained.length > 0
+                    ? Math.min(...contained.map((entry) => entry?.meta?.redStart ?? Infinity))
+                    : Infinity;
+                const logicalRedEnd = Number.isFinite(firstContainedStart)
+                    ? Math.max(redStart, Math.min(baseRedEnd, firstContainedStart))
+                    : baseRedEnd;
 
                 // RELAXED: Treat any positive length as critical segment
-                const hasCriticalSegment = logicalRedEnd > redStart;
-                const isParallelTask = isParallelItem(item) || !hasCriticalSegment;
-
-                // Force minimum visual length for Arrow Anchor
-                const MIN_CP_WIDTH_PX = 12; // Enforce ~12px min
-                if (hasCriticalSegment && !isParallelItem(item)) {
-                    const currentPxLen = (redEnd - redStart) * pxFactor;
-                    if (currentPxLen < MIN_CP_WIDTH_PX) {
-                        const addedDays = (MIN_CP_WIDTH_PX - currentPxLen) / pxFactor;
-                        redEnd += addedDays;
-                    }
-                }
-
-                // Debug log for grey tasks that still show arrows
-                if ((frontParallel > 0 || backParallel > 0) && !isParallelTask) {
-                    console.log(`[CP Arrow Debug] Task: ${item.process} - ${item.work_type}`, {
-                        frontParallel,
-                        backParallel,
-                        duration: item.durationDays,
-                        redStart,
-                        redEnd,
-                        logicalRedEnd,
-                        hasCriticalSegment,
-                        isParallelTask
-                    });
-                }
+                const hasLogicalCriticalSegment = logicalRedEnd > redStart;
+                const isParallelTask = isParallelItem(item) || !hasCriticalSegment || !hasLogicalCriticalSegment;
 
                 if (isParallelTask) return null;
 
-                // If this CP item is fully contained by another CP item,
-                // its link is rendered via the outer item's down/up detour.
+                // Contained CP item links are drawn by the outer item's detour (down/up).
                 if (containedItemIds.has(item.id)) return null;
 
-                // Find the CP task with the minimum distance on x-axis (time)
-                // Search ALL tasks (both above and below) to find temporally closest CP task
+                // Find next CP task only in lower rows (next process order).
                 let targetIndex = -1;
                 let targetItem = null;
                 let minDistance = Infinity;
+                let bestRowDelta = Infinity;
 
-                // Loop through ALL tasks to find the closest on x-axis
-                for (let j = 0; j < itemsWithTiming.length; j++) {
-                    // Skip the current item itself
-                    if (j === i) continue;
-
+                // Only scan tasks below current row.
+                for (let j = i + 1; j < itemsWithTiming.length; j++) {
                     const candidateItem = itemsWithTiming[j];
+                    if (containedItemIds.has(candidateItem.id)) continue;
 
-                    const candidateFrontParallel = parseFloat(candidateItem.front_parallel_days) || 0;
-                    const candidateBackParallel = parseFloat(candidateItem.back_parallel_days) || 0;
-                    const candidateRedStart = candidateItem.startDay + candidateFrontParallel;
-                    const candidateRedEnd = (candidateItem.startDay + candidateItem.durationDays) - candidateBackParallel;
-                    const candidateHasCritical = candidateRedEnd > candidateRedStart;
+                    const { redStart: candidateRedStart, hasCriticalSegment: candidateHasCritical } = getEffectiveRedRange(candidateItem);
 
                     // Skip parallel tasks and tasks without critical segments
                     if (!isParallelItem(candidateItem) && candidateHasCritical) {
@@ -125,32 +109,13 @@ export default function CriticalPathLayer({
                         if (candidateRedStart >= logicalRedEnd) {
                             // Calculate distance on x-axis between current logicalRedEnd and candidate redStart
                             const distance = candidateRedStart - logicalRedEnd;
+                            const rowDelta = j - i;
 
-                            // Check if vertical arrow would overlap with intermediate task bars
-                            // This is only necessary if the target is not adjacent (i.e., |i - j| > 1)
-                            let hasOverlap = false;
-                            if (Math.abs(i - j) > 1) {
-                                // Check all tasks between current (i) and candidate (j)
-                                const minRow = Math.min(i, j);
-                                const maxRow = Math.max(i, j);
-
-                                for (let k = minRow + 1; k < maxRow; k++) {
-                                    const intermediateTask = itemsWithTiming[k];
-                                    const intermediateStart = intermediateTask.startDay;
-                                    const intermediateEnd = intermediateTask.startDay + intermediateTask.durationDays;
-
-                                    // Check if intermediate task overlaps with the arrow path [logicalRedEnd, candidateRedStart]
-                                    // Overlap occurs if: intermediateStart < candidateRedStart AND intermediateEnd > logicalRedEnd
-                                    if (intermediateStart < candidateRedStart && intermediateEnd > logicalRedEnd) {
-                                        hasOverlap = true;
-                                        break;
-                                    }
-                                }
-                            }
-
-                            // Only accept this candidate if there's no overlap (or it's adjacent)
-                            if (!hasOverlap && distance < minDistance) {
+                            // 1) 최소 x축 거리 우선
+                            // 2) 같은 거리면 더 가까운 아래 행 우선
+                            if (distance < minDistance || (distance === minDistance && rowDelta < bestRowDelta)) {
                                 minDistance = distance;
+                                bestRowDelta = rowDelta;
                                 targetIndex = j;
                                 targetItem = candidateItem;
                             }
@@ -158,60 +123,61 @@ export default function CriticalPathLayer({
                     }
                 }
 
-                if (!targetItem) return null;
+                const containedForItem = containedCpMap?.get(item.id) || [];
 
-                const targetFrontParallel = parseFloat(targetItem.front_parallel_days) || 0;
-                const targetRedStart = targetItem.startDay + targetFrontParallel;
+                let cpPath = null;
+                if (targetItem) {
+                    const { redStart: targetRedStart } = getEffectiveRedRange(targetItem);
+                    const startX = logicalRedEnd * pxFactor;
+                    const startY = (i * rowH) + rowCenter;
+                    const endX = targetRedStart * pxFactor;
+                    const endY = (targetIndex * rowH) + rowCenter;
+                    cpPath = `M ${startX} ${startY} L ${endX} ${startY} L ${endX} ${endY}`;
+                }
 
-                const startX = redEnd * pxFactor;
-                const startY = (i * rowH) + rowCenter;
-
-                const endX = targetRedStart * pxFactor;
-                const endY = (targetIndex * rowH) + rowCenter;
+                if (!cpPath && containedForItem.length === 0) return null;
 
                 return (
                     <g key={`cp-${i}`}>
-                        <path
-                            d={`M ${startX} ${startY} L ${endX} ${endY}`}
-                            fill="none"
-                            stroke="#ef4444"
-                            strokeWidth="2.5"
-                            strokeDasharray="4 3"
-                            markerEnd="url(#arrowhead-red)"
-                            className="opacity-100 mix-blend-multiply transition-all duration-300"
-                        />
-                        {(() => {
-                            const contained = containedCpMap.get(item.id) || [];
-                            if (contained.length === 0) return null;
-                            return contained.map((entry) => {
-                                const innerIndex = itemIndexById.get(entry.item.id)?.index;
-                                if (innerIndex === undefined) return null;
-                                const downX = entry.meta.redStart * pxFactor;
-                                const upX = entry.meta.redEnd * pxFactor;
-                                const outerY = (i * rowH) + rowCenter;
-                                const innerY = (innerIndex * rowH) + rowCenter;
-                                return (
-                                    <g key={`cp-detour-${item.id}-${entry.item.id}`}>
-                                        <path
-                                            d={`M ${downX} ${outerY} L ${downX} ${innerY}`}
-                                            fill="none"
-                                            stroke="#ef4444"
-                                            strokeWidth="2.5"
-                                            strokeDasharray="4 3"
-                                            markerEnd="url(#arrowhead-red)"
-                                        />
-                                        <path
-                                            d={`M ${upX} ${innerY} L ${upX} ${outerY}`}
-                                            fill="none"
-                                            stroke="#ef4444"
-                                            strokeWidth="2.5"
-                                            strokeDasharray="4 3"
-                                            markerEnd="url(#arrowhead-red)"
-                                        />
-                                    </g>
-                                );
-                            });
-                        })()}
+                        {cpPath && (
+                            <path
+                                d={cpPath}
+                                fill="none"
+                                stroke="#ef4444"
+                                strokeWidth="2.5"
+                                strokeDasharray="4 3"
+                                markerEnd="url(#arrowhead-red)"
+                                className="opacity-100 mix-blend-multiply transition-all duration-300"
+                            />
+                        )}
+                        {containedForItem.map((entry) => {
+                            const innerIndex = itemIndexById.get(entry.item.id)?.index;
+                            if (innerIndex === undefined) return null;
+                            const downX = entry.meta.redStart * pxFactor;
+                            const upX = entry.meta.redEnd * pxFactor;
+                            const outerY = (i * rowH) + rowCenter;
+                            const innerY = (innerIndex * rowH) + rowCenter;
+                            return (
+                                <g key={`cp-detour-${item.id}-${entry.item.id}`}>
+                                    <path
+                                        d={`M ${downX} ${outerY} L ${downX} ${innerY}`}
+                                        fill="none"
+                                        stroke="#ef4444"
+                                        strokeWidth="2.5"
+                                        strokeDasharray="4 3"
+                                        markerEnd="url(#arrowhead-red)"
+                                    />
+                                    <path
+                                        d={`M ${upX} ${innerY} L ${upX} ${outerY}`}
+                                        fill="none"
+                                        stroke="#ef4444"
+                                        strokeWidth="2.5"
+                                        strokeDasharray="4 3"
+                                        markerEnd="url(#arrowhead-red)"
+                                    />
+                                </g>
+                            );
+                        })}
                     </g>
                 );
             })}

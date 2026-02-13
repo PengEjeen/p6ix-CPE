@@ -1,4 +1,5 @@
 import React from "react";
+import { buildCriticalSegmentsFromParallel, getParallelSegmentsFromItem } from "../../../../utils/parallelSegments";
 
 export default function SubtaskLayer({
     subTasks,
@@ -36,13 +37,13 @@ export default function SubtaskLayer({
         const index = itemData.index;
         const height = 6;
         const parentItem = itemsWithTiming.find((item) => item.id === subtask.itemId);
-        const frontParallel = parseFloat(parentItem?.front_parallel_days) || 0;
-        const backParallel = parseFloat(parentItem?.back_parallel_days) || 0;
-        const redStart = (parentItem?.startDay || 0) + frontParallel;
-        const redEnd = (parentItem?.startDay || 0) + (parentItem?.durationDays || 0) - backParallel;
+        const taskStart = parseFloat(parentItem?.startDay) || 0;
+        const durationDays = parseFloat(parentItem?.durationDays) || 0;
+        const relativeParallelSegments = getParallelSegmentsFromItem(parentItem, durationDays);
+        const criticalSegments = buildCriticalSegmentsFromParallel(taskStart, durationDays, relativeParallelSegments);
         const subtaskStart = subtask.startDay;
         const subtaskEnd = subtask.startDay + subtask.durationDays;
-        const overlapsCp = redEnd > redStart && subtaskStart < redEnd && subtaskEnd > redStart;
+        const overlapsCp = criticalSegments.some((segment) => subtaskStart < segment.end && subtaskEnd > segment.start);
         const yOffset = overlapsCp ? 8 : 0;
         const top = (index * rowH) + rowCenter - (height / 2) + yOffset;
         const labelTop = (index * rowH) + yOffset;

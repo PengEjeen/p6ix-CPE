@@ -226,12 +226,15 @@ const ScheduleTableRow = ({
 
             {/* Apply Rate */}
             <td className="border-r border-gray-700 p-1">
-                <input
-                    className="w-full text-right outline-none p-1 text-gray-200 bg-[#1f1f2b] rounded text-base font-semibold"
-                    type="number"
-                    value={item.application_rate || 100}
-                    onChange={(e) => handleChange(item.id, 'application_rate', e.target.value)}
-                />
+                <div className="relative">
+                    <input
+                        className="w-full text-right outline-none p-1 pr-5 text-gray-200 bg-[#1f1f2b] rounded text-base font-semibold"
+                        type="number"
+                        value={item.application_rate ?? 100}
+                        onChange={(e) => handleChange(item.id, 'application_rate', e.target.value)}
+                    />
+                    <span className="absolute right-1.5 top-1/2 -translate-y-1/2 text-xs text-gray-400 pointer-events-none">%</span>
+                </div>
             </td>
 
             {/* Working Days */}

@@ -2,6 +2,19 @@ import { create } from 'zustand';
 import { immer } from 'zustand/middleware/immer';
 import { temporal } from 'zundo';
 import { calculateItem, solveForCrewSize, solveForProductivity } from '../utils/solver';
+import { buildParallelStateFromSegments, buildRightAlignedParallelSegments } from '../utils/parallelSegments';
+
+const deriveApplicationRateFromParallel = (item, frontDays, backDays) => {
+    const duration = parseFloat(item?.calendar_days) || 0;
+    if (duration <= 0) return 100;
+
+    const front = Math.max(0, parseFloat(frontDays) || 0);
+    const back = Math.max(0, parseFloat(backDays) || 0);
+    const criticalDays = Math.max(0, duration - front - back);
+    const rate = (criticalDays / duration) * 100;
+
+    return parseFloat(rate.toFixed(1));
+};
 
 /**
  * Schedule Store
@@ -80,6 +93,17 @@ export const useScheduleStore = create(
                         state.operatingRates,
                         state.workDayType
                     );
+
+                    if (field === 'application_rate') {
+                        const duration = parseFloat(state.items[index]?.calendar_days) || 0;
+                        const inputRate = parseFloat(value);
+                        const rightAlignedSegments = buildRightAlignedParallelSegments(duration, inputRate);
+                        const parallelState = buildParallelStateFromSegments(duration, rightAlignedSegments);
+                        state.items[index].parallel_segments = parallelState.parallel_segments;
+                        state.items[index].front_parallel_days = parallelState.front_parallel_days;
+                        state.items[index].back_parallel_days = parallelState.back_parallel_days;
+                        state.items[index].application_rate = parallelState.application_rate;
+                    }
                 }
             }),
 
@@ -228,16 +252,37 @@ export const useScheduleStore = create(
                     if (frontDays === 0 && backDays === 0) {
                         console.log('[Store] Clearing all overlaps for:', id);
                         const newItems = state.items.map((item, idx) =>
-                            idx === index ? { ...item, front_parallel_days: 0, back_parallel_days: 0 } : item
+                            idx === index
+                                ? {
+                                    ...item,
+                                    parallel_segments: [],
+                                    front_parallel_days: 0,
+                                    back_parallel_days: 0,
+                                    application_rate: 100
+                                }
+                                : item
                         );
                         return { ...state, items: newItems };
                     }
 
                     // Otherwise, set the parallel days
                     console.log('[Store] Setting parallel days for:', id);
+                    const nextFront = frontDays || 0;
+                    const nextBack = backDays || 0;
+                    const duration = parseFloat(item?.calendar_days) || 0;
+                    const implicitSegments = [];
+                    if (nextFront > 0) implicitSegments.push({ start: 0, end: nextFront });
+                    if (nextBack > 0) implicitSegments.push({ start: Math.max(0, duration - nextBack), end: duration });
+                    const parallelState = buildParallelStateFromSegments(duration, implicitSegments);
                     const newItems = state.items.map((item, idx) =>
                         idx === index
-                            ? { ...item, front_parallel_days: frontDays || 0, back_parallel_days: backDays || 0 }
+                            ? {
+                                ...item,
+                                parallel_segments: parallelState.parallel_segments,
+                                front_parallel_days: nextFront,
+                                back_parallel_days: nextBack,
+                                application_rate: parallelState.application_rate
+                            }
                             : item
                     );
 
@@ -290,6 +335,40 @@ export const useScheduleStore = create(
                             // If explicit value provided (including 0), set it.
                             if (update.front !== undefined) state.items[idx].front_parallel_days = update.front;
                             if (update.back !== undefined) state.items[idx].back_parallel_days = update.back;
+
+                            const duration = parseFloat(state.items[idx]?.calendar_days) || 0;
+                            let derivedFromSegments = null;
+                            if (update.parallel_segments !== undefined) {
+                                const parallelState = buildParallelStateFromSegments(duration, update.parallel_segments);
+                                state.items[idx].parallel_segments = parallelState.parallel_segments;
+                                if (update.front === undefined) state.items[idx].front_parallel_days = parallelState.front_parallel_days;
+                                if (update.back === undefined) state.items[idx].back_parallel_days = parallelState.back_parallel_days;
+                                derivedFromSegments = parallelState.application_rate;
+                            } else if (update.front !== undefined || update.back !== undefined) {
+                                const nextFront = parseFloat(state.items[idx].front_parallel_days) || 0;
+                                const nextBack = parseFloat(state.items[idx].back_parallel_days) || 0;
+                                const implicitSegments = [];
+                                if (nextFront > 0) implicitSegments.push({ start: 0, end: nextFront });
+                                if (nextBack > 0) implicitSegments.push({ start: Math.max(0, duration - nextBack), end: duration });
+                                const parallelState = buildParallelStateFromSegments(duration, implicitSegments);
+                                state.items[idx].parallel_segments = parallelState.parallel_segments;
+                                derivedFromSegments = parallelState.application_rate;
+                            }
+
+                            const explicitRate = parseFloat(update.application_rate);
+                            if (Number.isFinite(explicitRate)) {
+                                state.items[idx].application_rate = Math.min(100, Math.max(0, parseFloat(explicitRate.toFixed(1))));
+                            } else if (derivedFromSegments !== null) {
+                                state.items[idx].application_rate = derivedFromSegments;
+                            } else {
+                                const nextFront = parseFloat(state.items[idx].front_parallel_days) || 0;
+                                const nextBack = parseFloat(state.items[idx].back_parallel_days) || 0;
+                                state.items[idx].application_rate = deriveApplicationRateFromParallel(
+                                    state.items[idx],
+                                    nextFront,
+                                    nextBack
+                                );
+                            }
                         }
                     });
                 }

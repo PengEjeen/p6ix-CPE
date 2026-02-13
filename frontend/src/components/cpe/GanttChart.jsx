@@ -14,6 +14,7 @@ import { buildMoveUpdatesByDelta } from "./gantt/utils/moveUpdates";
 import { useAutoScale } from "./gantt/hooks/useAutoScale";
 import GanttToolbar from "./gantt/ui/GanttToolbar";
 import LinkEditorPopover from "./gantt/ui/LinkEditorPopover";
+import { buildParallelStateFromSegments } from "../../utils/parallelSegments";
 import toast from "react-hot-toast";
 import { useTutorial } from "../../hooks/useTutorial";
 import { ganttChartSteps } from "../../config/tutorialSteps";
@@ -75,6 +76,47 @@ export default function GanttChart({
     // eslint-disable-next-line no-unused-vars
     const [expandedProcesses, setExpandedProcesses] = useState({});
     const [copiedSubtask, setCopiedSubtask] = useState(null);
+
+    const addParallelSegment = (map, id, start, end) => {
+        if (!id) return;
+        const s = Number(start);
+        const e = Number(end);
+        if (!Number.isFinite(s) || !Number.isFinite(e)) return;
+        if (e <= s) return;
+        if (!map.has(id)) map.set(id, []);
+        map.get(id).push([s, e]);
+    };
+
+    const applyRatesToUpdates = (updates, segmentMap, taskWindowMap) => {
+        segmentMap.forEach((segments, id) => {
+            const window = taskWindowMap.get(id);
+            if (!window) return;
+            const duration = Math.max(0.1, window.end - window.start);
+            const relativeSegments = (Array.isArray(segments) ? segments : []).map(([start, end]) => ({
+                start: start - window.start,
+                end: end - window.start
+            }));
+            const parallelState = buildParallelStateFromSegments(duration, relativeSegments);
+
+            let target = null;
+            for (let i = updates.length - 1; i >= 0; i -= 1) {
+                if (updates[i]?.id === id) {
+                    target = updates[i];
+                    break;
+                }
+            }
+            if (target) {
+                target.application_rate = parallelState.application_rate;
+                target.parallel_segments = parallelState.parallel_segments;
+            } else {
+                updates.push({
+                    id,
+                    application_rate: parallelState.application_rate,
+                    parallel_segments: parallelState.parallel_segments
+                });
+            }
+        });
+    };
 
     const handleScroll = useCallback(() => {
         setIsScrolling(true);
@@ -807,6 +849,9 @@ export default function GanttChart({
                         const updates = [];
                         const currentStart = newStartDay;
                         const currentEnd = currentTask.end;
+                        const parallelSegments = new Map();
+                        const taskWindowById = new Map();
+                        taskWindowById.set(currentTask.id, { start: currentStart, end: currentEnd });
 
                         // Clear current task's parallel days (it becomes full CP)
                         updates.push({ id: currentTask.id, front: 0, back: 0 });
@@ -816,6 +861,9 @@ export default function GanttChart({
                             const overlappingStart = overlappingTask.start;
                             const overlappingEnd = overlappingTask.end;
                             const overlapDays = overlappingTask.overlapDays;
+                            const overlapStart = Math.max(currentStart, overlappingStart);
+                            const overlapEnd = Math.min(currentEnd, overlappingEnd);
+                            taskWindowById.set(overlappingTask.id, { start: overlappingStart, end: overlappingEnd });
 
                             const currentContainsOther = currentStart < overlappingStart && currentEnd > overlappingEnd;
                             const otherContainsCurrent = overlappingStart < currentStart && overlappingEnd > currentEnd;
@@ -832,7 +880,11 @@ export default function GanttChart({
                                 // Overlapping task becomes parallel -> Set its back
                                 updates.push({ id: overlappingTask.id, back: overlapDays, front: 0 });
                             }
+
+                            addParallelSegment(parallelSegments, overlappingTask.id, overlapStart, overlapEnd);
                         });
+
+                        applyRatesToUpdates(updates, parallelSegments, taskWindowById);
 
                         useScheduleStore.getState().resolveDragOverlap(draggedItemId, newStartDay, updates);
                         if (overlapPopover.dragDelta) {
@@ -852,6 +904,9 @@ export default function GanttChart({
                         const updates = [];
                         const currentStart = newStartDay;
                         const currentEnd = currentTask.end;
+                        const parallelSegments = new Map();
+                        const taskWindowById = new Map();
+                        taskWindowById.set(currentTask.id, { start: currentStart, end: currentEnd });
 
                         // Track max parallel days for current task
                         let maxFrontParallel = 0;
@@ -862,6 +917,9 @@ export default function GanttChart({
                             const overlappingStart = overlappingTask.start;
                             const overlappingEnd = overlappingTask.end;
                             const overlapDays = overlappingTask.overlapDays;
+                            const overlapStart = Math.max(currentStart, overlappingStart);
+                            const overlapEnd = Math.min(currentEnd, overlappingEnd);
+                            taskWindowById.set(overlappingTask.id, { start: overlappingStart, end: overlappingEnd });
 
                             const currentContainsOther = currentStart < overlappingStart && currentEnd > overlappingEnd;
                             const otherContainsCurrent = overlappingStart < currentStart && overlappingEnd > currentEnd;
@@ -881,6 +939,8 @@ export default function GanttChart({
                                 updates.push({ id: overlappingTask.id, back: 0, front: 0 }); // Clear overlapping (it's CP)
                                 maxFrontParallel = Math.max(maxFrontParallel, overlapDays);
                             }
+
+                            addParallelSegment(parallelSegments, currentTask.id, overlapStart, overlapEnd);
                         });
 
                         // Apply accumulated parallel days to current task ONCE
@@ -889,6 +949,8 @@ export default function GanttChart({
                             front: maxFrontParallel,
                             back: maxBackParallel
                         });
+
+                        applyRatesToUpdates(updates, parallelSegments, taskWindowById);
 
                         useScheduleStore.getState().resolveDragOverlap(draggedItemId, newStartDay, updates);
                         if (overlapPopover.dragDelta) {

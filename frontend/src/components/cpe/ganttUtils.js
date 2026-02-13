@@ -1,3 +1,5 @@
+import { deriveParallelMeta, getParallelSegmentsFromItem } from "../../utils/parallelSegments";
+
 // --- Design Tokens ---
 export const TOKENS = {
     colors: {
@@ -112,8 +114,10 @@ export const calculateGanttItems = (items) => {
 
         const duration = parseFloat(item.calendar_days) || 0;
         const crew = parseFloat(item.crew_size) || 0;
-        const frontParallel = parseFloat(item.front_parallel_days) || 0;
-        const backParallel = parseFloat(item.back_parallel_days) || 0;
+        const relativeParallelSegments = getParallelSegmentsFromItem(item, duration);
+        const parallelMeta = deriveParallelMeta(duration, relativeParallelSegments);
+        const frontParallel = parallelMeta.frontParallelDays;
+        const backParallel = parallelMeta.backParallelDays;
 
         let startDay;
 
@@ -128,8 +132,12 @@ export const calculateGanttItems = (items) => {
             }
         }
 
-        // Calculate this task's CP end
-        const cpEnd = startDay + duration - backParallel;
+        // Calculate this task's CP end from front/back contiguous parallel windows.
+        const taskEnd = startDay + duration;
+        const rawRedStart = startDay + frontParallel;
+        const redStart = Math.max(startDay, Math.min(taskEnd, rawRedStart));
+        const rawCpEnd = taskEnd - backParallel;
+        const cpEnd = Math.max(redStart, Math.min(taskEnd, rawCpEnd));
 
         // Update cumulative CP end
         cumulativeCPEnd = Math.max(cumulativeCPEnd, cpEnd);

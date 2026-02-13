@@ -5,6 +5,12 @@ import { getSelectionBoxIds } from "./gantt/controllers/selectionBox";
 import LinkLayer from "./gantt/ui/LinkLayer.jsx";
 import CriticalPathLayer from "./gantt/ui/CriticalPathLayer.jsx";
 import SubtaskLayer from "./gantt/ui/SubtaskLayer.jsx";
+import {
+    buildCriticalSegmentsFromParallel,
+    deriveParallelMeta,
+    getParallelSegmentsFromItem,
+    toAbsoluteParallelSegments
+} from "../../utils/parallelSegments";
 
 const GanttChartArea = ({
     timeline,
@@ -87,19 +93,32 @@ const GanttChartArea = ({
         );
     }, []);
 
+    const getEffectiveRedRange = useCallback((item) => {
+        const taskStart = parseFloat(item?.startDay) || 0;
+        const durationDays = parseFloat(item?.durationDays) || 0;
+        const taskEnd = taskStart + durationDays;
+        const relativeParallelSegments = getParallelSegmentsFromItem(item, durationDays);
+        const parallelMeta = deriveParallelMeta(durationDays, relativeParallelSegments);
+        const rawRedStart = taskStart + parallelMeta.frontParallelDays;
+        const rawRedEnd = taskEnd - parallelMeta.backParallelDays;
+        const redStart = Math.max(taskStart, Math.min(taskEnd, rawRedStart));
+        const redEnd = Math.max(redStart, Math.min(taskEnd, rawRedEnd));
+        const parallelSegments = toAbsoluteParallelSegments(relativeParallelSegments, taskStart);
+        const criticalSegments = buildCriticalSegmentsFromParallel(taskStart, durationDays, relativeParallelSegments);
+        const hasCriticalSegment = criticalSegments.some((segment) => segment.end > segment.start);
+
+        return { taskStart, taskEnd, redStart, redEnd, parallelSegments, criticalSegments, hasCriticalSegment };
+    }, []);
+
     const cpMeta = useMemo(() => {
         const map = new Map();
         itemsWithTiming.forEach((item) => {
-            const frontParallel = parseFloat(item.front_parallel_days) || 0;
-            const backParallel = parseFloat(item.back_parallel_days) || 0;
-            const redStart = item.startDay + frontParallel;
-            const redEnd = (item.startDay + item.durationDays) - backParallel;
-            const hasCriticalSegment = redEnd > redStart;
+            const { redStart, redEnd, hasCriticalSegment } = getEffectiveRedRange(item);
             const isCp = !isParallelItem(item) && hasCriticalSegment;
             map.set(item.id, { redStart, redEnd, isCp });
         });
         return map;
-    }, [itemsWithTiming, isParallelItem]);
+    }, [itemsWithTiming, isParallelItem, getEffectiveRedRange]);
 
     const containedCpMap = useMemo(() => {
         const map = new Map();
@@ -262,14 +281,10 @@ const GanttChartArea = ({
     const overlapsCriticalPath = useCallback((itemId, startDay, durationDays) => {
         const parent = itemsWithTiming.find((item) => item.id === itemId);
         if (!parent) return false;
-        const frontParallel = parseFloat(parent.front_parallel_days) || 0;
-        const backParallel = parseFloat(parent.back_parallel_days) || 0;
-        const redStart = parent.startDay + frontParallel;
-        const redEnd = (parent.startDay + parent.durationDays) - backParallel;
-        if (redEnd <= redStart) return false;
         const endDay = startDay + durationDays;
-        return startDay < redEnd && endDay > redStart;
-    }, [itemsWithTiming]);
+        const { criticalSegments } = getEffectiveRedRange(parent);
+        return criticalSegments.some((segment) => startDay < segment.end && endDay > segment.start);
+    }, [itemsWithTiming, getEffectiveRedRange]);
 
     const getSnapCandidate = useCallback((itemId, day, excludeSubtaskId = null) => {
         const snapThresholdPx = 14;
@@ -277,11 +292,10 @@ const GanttChartArea = ({
         const candidates = [];
         const parent = itemsWithTiming.find((item) => item.id === itemId);
         if (parent) {
-            const frontParallel = parseFloat(parent.front_parallel_days) || 0;
-            const backParallel = parseFloat(parent.back_parallel_days) || 0;
-            const redStart = parent.startDay + frontParallel;
-            const redEnd = (parent.startDay + parent.durationDays) - backParallel;
-            candidates.push(redStart, redEnd);
+            const { criticalSegments } = getEffectiveRedRange(parent);
+            criticalSegments.forEach((segment) => {
+                candidates.push(segment.start, segment.end);
+            });
         }
         (subTasks || []).forEach((subtask) => {
             if (subtask.itemId !== itemId) return;
@@ -298,7 +312,7 @@ const GanttChartArea = ({
             }
         });
         return { snapped: best, diff: bestDiff, within: bestDiff <= thresholdDays };
-    }, [itemsWithTiming, subTasks, pxFactor]);
+    }, [itemsWithTiming, subTasks, pxFactor, getEffectiveRedRange]);
 
     // Snap to all task bar start/end positions for vertical alignment
     const getBarSnapCandidate = useCallback((day, excludeItemId = null) => {
@@ -313,14 +327,10 @@ const GanttChartArea = ({
             candidates.push(item.startDay + item.durationDays);
 
             // Also include red segments for more precise alignment
-            const frontParallel = parseFloat(item.front_parallel_days) || 0;
-            const backParallel = parseFloat(item.back_parallel_days) || 0;
-            const redStart = item.startDay + frontParallel;
-            const redEnd = (item.startDay + item.durationDays) - backParallel;
-            if (redEnd > redStart) {
-                candidates.push(redStart);
-                candidates.push(redEnd);
-            }
+            const { criticalSegments } = getEffectiveRedRange(item);
+            criticalSegments.forEach((segment) => {
+                candidates.push(segment.start, segment.end);
+            });
         });
 
         let best = day;
@@ -334,7 +344,7 @@ const GanttChartArea = ({
         });
 
         return { snapped: best, diff: bestDiff, within: bestDiff <= thresholdDays };
-    }, [itemsWithTiming, pxFactor]);
+    }, [itemsWithTiming, pxFactor, getEffectiveRedRange]);
 
     const handleSubtaskDrawStart = useCallback((e) => {
         if (!subtaskMode) return;
@@ -595,16 +605,11 @@ const GanttChartArea = ({
                 />
 
                 {itemsWithTiming.map((item, index) => {
-                    const taskStart = item.startDay;
-                    const taskEnd = item.startDay + item.durationDays;
-
-                    // Use stored parallel periods (default to 0)
-                    const frontParallel = parseFloat(item.front_parallel_days) || 0;
-                    const backParallel = parseFloat(item.back_parallel_days) || 0;
-
-                    // Calculate red (critical path) segment
-                    const redS = taskStart + frontParallel;
-                    const redE = taskEnd - backParallel;
+                    const { redStart: redS, redEnd: redE, parallelSegments } = getEffectiveRedRange(item);
+                    const containedGrey = (containedCpMap.get(item.id) || []).map((entry) => ({
+                        start: entry.meta.redStart,
+                        end: entry.meta.redEnd
+                    }));
 
                     return (
                         <SmartGanttBar
@@ -631,10 +636,7 @@ const GanttChartArea = ({
                             linkDragActive={!!linkDrag}
                             aiPreview={aiPreviewMap.get(item.id)}
                             aiActive={aiActiveItemId === item.id}
-                            greySegments={(containedCpMap.get(item.id) || []).map((entry) => ({
-                                start: entry.meta.redStart,
-                                end: entry.meta.redEnd
-                            }))}
+                            greySegments={[...parallelSegments, ...containedGrey]}
                             getBarSnapCandidate={getBarSnapCandidate}
                             dataChartRow
                         />
