@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate, useLocation, useParams } from "react-router-dom";
 import { detailProject } from "../../api/cpe/project";
+import { exportScheduleReport } from "../../api/cpe_all/construction_schedule";
+import toast from "react-hot-toast";
 import {
-  FiChevronDown, FiChevronUp
+  FiChevronDown, FiChevronUp, FiDownload
 } from "react-icons/fi";
 
 function Header() {
@@ -11,6 +13,7 @@ function Header() {
   const { id } = useParams();
   const [open, setOpen] = useState(false);
   const [project, setProject] = useState(null);
+  const [isExporting, setIsExporting] = useState(false);
 
   // 항상 호출되지만, 내부에서 id 체크
   useEffect(() => {
@@ -87,27 +90,70 @@ function Header() {
   const activeMenu =
     menus.find((m) => location.pathname === m.path) || menus[0];
 
+  const handleExportReport = async () => {
+    if (!id || isExporting) return;
+    setIsExporting(true);
+    try {
+      const response = await exportScheduleReport(id);
+      const blob = new Blob([response.data], {
+        type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      const safeProject = (project?.title || "프로젝트").replace(/[\\/:*?"<>|]/g, "_");
+      link.download = `보고서_${safeProject}.docx`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+      toast.success("보고서 내보내기 완료");
+    } catch (error) {
+      console.error("보고서 내보내기 실패:", error);
+      toast.error("보고서 내보내기 실패");
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   // 여기서 렌더 제한 (Hook 이후에 return)
   if (!id) return null;
 
   return (
-    <header className="w-full border-b border-gray-700 bg-[#1e1e2f] text-white px-6 py-3 flex flex-col items-start justify-center relative z-[10000] shadow-md shadow-black/20">
+    <header className="w-full border-b border-gray-700 bg-[#1e1e2f] text-white px-6 py-3 flex items-start justify-between relative z-[10000] shadow-md shadow-black/20 gap-4">
       <div className="relative flex flex-col items-start">
-        {/* 드롭다운 버튼 */}
-        <button
-          onClick={() => setOpen(!open)}
-          className="flex items-center gap-3 px-5 py-2.5 rounded-md hover:bg-[#3b3b4f] transition"
-        >
-          <span className="font-bold text-xl text-white">
-            {project?.title || "로딩 중..."}
-          </span>
-          <span className="font-medium text-lg">{activeMenu.name}</span>
-          {open ? (
-            <FiChevronUp className="transition-transform duration-300" size={25} />
-          ) : (
-            <FiChevronDown className="transition-transform duration-300" size={25} />
+        <div className="flex items-center gap-2">
+          {/* 드롭다운 버튼 */}
+          <button
+            onClick={() => setOpen(!open)}
+            className="flex items-center gap-3 px-5 py-2.5 rounded-md hover:bg-[#3b3b4f] transition"
+          >
+            <span className="font-bold text-xl text-white">
+              {project?.title || "로딩 중..."}
+            </span>
+            <span className="font-medium text-lg">{activeMenu.name}</span>
+            {open ? (
+              <FiChevronUp className="transition-transform duration-300" size={25} />
+            ) : (
+              <FiChevronDown className="transition-transform duration-300" size={25} />
+            )}
+          </button>
+
+          {project?.calc_type === "TOTAL" && (
+            <button
+              type="button"
+              onClick={handleExportReport}
+              disabled={isExporting}
+              className={`inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-semibold transition ${isExporting
+                ? "cursor-not-allowed border-gray-700 bg-[#2a2a3a] text-gray-500"
+                : "border-gray-600 bg-[#3b3b4f] text-gray-100 hover:bg-[#4b4b5f]"
+                }`}
+            >
+              <FiDownload size={16} />
+              {isExporting ? "내보내는 중..." : "보고서 내보내기"}
+            </button>
           )}
-        </button>
+        </div>
 
         {/* 프로젝트 설명 */}
         <span className="ml-5 mt-1 text-sm text-gray-400">
