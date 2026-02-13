@@ -547,7 +547,8 @@ export default function ScheduleMasterList() {
                         <col width="100" />
                         <col width="90" />
                         <col width="200" />
-                        <col width="600" />
+                        <col width="500" />
+                        <col width="180" />
                         <col width="60" />
 
                     </colgroup>
@@ -565,9 +566,7 @@ export default function ScheduleMasterList() {
                             <th className="sticky top-0 bg-[#2c2c3a] border-r border-gray-700 px-2 py-2 z-10">반영율</th>
                             <th className="sticky top-0 bg-[#2c2c3a] border-r border-gray-700 px-2 py-2 z-10">작업기간 W/D</th>
                             <th className="sticky top-0 bg-[#2c2c3a] border-r border-gray-700 px-2 py-2 z-10">가동률</th>
-                            <th className="sticky top-0 bg-[#2c2c3a] border-r border-gray-700 px-2 py-2 z-10">비고</th>
-                            <th className="sticky top-0 bg-[#2c2c3a] border-r border-gray-700 px-2 py-2 z-10">병행여부</th>
-                            <th className="sticky top-0 bg-blue-900/40 border-r border-gray-700 px-2 py-2 text-blue-200 font-bold z-10" data-tutorial="calendar-day">Calender Day</th>
+                            <th className="sticky top-0 bg-blue-900/40 border-r border-gray-700 px-2 py-2 text-blue-200 font-bold z-10" data-tutorial="calendar-day">Cal Day</th>
                             <th className="sticky top-0 bg-[#2c2c3a] border-r border-gray-700 px-2 py-2 z-10">비고</th>
                             <th className="sticky top-0 bg-[#2c2c3a] border-r border-gray-700 px-2 py-2 z-10">병행여부</th>
                             <th className="sticky top-0 bg-[#2c2c3a] border-r border-gray-700 px-2 py-2 z-10"></th>
@@ -586,7 +585,7 @@ export default function ScheduleMasterList() {
                                 return [
                                     (
                                         <tr key="add-main-category" className={`bg-[#232332] ${forPrint ? "no-print" : ""}`}>
-                                            <td colSpan="17" className="px-4 py-3">
+                                            <td colSpan="16" className="px-4 py-3">
                                                 <div className="flex flex-wrap items-center gap-3">
                                                     <div className="text-sm font-semibold text-gray-200">대공종 추가</div>
                                                     <input
@@ -610,7 +609,7 @@ export default function ScheduleMasterList() {
                                     ...Object.entries(groupedItems).map(([category, categoryItems]) => (
                                         <React.Fragment key={category}>
                                             <tr className="bg-gradient-to-r from-[#2c2c3a] to-[#242433] border-t border-gray-700">
-                                                <td colSpan="17" className="px-4 py-2.5">
+                                                <td colSpan="16" className="px-4 py-2.5">
                                                     <div className="flex items-center justify-between gap-2">
                                                         <div className="flex items-center gap-2">
                                                             <div className="w-1 h-5 bg-blue-400 rounded-full"></div>
@@ -652,7 +651,7 @@ export default function ScheduleMasterList() {
                                                 </td>
                                             </tr>
                                             <TableToolbarRow
-                                                colSpan={17}
+                                                colSpan={16}
                                                 className={forPrint ? "no-print" : ""}
                                                 onImport={() => {
                                                     const lastCategoryItem = categoryItems[categoryItems.length - 1] || items[0];
@@ -709,19 +708,20 @@ export default function ScheduleMasterList() {
                                 <table className="w-full text-sm box-border table-fixed border-collapse bg-[#2c2c3a] shadow-2xl skew-y-1 origin-top-left opacity-95">
                                     <colgroup>
                                         <col width="30" />
-                                        <col width="120" />
                                         <col width="140" />
-                                        <col width="240" />
+                                        <col width="300" />
                                         <col width="140" />
                                         <col width="60" />
                                         <col width="90" />
-                                        <col width="90" />
-                                        <col width="60" />
+                                        <col width="100" />
+                                        <col width="70" />
                                         <col width="100" />
                                         <col width="80" />
+                                        <col width="100" />
                                         <col width="90" />
-                                        <col width="80" />
-                                        <col width="800" />
+                                        <col width="200" />
+                                        <col width="500" />
+                                        <col width="180" />
                                         <col width="60" />
 
                                     </colgroup>

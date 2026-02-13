@@ -11,6 +11,11 @@ export const calculateItem = (item, operatingRates = [], workDayType = '6d') => 
     const quantity = parseFloat(item.quantity) || 0;
     const productivity = parseFloat(item.productivity) || 0;
     const crew_size = parseFloat(item.crew_size) || 1;
+    const parsedApplicationRate = parseFloat(item.application_rate);
+    const applicationRate = Number.isFinite(parsedApplicationRate)
+        ? Math.min(100, Math.max(0, parsedApplicationRate))
+        : 100;
+    const applicationFactor = applicationRate / 100;
 
     const daily_production = productivity * crew_size;
     const working_days = daily_production > 0 ? quantity / daily_production : 0;
@@ -38,7 +43,8 @@ export const calculateItem = (item, operatingRates = [], workDayType = '6d') => 
         }
     }
 
-    const calendar_days = rateValue > 0 ? working_days / (rateValue / 100) : 0;
+    const baseCalendarDays = rateValue > 0 ? working_days / (rateValue / 100) : 0;
+    const calendar_days = baseCalendarDays * applicationFactor;
     const calendar_months = calendar_days / 30;
 
     return {
