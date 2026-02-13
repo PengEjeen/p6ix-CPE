@@ -91,7 +91,7 @@ function Header() {
   if (!id) return null;
 
   return (
-    <header className="w-full border-b border-gray-700 bg-[#1e1e2f] text-white px-6 py-3 flex flex-col items-start justify-center relative shadow-md shadow-black/20">
+    <header className="w-full border-b border-gray-700 bg-[#1e1e2f] text-white px-6 py-3 flex flex-col items-start justify-center relative z-[10000] shadow-md shadow-black/20">
       <div className="relative flex flex-col items-start">
         {/* 드롭다운 버튼 */}
         <button
@@ -116,7 +116,7 @@ function Header() {
 
         {/* 드롭다운 메뉴 */}
         {open && (
-          <div className="absolute top-full left-0 mt-3 w-60 bg-[#2c2c3a] border border-gray-700 rounded-md shadow-lg z-20 divide-y divide-gray-700">
+          <div className="absolute top-full left-0 mt-3 w-60 bg-[#2c2c3a] border border-gray-700 rounded-md shadow-lg z-[10001] divide-y divide-gray-700">
             {menus.map((menu) => (
               <button
                 key={menu.path}

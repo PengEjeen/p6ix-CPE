@@ -256,6 +256,7 @@ export default function OperatingRate() {
     { key: "summer_threshold", label: "혹서기", icon: Thermometer, type: "threshold", operator: "이상", unit: "℃", valueField: "summer_threshold_value", enabledField: "summer_threshold_enabled" },
     { key: "rainfall_threshold", label: "강우량", icon: CloudRain, type: "threshold", operator: "이상", unit: "mm", valueField: "rainfall_threshold_value", enabledField: "rainfall_threshold_enabled" },
     { key: "snowfall_threshold", label: "강설량", icon: Snowflake, type: "threshold", operator: "이상", unit: "cm", valueField: "snowfall_threshold_value", enabledField: "snowfall_threshold_enabled" },
+    { key: "wind_threshold", label: "순간최대풍속", icon: Wind, type: "wind" },
     { key: "dust_alert_level", label: "미세먼지", icon: Wind, type: "dust" },
     { key: "sector_type", label: "공공/민간", icon: Building2, type: "sector" },
     { key: "work_week_days", label: "주간 작업일", icon: Calendar, type: "workWeek" },
@@ -379,12 +380,28 @@ export default function OperatingRate() {
                           <GridSelect
                             align="center"
                             value={
+                              row.type === "wind" ? (workType.wind_threshold || "미적용") :
                               row.type === "dust" ? (workType.dust_alert_level || "NONE") :
                                 row.type === "sector" ? (workType.sector_type || "PRIVATE") :
                                   (workType.work_week_days || 6)
                             }
-                            onChange={(val) => handleCellChange(index, row.key === "work_week_days" ? "work_week_days" : row.type === "dust" ? "dust_alert_level" : "sector_type", row.type === "workWeek" ? Number(val) : val)}
+                            onChange={(val) => handleCellChange(
+                              index,
+                              row.key === "work_week_days"
+                                ? "work_week_days"
+                                : row.type === "dust"
+                                  ? "dust_alert_level"
+                                  : row.type === "wind"
+                                    ? "wind_threshold"
+                                    : "sector_type",
+                              row.type === "workWeek" ? Number(val) : val
+                            )}
                             options={
+                              row.type === "wind" ? [
+                                { value: "미적용", label: "미적용" },
+                                { value: "12m/s 이상", label: "12m/s 이상" },
+                                { value: "15m/s 이상", label: "15m/s 이상" },
+                              ] :
                               row.type === "dust" ? [
                                 { value: "NONE", label: "미적용" },
                                 { value: "WARNING", label: "주의보" },

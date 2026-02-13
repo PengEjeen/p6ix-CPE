@@ -109,6 +109,30 @@ def is_workday(day, work_week_days):
 def year_range(year):
     return date_cls(year, 1, 1), date_cls(year, 12, 31)
 
+
+def parse_wind_threshold(value):
+    if value is None:
+        return None
+    text = str(value).strip()
+    if not text or text in {"미적용", "NONE", "N/A"}:
+        return None
+
+    number_chars = []
+    dot_seen = False
+    for ch in text:
+        if ch.isdigit():
+            number_chars.append(ch)
+        elif ch == "." and not dot_seen:
+            number_chars.append(ch)
+            dot_seen = True
+
+    if not number_chars:
+        return None
+    try:
+        return float("".join(number_chars))
+    except ValueError:
+        return None
+
 def compute_year_stats(weight, year, station_id, work_week_days, winter_criteria="AVG"):
     year_start, year_end = year_range(year)
     workdays = {
@@ -153,6 +177,12 @@ def compute_year_stats(weight, year, station_id, work_week_days, winter_criteria
     if weight.snowfall_threshold_enabled and weight.snowfall_threshold_value is not None:
         climate_dates |= set(
             qs.filter(ddMes__gte=weight.snowfall_threshold_value)
+            .values_list("date", flat=True)
+        )
+    wind_threshold = parse_wind_threshold(weight.wind_threshold)
+    if wind_threshold is not None:
+        climate_dates |= set(
+            qs.filter(maxInsWs__gte=wind_threshold)
             .values_list("date", flat=True)
         )
 

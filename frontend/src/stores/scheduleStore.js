@@ -126,6 +126,14 @@ export const useScheduleStore = create(
                 state.subTasks = state.subTasks.filter(s => s.itemId !== id);
             }),
 
+            deleteItems: (ids) => set((state) => {
+                if (!Array.isArray(ids) || ids.length === 0) return;
+                const idSet = new Set(ids);
+                state.items = state.items.filter(i => !idSet.has(i.id));
+                state.links = state.links.filter(l => !idSet.has(l.from) && !idSet.has(l.to));
+                state.subTasks = state.subTasks.filter(s => !idSet.has(s.itemId));
+            }),
+
             addLink: (link) => set((state) => {
                 state.links.push(link);
             }),

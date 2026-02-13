@@ -1,9 +1,9 @@
-import React, { useEffect, useState, useMemo, useCallback } from "react";
+import React, { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import { useParams } from "react-router-dom";
 import { saveScheduleData, initializeDefaultItems, fetchScheduleItems, exportScheduleExcel } from "../api/cpe_all/construction_schedule";
 import { updateWorkCondition } from "../api/cpe/calc";
 import toast from "react-hot-toast";
-import { Plus } from "lucide-react";
+import { Trash2 } from "lucide-react";
 
 import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, DragOverlay } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
@@ -48,7 +48,7 @@ export default function ScheduleMasterList() {
     const updateItem = useScheduleStore((state) => state.updateItem);
     const addItem = useScheduleStore((state) => state.addItem);
     const addItemAtIndex = useScheduleStore((state) => state.addItemAtIndex);
-    const deleteItem = useScheduleStore((state) => state.deleteItem);
+    const deleteItems = useScheduleStore((state) => state.deleteItems);
     const reorderItems = useScheduleStore((state) => state.reorderItems);
     const addSubTask = useScheduleStore((state) => state.addSubTask);
     const updateSubTask = useScheduleStore((state) => state.updateSubTask);
@@ -145,6 +145,30 @@ export default function ScheduleMasterList() {
     const [newMainCategory, setNewMainCategory] = useState("");
     const [isScrolling, setIsScrolling] = useState(false);
     const [standardItems, setStandardItems] = useState([]);
+    const [selectedItemIds, setSelectedItemIds] = useState([]);
+    const [floorBatchModal, setFloorBatchModal] = useState(null);
+    const [floorBatchRange, setFloorBatchRange] = useState({ min: "", max: "" });
+    const selectAllRef = useRef(null);
+    const tableHeaderRef = useRef(null);
+    const [tableHeaderHeight, setTableHeaderHeight] = useState(44);
+
+    const allItemIds = useMemo(() => items.map((item) => item.id), [items]);
+    const selectedCount = selectedItemIds.length;
+    const allSelected = allItemIds.length > 0 && selectedCount === allItemIds.length;
+
+    const toggleSelectItem = useCallback((id) => {
+        setSelectedItemIds((prev) => (
+            prev.includes(id) ? prev.filter((itemId) => itemId !== id) : [...prev, id]
+        ));
+    }, []);
+
+    const toggleSelectAllItems = useCallback((checked) => {
+        setSelectedItemIds(checked ? allItemIds : []);
+    }, [allItemIds]);
+
+    const clearSelection = useCallback(() => {
+        setSelectedItemIds([]);
+    }, []);
 
     // Scroll handler for custom scrollbar
     const handleScroll = useCallback((e) => {
@@ -210,6 +234,44 @@ export default function ScheduleMasterList() {
             setStoreSubTasks(filtered);
         }
     }, [items, subTasks, setStoreSubTasks]);
+
+    useEffect(() => {
+        const itemIdSet = new Set(items.map((item) => item.id));
+        setSelectedItemIds((prev) => prev.filter((id) => itemIdSet.has(id)));
+    }, [items]);
+
+    useEffect(() => {
+        if (!selectAllRef.current) return;
+        selectAllRef.current.indeterminate = selectedCount > 0 && !allSelected;
+    }, [allSelected, selectedCount]);
+
+    useEffect(() => {
+        const headerEl = tableHeaderRef.current;
+        if (!headerEl) return;
+
+        const updateHeaderHeight = () => {
+            const headHeight = headerEl.getBoundingClientRect().height || 0;
+            const thHeights = Array.from(headerEl.querySelectorAll("th")).map(
+                (th) => th.getBoundingClientRect().height || 0
+            );
+            const maxThHeight = thHeights.length > 0 ? Math.max(...thHeights) : 0;
+            const measured = Math.ceil(Math.max(headHeight, maxThHeight, 44));
+            setTableHeaderHeight((prev) => (prev === measured ? prev : measured));
+        };
+
+        updateHeaderHeight();
+        let resizeObserver = null;
+        if (typeof ResizeObserver !== "undefined") {
+            resizeObserver = new ResizeObserver(updateHeaderHeight);
+            resizeObserver.observe(headerEl);
+        }
+        window.addEventListener("resize", updateHeaderHeight);
+
+        return () => {
+            if (resizeObserver) resizeObserver.disconnect();
+            window.removeEventListener("resize", updateHeaderHeight);
+        };
+    }, [viewMode]);
 
     const handleAddEvidenceItem = useCallback((type, row) => {
         const parent = evidenceTargetParent || items[0];
@@ -419,8 +481,18 @@ export default function ScheduleMasterList() {
     const handleDeleteItem = async (id) => {
         const ok = await confirm("삭제하시겠습니까?");
         if (!ok) return;
-        deleteItem(id);
+        deleteItems([id]);
+        setSelectedItemIds((prev) => prev.filter((itemId) => itemId !== id));
     };
+
+    const handleDeleteSelectedItems = useCallback(async () => {
+        if (selectedItemIds.length === 0) return;
+        const ok = await confirm(`선택된 ${selectedItemIds.length}개 항목을 삭제하시겠습니까?`);
+        if (!ok) return;
+        deleteItems(selectedItemIds);
+        clearSelection();
+        toast.success(`${selectedItemIds.length}개 항목이 삭제되었습니다.`);
+    }, [clearSelection, confirm, deleteItems, selectedItemIds]);
 
     const handleDeleteCategory = async (category, categoryItems) => {
         const ok = await confirm(`${category} 대공종을 삭제하시겠습니까? (항목 ${categoryItems.length}개)`);
@@ -431,7 +503,11 @@ export default function ScheduleMasterList() {
             (link) => remainingIds.has(link.from) && remainingIds.has(link.to)
         );
         const remainingSubTasks = subTasks.filter((subtask) => remainingIds.has(subtask.itemId));
-        categoryItems.forEach((item) => deleteItem(item.id));
+        deleteItems(categoryItems.map((item) => item.id));
+        setSelectedItemIds((prev) => {
+            const removedIdSet = new Set(categoryItems.map((item) => item.id));
+            return prev.filter((id) => !removedIdSet.has(id));
+        });
         if (containerId) {
             try {
                 await saveScheduleData(containerId, { items: remainingItems, links: remainingLinks, sub_tasks: remainingSubTasks });
@@ -442,6 +518,152 @@ export default function ScheduleMasterList() {
         }
         toast.success("대공종이 삭제되었습니다.");
     };
+
+    const handleOpenFloorBatchModal = useCallback((category, categoryItems) => {
+        setFloorBatchModal({ category, categoryItems });
+        setFloorBatchRange({ min: "", max: "" });
+    }, []);
+
+    const handleCloseFloorBatchModal = useCallback(() => {
+        setFloorBatchModal(null);
+        setFloorBatchRange({ min: "", max: "" });
+    }, []);
+
+    const handleGenerateFloorBatch = useCallback(() => {
+        if (!floorBatchModal) return;
+
+        const minFloor = parseInt(floorBatchRange.min, 10);
+        const maxFloor = parseInt(floorBatchRange.max, 10);
+        if (!Number.isInteger(minFloor) || !Number.isInteger(maxFloor)) {
+            toast.error("최하층/최상층을 정수로 입력해주세요.");
+            return;
+        }
+        if (minFloor === 0 || maxFloor === 0) {
+            toast.error("0층은 사용할 수 없습니다. 지하는 음수로 입력해주세요.");
+            return;
+        }
+        if (minFloor > maxFloor) {
+            toast.error("최하층은 최상층보다 작거나 같아야 합니다.");
+            return;
+        }
+
+        const floors = [];
+        for (let floor = minFloor; floor <= maxFloor; floor += 1) {
+            if (floor !== 0) floors.push(floor);
+        }
+        if (floors.length === 0) {
+            toast.error("생성할 층 범위를 확인해주세요.");
+            return;
+        }
+        if (floors.length > 200) {
+            toast.error("한 번에 200개 층까지만 생성할 수 있습니다.");
+            return;
+        }
+
+        const { category, categoryItems } = floorBatchModal;
+        const lastCategoryItem = categoryItems[categoryItems.length - 1];
+        const template = lastCategoryItem || items.find((item) => item.main_category === category);
+        if (!template) {
+            toast.error("기준이 될 기존 공정을 찾을 수 없습니다.");
+            return;
+        }
+
+        const toFloorLabel = (floor) => (floor < 0 ? `B${Math.abs(floor)}F` : `${floor}F`);
+        const extractBaseContent = (value) => {
+            const raw = String(value || "").trim();
+            const match = raw.match(/^\s*(?:B?\d+F)\s*\((.*)\)\s*$/i);
+            if (match && match[1]) return match[1].trim();
+            return raw;
+        };
+
+        const baseContent = extractBaseContent(template.work_type) || "내용";
+        const existingWorkTypeSet = new Set(
+            items
+                .filter((item) => item.main_category === category)
+                .map((item) => String(item.work_type || "").trim().toUpperCase())
+        );
+
+        const lastCategoryIndex = lastCategoryItem
+            ? items.findIndex((item) => item.id === lastCategoryItem.id)
+            : -1;
+        const baseInsertIndex = lastCategoryIndex >= 0 ? lastCategoryIndex + 1 : items.length;
+
+        let insertIndex = baseInsertIndex;
+        let createdCount = 0;
+        let skippedCount = 0;
+        const ts = Date.now();
+
+        floors.forEach((floor, idx) => {
+            const floorLabel = toFloorLabel(floor);
+            const workTypeLabel = `${floorLabel} (${baseContent})`;
+            const workTypeKey = workTypeLabel.toUpperCase();
+            if (existingWorkTypeSet.has(workTypeKey)) {
+                skippedCount += 1;
+                return;
+            }
+
+            const newItem = {
+                id: `floor-${ts}-${idx}-${Math.random().toString(36).slice(2, 6)}`,
+                main_category: category,
+                process: "철골공사",
+                work_type: workTypeLabel,
+                unit: template.unit || "",
+                quantity: template.quantity ?? 0,
+                quantity_formula: template.quantity_formula || "",
+                productivity: template.productivity ?? 0,
+                crew_size: template.crew_size ?? 1,
+                note: template.note || "",
+                remarks: template.remarks || "",
+                operating_rate_type: template.operating_rate_type || "EARTH",
+                operating_rate_value: template.operating_rate_value ?? 0,
+                standard_code: template.standard_code || "",
+                application_rate: template.application_rate ?? 100,
+                front_parallel_days: 0,
+                back_parallel_days: 0,
+                parallel_segments: []
+            };
+
+            addItemAtIndex(newItem, insertIndex);
+            insertIndex += 1;
+            existingWorkTypeSet.add(workTypeKey);
+            createdCount += 1;
+        });
+
+        if (createdCount === 0) {
+            toast.error("생성 가능한 신규 층 공정이 없습니다.");
+            return;
+        }
+
+        if (skippedCount > 0) {
+            toast.success(`${createdCount}개 생성, ${skippedCount}개는 기존 공정과 중복되어 건너뜀`);
+        } else {
+            toast.success(`${createdCount}개 층 공정을 생성했습니다.`);
+        }
+        handleCloseFloorBatchModal();
+    }, [addItemAtIndex, floorBatchModal, floorBatchRange.max, floorBatchRange.min, handleCloseFloorBatchModal, items]);
+
+    useEffect(() => {
+        const handleTableHotkeys = (e) => {
+            if (viewMode !== "table") return;
+            const target = e.target;
+            if (target?.tagName === 'INPUT' || target?.tagName === 'TEXTAREA' || target?.isContentEditable) return;
+
+            if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'a') {
+                e.preventDefault();
+                setSelectedItemIds(allItemIds);
+                return;
+            }
+
+            if (selectedItemIds.length === 0) return;
+            if (e.key === 'Delete' || e.key === 'Backspace') {
+                e.preventDefault();
+                handleDeleteSelectedItems();
+            }
+        };
+
+        window.addEventListener('keydown', handleTableHotkeys);
+        return () => window.removeEventListener('keydown', handleTableHotkeys);
+    }, [allItemIds, handleDeleteSelectedItems, selectedItemIds.length, viewMode]);
 
     const handleSaveAll = async () => {
         console.log("Saving schedule data... ContainerID:", containerId);
@@ -534,6 +756,7 @@ export default function ScheduleMasterList() {
             >
                 <table className="w-full text-m box-border table-fixed border-collapse bg-[#2c2c3a] rounded-lg text-gray-200">
                     <colgroup>
+                        <col width="34" />
                         <col width="30" />
                         <col width="140" />
                         <col width="300" />
@@ -552,8 +775,18 @@ export default function ScheduleMasterList() {
                         <col width="60" />
 
                     </colgroup>
-                    <thead className="bg-[#3a3a4a] text-gray-200">
+                    <thead ref={tableHeaderRef} className="bg-[#3a3a4a] text-gray-200">
                         <tr className="bg-[#2c2c3a] text-gray-300 font-medium sticky top-0 z-[2] shadow-sm border-b border-gray-700">
+                            <th className="sticky top-0 bg-[#2c2c3a] border-r border-gray-700 px-1 z-10">
+                                <input
+                                    ref={selectAllRef}
+                                    type="checkbox"
+                                    checked={allSelected}
+                                    onChange={(e) => toggleSelectAllItems(e.target.checked)}
+                                    className="h-3.5 w-3.5 accent-blue-500 cursor-pointer"
+                                    aria-label="전체 선택"
+                                />
+                            </th>
                             <th className="sticky top-0 bg-[#2c2c3a] border-r border-gray-700 px-1 z-10"></th>
                             <th className="sticky top-0 bg-[#2c2c3a] border-r border-gray-700 px-2 py-2 z-10">구분</th>
                             <th className="sticky top-0 bg-[#2c2c3a] border-r border-gray-700 px-2 py-2 z-10">공종</th>
@@ -585,7 +818,11 @@ export default function ScheduleMasterList() {
                                 return [
                                     (
                                         <tr key="add-main-category" className={`bg-[#232332] ${forPrint ? "no-print" : ""}`}>
-                                            <td colSpan="16" className="px-4 py-3">
+                                            <td
+                                                colSpan="17"
+                                                className={`px-4 py-3 ${forPrint ? "" : "sticky z-[9] bg-[#232332] border-b border-gray-700"}`}
+                                                style={forPrint ? undefined : { top: `${tableHeaderHeight + 12}px` }}
+                                            >
                                                 <div className="flex flex-wrap items-center gap-3">
                                                     <div className="text-sm font-semibold text-gray-200">대공종 추가</div>
                                                     <input
@@ -602,6 +839,18 @@ export default function ScheduleMasterList() {
                                                     >
                                                         추가
                                                     </button>
+                                                    <button
+                                                        type="button"
+                                                        onClick={handleDeleteSelectedItems}
+                                                        disabled={selectedCount === 0}
+                                                        className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition ${selectedCount > 0
+                                                            ? "border-red-500/50 text-red-200 hover:bg-red-500/10"
+                                                            : "border-gray-700 text-gray-500 cursor-not-allowed"
+                                                            }`}
+                                                    >
+                                                        <Trash2 size={14} />
+                                                        선택 삭제 {selectedCount > 0 ? `(${selectedCount})` : ""}
+                                                    </button>
                                                 </div>
                                             </td>
                                         </tr>
@@ -609,7 +858,7 @@ export default function ScheduleMasterList() {
                                     ...Object.entries(groupedItems).map(([category, categoryItems]) => (
                                         <React.Fragment key={category}>
                                             <tr className="bg-gradient-to-r from-[#2c2c3a] to-[#242433] border-t border-gray-700">
-                                                <td colSpan="16" className="px-4 py-2.5">
+                                                <td colSpan="17" className="px-4 py-2.5">
                                                     <div className="flex items-center justify-between gap-2">
                                                         <div className="flex items-center gap-2">
                                                             <div className="w-1 h-5 bg-blue-400 rounded-full"></div>
@@ -640,18 +889,29 @@ export default function ScheduleMasterList() {
                                                                 );
                                                             })()}
                                                         </div>
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => handleDeleteCategory(category, categoryItems)}
-                                                            className={`px-3 py-1.5 rounded-lg text-xs font-semibold border border-red-500/40 text-red-200 hover:bg-red-500/10 ${forPrint ? "no-print" : ""}`}
-                                                        >
-                                                            대공종 삭제
-                                                        </button>
+                                                        <div className={`flex items-center gap-2 ${forPrint ? "no-print" : ""}`}>
+                                                            {String(category).includes("골조") && (
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => handleOpenFloorBatchModal(category, categoryItems)}
+                                                                    className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-blue-500/40 text-blue-200 hover:bg-blue-500/10"
+                                                                >
+                                                                    층별 공정 생성
+                                                                </button>
+                                                            )}
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => handleDeleteCategory(category, categoryItems)}
+                                                                className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-red-500/40 text-red-200 hover:bg-red-500/10"
+                                                            >
+                                                                대공종 삭제
+                                                            </button>
+                                                        </div>
                                                     </div>
                                                 </td>
                                             </tr>
                                             <TableToolbarRow
-                                                colSpan={16}
+                                                colSpan={17}
                                                 className={forPrint ? "no-print" : ""}
                                                 onImport={() => {
                                                     const lastCategoryItem = categoryItems[categoryItems.length - 1] || items[0];
@@ -682,6 +942,8 @@ export default function ScheduleMasterList() {
                                                 <ScheduleTableRow
                                                     key={item.id}
                                                     item={item}
+                                                    isSelected={selectedItemIds.includes(item.id)}
+                                                    onToggleSelect={toggleSelectItem}
                                                     rowClassName={rowIndex % 2 === 0 ? "bg-[#232332]" : "bg-[#2c2c3a]"}
                                                     operatingRates={operatingRates}
                                                     workDayType={workDayType}
@@ -707,6 +969,7 @@ export default function ScheduleMasterList() {
                             {activeItem ? (
                                 <table className="w-full text-sm box-border table-fixed border-collapse bg-[#2c2c3a] shadow-2xl skew-y-1 origin-top-left opacity-95">
                                     <colgroup>
+                                        <col width="34" />
                                         <col width="30" />
                                         <col width="140" />
                                         <col width="300" />
@@ -728,6 +991,8 @@ export default function ScheduleMasterList() {
                                     <tbody>
                                         <ScheduleTableRow
                                             item={activeItem}
+                                            isSelected={false}
+                                            onToggleSelect={() => { }}
                                             isLinked={activeItem.link_module_type && activeItem.link_module_type !== 'NONE'}
                                             operatingRates={operatingRates}
                                             workDayType={workDayType}
@@ -867,6 +1132,61 @@ export default function ScheduleMasterList() {
                         setSnapshotModalOpen(false);
                     }}
                 />
+            )}
+
+            {floorBatchModal && (
+                <div className="fixed inset-0 z-[12000] flex items-center justify-center bg-black/60 backdrop-blur-sm">
+                    <div className="w-[460px] rounded-xl border border-gray-700 bg-[#2c2c3a] p-6 shadow-2xl">
+                        <h3 className="text-lg font-bold text-gray-100">층별 공정 일괄생성</h3>
+                        <p className="mt-1 text-sm text-gray-400">
+                            대공종: <span className="font-semibold text-blue-200">{floorBatchModal.category}</span>
+                        </p>
+
+                        <div className="mt-4 grid grid-cols-2 gap-3">
+                            <label className="flex flex-col gap-1">
+                                <span className="text-xs font-semibold text-gray-300">최하층</span>
+                                <input
+                                    type="number"
+                                    value={floorBatchRange.min}
+                                    onChange={(e) => setFloorBatchRange((prev) => ({ ...prev, min: e.target.value }))}
+                                    placeholder="예: -3"
+                                    className="rounded-lg border border-gray-600 bg-[#1f1f2b] px-3 py-2 text-sm text-gray-100 outline-none focus:border-blue-500"
+                                />
+                            </label>
+                            <label className="flex flex-col gap-1">
+                                <span className="text-xs font-semibold text-gray-300">최상층</span>
+                                <input
+                                    type="number"
+                                    value={floorBatchRange.max}
+                                    onChange={(e) => setFloorBatchRange((prev) => ({ ...prev, max: e.target.value }))}
+                                    placeholder="예: 30"
+                                    className="rounded-lg border border-gray-600 bg-[#1f1f2b] px-3 py-2 text-sm text-gray-100 outline-none focus:border-blue-500"
+                                />
+                            </label>
+                        </div>
+
+                        <p className="mt-3 text-xs text-gray-400">
+                            지하는 음수로 입력됩니다. 예: `-3 ~ 30` 입력 시 `B3F ~ B1F, 1F ~ 30F` 생성
+                        </p>
+
+                        <div className="mt-5 flex justify-end gap-2">
+                            <button
+                                type="button"
+                                onClick={handleCloseFloorBatchModal}
+                                className="rounded-lg border border-gray-600 px-3 py-2 text-sm text-gray-300 hover:bg-[#3b3b4f]"
+                            >
+                                취소
+                            </button>
+                            <button
+                                type="button"
+                                onClick={handleGenerateFloorBatch}
+                                className="rounded-lg bg-blue-600 px-3 py-2 text-sm font-semibold text-white hover:bg-blue-500"
+                            >
+                                공정 생성
+                            </button>
+                        </div>
+                    </div>
+                </div>
             )}
         </div>
     );

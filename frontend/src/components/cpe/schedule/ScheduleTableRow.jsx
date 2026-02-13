@@ -7,6 +7,8 @@ import StandardSuggestList from "./StandardSuggestList";
 const ScheduleTableRow = ({
     item,
     isLinked,
+    isSelected = false,
+    onToggleSelect,
     handleChange,
     handleDeleteItem,
     handleAddItem,
@@ -127,7 +129,25 @@ const ScheduleTableRow = ({
     };
 
     return (
-        <tr ref={setNodeRef} style={style} className={`hover:bg-white/5 transition-colors text-base ${rowClassName} ${isDragging && !isOverlay ? "bg-blue-900/20" : ""}`}>
+        <tr
+            ref={setNodeRef}
+            style={style}
+            className={`hover:bg-white/5 transition-colors text-base ${rowClassName} ${isSelected ? "bg-blue-900/20" : ""} ${isDragging && !isOverlay ? "bg-blue-900/20" : ""}`}
+        >
+            {/* Row Select */}
+            <td className="border-r border-gray-700 text-center p-1">
+                {!isOverlay ? (
+                    <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={() => onToggleSelect?.(item.id)}
+                        onClick={(e) => e.stopPropagation()}
+                        className="h-3.5 w-3.5 accent-blue-500 cursor-pointer"
+                        aria-label="행 선택"
+                    />
+                ) : null}
+            </td>
+
             {/* Drag Handle */}
             <td className="border-r border-gray-700 text-center text-gray-400 cursor-grab active:cursor-grabbing p-1" {...attributes} {...listeners}>
                 <GripVertical size={14} className="mx-auto" />
