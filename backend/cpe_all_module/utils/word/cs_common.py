@@ -63,8 +63,10 @@ def format_number(value, digits=1):
 
 
 def setup_document_defaults(document):
+    from docx.shared import Pt
+
     style = document.styles["Normal"]
-    style.font.size = document.styles["Normal"].font.size
+    style.font.size = Pt(10)
     try:
         from docx.enum.section import WD_ORIENTATION
     except ImportError:

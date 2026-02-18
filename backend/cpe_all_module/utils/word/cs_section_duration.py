@@ -1039,12 +1039,47 @@ def _add_schedule_chart_section(document, project_name="", gantt_image_bytes=Non
         return
 
     try:
+        from docx.enum.section import WD_ORIENTATION, WD_SECTION_START
+        from docx.enum.text import WD_ALIGN_PARAGRAPH
+        from docx.shared import Emu, Mm
+        from PIL import Image
+
+        # Put gantt image on a dedicated A4-landscape page with narrow margins.
+        chart_section = document.add_section(WD_SECTION_START.NEW_PAGE)
+        chart_section.orientation = WD_ORIENTATION.LANDSCAPE
+        chart_section.page_width = Mm(297)
+        chart_section.page_height = Mm(210)
+        chart_section.top_margin = Mm(5)
+        chart_section.bottom_margin = Mm(5)
+        chart_section.left_margin = Mm(5)
+        chart_section.right_margin = Mm(5)
+
         image_stream = BytesIO(gantt_image_bytes)
-        section = document.sections[-1]
-        max_width = section.page_width - section.left_margin - section.right_margin
+        with Image.open(BytesIO(gantt_image_bytes)) as img:
+            img_w_px, img_h_px = img.size
+        if not img_w_px or not img_h_px:
+            raise ValueError("invalid gantt image size")
+
+        max_width = int(chart_section.page_width - chart_section.left_margin - chart_section.right_margin)
+        max_height = int(chart_section.page_height - chart_section.top_margin - chart_section.bottom_margin)
+        img_ratio = float(img_w_px) / float(img_h_px)
+        box_ratio = float(max_width) / float(max_height) if max_height else img_ratio
+        if img_ratio >= box_ratio:
+            draw_width = max_width
+            draw_height = int(max_width / img_ratio)
+        else:
+            draw_height = max_height
+            draw_width = int(max_height * img_ratio)
+
         paragraph = document.add_paragraph()
-        paragraph.alignment = 1
-        paragraph.add_run().add_picture(image_stream, width=max_width)
+        paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        paragraph.paragraph_format.space_before = 0
+        paragraph.paragraph_format.space_after = 0
+        paragraph.add_run().add_picture(
+            image_stream,
+            width=Emu(draw_width),
+            height=Emu(draw_height),
+        )
     except Exception:
         document.add_paragraph("공정표 이미지 삽입에 실패했습니다.")
 
@@ -1061,11 +1096,21 @@ def _add_weather_appendix_section(document, weather_appendix_data=None):
 
     appendix_data = weather_appendix_data or {}
     appendices = appendix_data.get("appendices") or []
+    yearly_status = appendix_data.get("yearly_status") or {}
+    yearly_tables = yearly_status.get("tables") or []
     region_label = appendix_data.get("region_label", "가동률 지역")
     period_label = appendix_data.get("period_label", "-")
 
-    if not appendices:
+    if not appendices and not yearly_tables:
         return
+
+    from docx.enum.section import WD_ORIENTATION, WD_SECTION_START
+    from docx.shared import Mm
+
+    appendix_section = document.add_section(WD_SECTION_START.NEW_PAGE)
+    appendix_section.orientation = WD_ORIENTATION.PORTRAIT
+    appendix_section.page_width = Mm(210)
+    appendix_section.page_height = Mm(297)
 
     document.add_heading("1.8 별첨", level=2)
 
@@ -1111,8 +1156,6 @@ def _add_weather_appendix_section(document, weather_appendix_data=None):
                 document.add_paragraph("- ※ 소수점 둘째자리는 반올림하여 산정함.")
             document.add_paragraph("")
 
-    yearly_status = appendix_data.get("yearly_status") or {}
-    yearly_tables = yearly_status.get("tables") or []
     if yearly_tables:
         document.add_heading("<별첨> 년도별 기상 휴지일수 현황", level=3)
         for status_table in yearly_tables:
