@@ -1185,6 +1185,7 @@ def _add_weather_appendix_section(document, weather_appendix_data=None):
 
     _add_section_heading(document, "1.8 별첨", "bm_sec_1_8")
     summary_table_count = 0
+    summary_tables_per_page = 3
 
     for appendix in appendices:
         number = appendix.get("number")
@@ -1197,7 +1198,7 @@ def _add_weather_appendix_section(document, weather_appendix_data=None):
         _add_subheading(document, heading, f"bm_appendix_{number}")
 
         for case in (appendix.get("cases") or []):
-            if summary_table_count > 0 and summary_table_count % 2 == 0:
+            if summary_table_count > 0 and summary_table_count % summary_tables_per_page == 0:
                 document.add_page_break()
 
             case_label = case.get("case_label", "-")

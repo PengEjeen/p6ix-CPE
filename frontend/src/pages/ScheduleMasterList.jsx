@@ -712,7 +712,60 @@ export default function ScheduleMasterList() {
         const templateBlock = (floorTemplateBlock.length > 0 ? floorTemplateBlock : fallbackTemplateBlock)
             .filter((row) => String(row?.work_type || "").trim().length > 0);
 
-        if (templateBlock.length === 0) {
+        // Floor batch for framework category must always be created as RC 5-step set.
+        const RC_FLOOR_WORK_TYPES = [
+            "철근 현장가공 및 조립",
+            "유로폼, 합판, 경사 등",
+            "데크플레이트",
+            "콘크리트 펌프차 타설(철근)",
+            "양생"
+        ];
+        const RC_FLOOR_PRESET = {
+            BASEMENT: {
+                "철근 현장가공 및 조립": { unit: "TON", quantity: 75.866, productivity: 4, crew_size: 5 },
+                "유로폼, 합판, 경사 등": { unit: "M2", quantity: 2846, productivity: 35, crew_size: 10 },
+                "데크플레이트": { unit: "M2", quantity: 1083, productivity: 20, crew_size: 6 },
+                "콘크리트 펌프차 타설(철근)": { unit: "M3", quantity: 884, productivity: 156, crew_size: 2 },
+                "양생": { unit: "", quantity: 1, productivity: 1, crew_size: 1 }
+            },
+            GROUND: {
+                "철근 현장가공 및 조립": { unit: "TON", quantity: 44.631, productivity: 4, crew_size: 5 },
+                "유로폼, 합판, 경사 등": { unit: "M2", quantity: 1861, productivity: 35, crew_size: 8 },
+                "데크플레이트": { unit: "M2", quantity: 912, productivity: 20, crew_size: 6 },
+                "콘크리트 펌프차 타설(철근)": { unit: "M3", quantity: 522, productivity: 156, crew_size: 2 },
+                "양생": { unit: "", quantity: 1, productivity: 1, crew_size: 1 }
+            }
+        };
+        const normalizeText = (value) => String(value || "").replace(/\s+/g, "").toUpperCase();
+        const referenceRows = categoryItems.filter((row) => String(row?.work_type || "").trim().length > 0);
+        const fallbackRow = referenceRows[0] || templateBlock[0] || template;
+
+        const findMatchingRcRow = (targetWorkType) => {
+            const target = normalizeText(targetWorkType);
+            const exact = referenceRows.find((row) => normalizeText(row?.work_type) === target);
+            if (exact) return exact;
+
+            if (target.includes("유로폼")) {
+                return referenceRows.find((row) => normalizeText(row?.work_type).includes("유로폼"));
+            }
+            if (target.includes("철근")) {
+                return referenceRows.find((row) => normalizeText(row?.work_type).includes("철근"));
+            }
+            if (target.includes("데크")) {
+                return referenceRows.find((row) => normalizeText(row?.work_type).includes("데크"));
+            }
+            if (target.includes("타설")) {
+                return referenceRows.find(
+                    (row) => normalizeText(row?.work_type).includes("콘크리트") && normalizeText(row?.work_type).includes("타설")
+                );
+            }
+            if (target.includes("양생")) {
+                return referenceRows.find((row) => normalizeText(row?.work_type).includes("양생"));
+            }
+            return null;
+        };
+
+        if (!fallbackRow) {
             toast.error("복제할 기준 공종 묶음을 찾을 수 없습니다.");
             return;
         }
@@ -737,8 +790,24 @@ export default function ScheduleMasterList() {
         floors.forEach((floor, floorIdx) => {
             const floorLabel = toFloorLabel(floor);
             let floorCreated = 0;
+            const floorTypeKey = floor < 0 ? "BASEMENT" : "GROUND";
+            const floorPreset = RC_FLOOR_PRESET[floorTypeKey];
+            const floorTemplate = RC_FLOOR_WORK_TYPES.map((workType) => {
+                const matchedRow = findMatchingRcRow(workType);
+                const sourceRow = matchedRow || fallbackRow;
+                const preset = floorPreset?.[workType] || {};
+                return {
+                    ...sourceRow,
+                    process: "RC공사",
+                    work_type: workType,
+                    unit: preset.unit ?? sourceRow.unit ?? "",
+                    quantity: preset.quantity ?? sourceRow.quantity ?? 0,
+                    productivity: preset.productivity ?? sourceRow.productivity ?? 0,
+                    crew_size: preset.crew_size ?? sourceRow.crew_size ?? 1
+                };
+            });
 
-            templateBlock.forEach((sourceRow, rowIdx) => {
+            floorTemplate.forEach((sourceRow, rowIdx) => {
                 const pairKey = `${floorLabel}|${String(sourceRow.work_type || "").trim()}`.toUpperCase();
                 if (existingPairSet.has(pairKey)) {
                     skippedRowCount += 1;
@@ -758,7 +827,7 @@ export default function ScheduleMasterList() {
                     crew_size: sourceRow.crew_size ?? 1,
                     note: sourceRow.note || "",
                     remarks: sourceRow.remarks || "",
-                    operating_rate_type: sourceRow.operating_rate_type || "EARTH",
+                    operating_rate_type: sourceRow.operating_rate_type || "FRAME",
                     operating_rate_value: sourceRow.operating_rate_value ?? 0,
                     standard_code: sourceRow.standard_code || "",
                     application_rate: sourceRow.application_rate ?? 100,
@@ -1037,6 +1106,10 @@ export default function ScheduleMasterList() {
                                     ),
                                     ...Object.entries(groupedItems).map(([category, categoryItems]) => (
                                         <React.Fragment key={category}>
+                                            {(() => {
+                                                const categoryCalDays = calculateTotalCalendarDays(categoryItems);
+                                                const categoryCalMonths = calculateTotalCalendarMonths(categoryCalDays);
+                                                return (
                                             <tr className="bg-gradient-to-r from-[#2c2c3a] to-[#242433] border-t border-gray-700">
                                                 <td colSpan="18" className="px-4 py-2.5">
                                                     <div className="flex items-center justify-between gap-2">
@@ -1047,6 +1120,9 @@ export default function ScheduleMasterList() {
                                                             </h3>
                                                             <span className="text-xs text-gray-400 bg-[#1f1f2b] px-2 py-0.5 rounded-full border border-gray-700">
                                                                 {categoryItems.length}개 항목
+                                                            </span>
+                                                            <span className="text-xs text-blue-200 bg-blue-900/20 px-2 py-0.5 rounded-full border border-blue-500/40 font-semibold">
+                                                                {categoryCalDays}일 ({categoryCalMonths}개월)
                                                             </span>
                                                             {/* Category-specific Run Rate */}
                                                             {(() => {
@@ -1090,6 +1166,8 @@ export default function ScheduleMasterList() {
                                                     </div>
                                                 </td>
                                             </tr>
+                                                );
+                                            })()}
                                             <TableToolbarRow
                                                 colSpan={18}
                                                 className={forPrint ? "no-print" : ""}
