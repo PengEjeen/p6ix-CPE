@@ -54,16 +54,16 @@ const ScheduleTableRow = ({
         style.opacity = 1;
         style.boxShadow = "0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)";
         style.backgroundColor = "white";
-        // Overlay always shows full cells
-        spanInfo = { mainRowSpan: 1, procRowSpan: 1, isMainFirst: true, isProcFirst: true };
     }
 
     const [activeField, setActiveField] = useState(null);
     const [processQuery, setProcessQuery] = useState("");
+    const [subProcessQuery, setSubProcessQuery] = useState("");
     const [workTypeQuery, setWorkTypeQuery] = useState("");
     const [activeIndex, setActiveIndex] = useState(0);
     const blurTimeoutRef = useRef(null);
     const processInputRef = useRef(null);
+    const subProcessInputRef = useRef(null);
     const workTypeInputRef = useRef(null);
 
     const buildSuggestions = (query) => {
@@ -72,10 +72,12 @@ const ScheduleTableRow = ({
         const scored = standardItems.map((std) => {
             const fields = [
                 std.item_name,
+                std.sub_category,
                 std.category,
                 std.standard,
                 std.main_category,
-                std.process_name
+                std.process_name,
+                std.work_type_name
             ].filter(Boolean).map((v) => String(v).toLowerCase());
             let score = 0;
             fields.forEach((f) => {
@@ -89,6 +91,7 @@ const ScheduleTableRow = ({
     };
 
     const processSuggestions = useMemo(() => buildSuggestions(processQuery), [processQuery, standardItems]);
+    const subProcessSuggestions = useMemo(() => buildSuggestions(subProcessQuery), [subProcessQuery, standardItems]);
     const workTypeSuggestions = useMemo(() => buildSuggestions(workTypeQuery), [workTypeQuery, standardItems]);
 
     const handleInputFocus = (field) => {
@@ -97,6 +100,7 @@ const ScheduleTableRow = ({
             blurTimeoutRef.current = null;
         }
         if (field === 'process') setProcessQuery(item.process || "");
+        if (field === 'sub_process') setSubProcessQuery(item.sub_process || "");
         if (field === 'work_type') setWorkTypeQuery(item.work_type || "");
         setActiveIndex(0);
         setActiveField(field);
@@ -153,10 +157,10 @@ const ScheduleTableRow = ({
                 <GripVertical size={14} className="mx-auto" />
             </td>
 
-            {/* Process (Used as Classification '구분') */}
-            {(spanInfo.isProcFirst || isOverlay) && (
+            {/* Classification (구분) - keep using process data */}
+            {(isOverlay || spanInfo?.isProcessFirst !== false) && (
                 <td
-                    rowSpan={isOverlay ? 1 : spanInfo.procRowSpan}
+                    rowSpan={isOverlay ? 1 : (spanInfo?.processRowSpan || 1)}
                     className="border-r border-gray-700 bg-[#2c2c3a] p-1 align-top"
                 >
                     <div className="relative">
@@ -185,7 +189,39 @@ const ScheduleTableRow = ({
                 </td>
             )}
 
-            {/* Work Type */}
+            {/* Sub Process (공정) */}
+            {(isOverlay || spanInfo?.isSubProcessFirst !== false) && (
+                <td
+                    rowSpan={isOverlay ? 1 : (spanInfo?.subProcessRowSpan || 1)}
+                    className="border-r border-gray-700 bg-[#2c2c3a] p-1 align-top"
+                >
+                    <div className="relative">
+                        <input
+                            ref={subProcessInputRef}
+                            className="w-full bg-transparent outline-none font-medium text-gray-200 text-center text-base"
+                            value={item.sub_process || ""}
+                            onChange={(e) => {
+                                handleChange(item.id, 'sub_process', e.target.value);
+                                setSubProcessQuery(e.target.value);
+                            }}
+                            onFocus={() => handleInputFocus('sub_process')}
+                            onBlur={handleInputBlur}
+                            onKeyDown={(e) => handleSuggestionKeyDown(e, subProcessSuggestions)}
+                        />
+                        <StandardSuggestList
+                            items={subProcessSuggestions}
+                            isOpen={!isOverlay && activeField === 'sub_process'}
+                            activeIndex={activeIndex}
+                            onActiveIndexChange={setActiveIndex}
+                            onSelect={handleSuggestionSelect}
+                            position="bottom"
+                            anchorRef={subProcessInputRef}
+                        />
+                    </div>
+                </td>
+            )}
+
+            {/* Work Type (공종) */}
             <td className="border-r border-gray-700 px-2 py-1">
                 <div className="flex items-center gap-1 relative">
                     {isLinked && <Link size={12} className="text-blue-500" />}

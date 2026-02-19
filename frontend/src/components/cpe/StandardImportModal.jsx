@@ -76,6 +76,7 @@ export default function StandardImportModal({ isOpen, onClose, onSelect, project
             return (
                 (item.item_name || '').toLowerCase().includes(term) ||
                 (item.standard || '').toLowerCase().includes(term) ||
+                (item.sub_category || '').toLowerCase().includes(term) ||
                 (item.category || '').toLowerCase().includes(term) ||
                 (item.main_category || '').toLowerCase().includes(term)
             );
@@ -158,7 +159,7 @@ export default function StandardImportModal({ isOpen, onClose, onSelect, project
                         <input
                             data-tutorial="import-search"
                             type="text"
-                            placeholder="공종명, 항목명, 규격 검색..."
+                            placeholder="공정, 공종, 항목명, 규격 검색..."
                             className="w-full bg-[#1f1f2b] border border-gray-700 text-gray-200 pl-10 pr-4 py-2.5 rounded-xl focus:outline-none focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/50 transition text-sm font-medium placeholder-gray-600"
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
@@ -194,7 +195,8 @@ export default function StandardImportModal({ isOpen, onClose, onSelect, project
                                         <table className="w-full text-sm text-left">
                                             <thead>
                                                 <tr className="bg-[#1f1f2b] text-gray-400 border-b border-gray-700/50 text-xs uppercase tracking-wider">
-                                                    <th className="py-2 px-4 font-medium w-28">공종</th>
+                                                    <th className="py-2 px-4 font-medium w-28">공정</th>
+                                                    <th className="py-2 px-4 font-medium w-32">공종</th>
                                                     <th className="py-2 px-4 font-medium">항목명</th>
                                                     <th className="py-2 px-4 font-medium">규격</th>
                                                     <th className="py-2 px-4 font-medium w-16 text-center">단위</th>
@@ -214,11 +216,14 @@ export default function StandardImportModal({ isOpen, onClose, onSelect, project
                                                             key={item.id}
                                                             className="group hover:bg-blue-900/10 border-b border-gray-800 last:border-0 transition-colors"
                                                         >
-                                                            <td className="py-3 px-4 text-gray-500 font-medium">
+                                                            <td className="py-3 px-4 text-gray-400 font-medium">
                                                                 {item.category}
                                                             </td>
+                                                            <td className="py-3 px-4 text-gray-500 font-medium">
+                                                                {item.sub_category || '-'}
+                                                            </td>
                                                             <td className="py-3 px-4 text-gray-200 font-bold">
-                                                                {item.item_name}
+                                                                {item.item_name || '-'}
                                                             </td>
                                                             <td className="py-3 px-4 text-gray-500">
                                                                 {item.standard || '-'}

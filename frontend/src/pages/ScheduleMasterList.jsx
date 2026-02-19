@@ -284,6 +284,7 @@ export default function ScheduleMasterList() {
             id: `evidence-${type}-${row.id}-${Date.now()}`,
             main_category: parent.main_category || "근거 데이터",
             process: parent.process || `${label} 결과`,
+            sub_process: parent.sub_process || "",
             work_type: label,
             unit: parent.unit || "",
             quantity: row.total_depth ?? 0,
@@ -313,6 +314,7 @@ export default function ScheduleMasterList() {
             id: `new-${Date.now()}`,
             main_category: parentItem ? parentItem.main_category : "새 공종",
             process: parentItem ? parentItem.process : "새 작업",
+            sub_process: parentItem ? (parentItem.sub_process || "") : "새 세부공정",
             work_type: "새 세부작업",
             unit: "",
             quantity: 0,
@@ -361,6 +363,7 @@ export default function ScheduleMasterList() {
             id: `main-${Date.now()}`,
             main_category: name,
             process: "새 공정",
+            sub_process: "새 세부공정",
             work_type: "새 세부작업",
             unit: "",
             quantity: 0,
@@ -422,11 +425,16 @@ export default function ScheduleMasterList() {
         const dataArray = Array.isArray(importedData) ? importedData : [importedData];
 
         dataArray.forEach(std => {
+            const processName = std.category || std.process_name || importTargetParent?.process || "수입 작업";
+            const subProcessName = std.sub_category || std.work_type_name || importTargetParent?.sub_process || "";
+            const workTypeName = std.item_name || std.work_type_name || std.sub_category || std.category || "수입 공종";
+            const remarkLabel = std.item_name || std.sub_category || std.category || "";
             const newItem = {
                 id: `imp-${Date.now()}-${Math.random()}`,
                 main_category: importTargetParent?.main_category || "수입 공종",
-                process: std.process_name || importTargetParent?.process || "수입 작업",
-                work_type: std.category || std.item_name,
+                process: processName,
+                sub_process: subProcessName,
+                work_type: workTypeName,
                 unit: std.unit,
                 quantity: 1,
                 quantity_formula: "",
@@ -437,7 +445,7 @@ export default function ScheduleMasterList() {
                 operating_rate_value: 0,
                 standard_code: std.code || std.standard,
                 // Use the remark from selection: "항목명 (선택 기준)"
-                remarks: std.remark ? `${std.item_name} (${std.remark})` : std.item_name || ""
+                remarks: std.remark ? `${remarkLabel} (${std.remark})` : remarkLabel
             };
 
             if (importTargetParent) {
@@ -465,16 +473,71 @@ export default function ScheduleMasterList() {
     const handleApplyStandardToRow = useCallback((item, std) => {
         if (!item || !std) return;
         const { productivity, remark } = deriveStandardProductivity(std);
-        updateItem(item.id, 'process', std.process_name || std.category || std.item_name || item.process || '');
-        updateItem(item.id, 'work_type', std.category || std.item_name || item.work_type || '');
+        const processName = std.category || std.process_name || item.process || '';
+        const subProcessName = std.sub_category || std.work_type_name || item.sub_process || '';
+        const workTypeName = std.item_name || std.work_type_name || std.sub_category || std.category || item.work_type || '';
+        const remarkLabel = std.item_name || std.sub_category || std.category || '';
+        updateItem(item.id, 'process', processName);
+        updateItem(item.id, 'sub_process', subProcessName);
+        updateItem(item.id, 'work_type', workTypeName);
         updateItem(item.id, 'unit', std.unit || item.unit || '');
         updateItem(item.id, 'productivity', productivity || 0);
         updateItem(item.id, 'standard_code', std.code || std.standard || item.standard_code || '');
-        updateItem(item.id, 'remarks', std.item_name ? `${std.item_name} (${remark})` : (item.remarks || remark));
+        updateItem(item.id, 'remarks', remarkLabel ? `${remarkLabel} (${remark})` : (item.remarks || remark));
     }, [deriveStandardProductivity, updateItem]);
 
     const spanInfoMap = useMemo(() => {
         const map = {};
+        const groupedItems = items.reduce((acc, item) => {
+            const category = item.main_category || '기타';
+            if (!acc[category]) acc[category] = [];
+            acc[category].push(item);
+            return acc;
+        }, {});
+
+        Object.values(groupedItems).forEach((categoryItems) => {
+            // Merge same `process` values in "구분" column.
+            let i = 0;
+            while (i < categoryItems.length) {
+                const processValue = String(categoryItems[i]?.process || "");
+                let j = i + 1;
+                while (j < categoryItems.length && String(categoryItems[j]?.process || "") === processValue) {
+                    j += 1;
+                }
+                const span = j - i;
+                for (let k = i; k < j; k += 1) {
+                    const row = categoryItems[k];
+                    if (!map[row.id]) map[row.id] = {};
+                    map[row.id].isProcessFirst = k === i;
+                    map[row.id].processRowSpan = span;
+                }
+                i = j;
+            }
+
+            // Merge same `sub_process` values in "공정" column.
+            i = 0;
+            while (i < categoryItems.length) {
+                const processValue = String(categoryItems[i]?.process || "");
+                const subProcessValue = String(categoryItems[i]?.sub_process || "");
+                let j = i + 1;
+                while (
+                    j < categoryItems.length &&
+                    String(categoryItems[j]?.process || "") === processValue &&
+                    String(categoryItems[j]?.sub_process || "") === subProcessValue
+                ) {
+                    j += 1;
+                }
+                const span = j - i;
+                for (let k = i; k < j; k += 1) {
+                    const row = categoryItems[k];
+                    if (!map[row.id]) map[row.id] = {};
+                    map[row.id].isSubProcessFirst = k === i;
+                    map[row.id].subProcessRowSpan = span;
+                }
+                i = j;
+            }
+        });
+
         return map;
     }, [items]);
 
@@ -606,6 +669,7 @@ export default function ScheduleMasterList() {
                 id: `floor-${ts}-${idx}-${Math.random().toString(36).slice(2, 6)}`,
                 main_category: category,
                 process: "철골공사",
+                sub_process: template.sub_process || "",
                 work_type: workTypeLabel,
                 unit: template.unit || "",
                 quantity: template.quantity ?? 0,
@@ -759,7 +823,8 @@ export default function ScheduleMasterList() {
                         <col width="34" />
                         <col width="30" />
                         <col width="140" />
-                        <col width="300" />
+                        <col width="180" />
+                        <col width="280" />
                         <col width="140" />
                         <col width="60" />
                         <col width="90" />
@@ -789,6 +854,7 @@ export default function ScheduleMasterList() {
                             </th>
                             <th className="sticky top-0 bg-[#2c2c3a] border-r border-gray-700 px-1 z-10"></th>
                             <th className="sticky top-0 bg-[#2c2c3a] border-r border-gray-700 px-2 py-2 z-10">구분</th>
+                            <th className="sticky top-0 bg-[#2c2c3a] border-r border-gray-700 px-2 py-2 z-10">공정</th>
                             <th className="sticky top-0 bg-[#2c2c3a] border-r border-gray-700 px-2 py-2 z-10">공종</th>
                             <th className="sticky top-0 bg-[#2c2c3a] border-r border-gray-700 px-2 py-2 z-10">수량산출(개산)</th>
                             <th className="sticky top-0 bg-[#2c2c3a] border-r border-gray-700 px-2 py-2 z-10">단위</th>
@@ -819,7 +885,7 @@ export default function ScheduleMasterList() {
                                     (
                                         <tr key="add-main-category" className={`bg-[#232332] ${forPrint ? "no-print" : ""}`}>
                                             <td
-                                                colSpan="17"
+                                                colSpan="18"
                                                 className={`px-4 py-3 ${forPrint ? "" : "sticky z-[9] bg-[#232332] border-b border-gray-700"}`}
                                                 style={forPrint ? undefined : { top: `${tableHeaderHeight + 12}px` }}
                                             >
@@ -858,7 +924,7 @@ export default function ScheduleMasterList() {
                                     ...Object.entries(groupedItems).map(([category, categoryItems]) => (
                                         <React.Fragment key={category}>
                                             <tr className="bg-gradient-to-r from-[#2c2c3a] to-[#242433] border-t border-gray-700">
-                                                <td colSpan="17" className="px-4 py-2.5">
+                                                <td colSpan="18" className="px-4 py-2.5">
                                                     <div className="flex items-center justify-between gap-2">
                                                         <div className="flex items-center gap-2">
                                                             <div className="w-1 h-5 bg-blue-400 rounded-full"></div>
@@ -911,7 +977,7 @@ export default function ScheduleMasterList() {
                                                 </td>
                                             </tr>
                                             <TableToolbarRow
-                                                colSpan={17}
+                                                colSpan={18}
                                                 className={forPrint ? "no-print" : ""}
                                                 onImport={() => {
                                                     const lastCategoryItem = categoryItems[categoryItems.length - 1] || items[0];
@@ -928,7 +994,8 @@ export default function ScheduleMasterList() {
                                                         handleAddItem({
                                                             ...lastCategoryItem,
                                                             main_category: category,
-                                                            process: category === lastCategoryItem.main_category ? lastCategoryItem.process : ''
+                                                            process: category === lastCategoryItem.main_category ? lastCategoryItem.process : '',
+                                                            sub_process: category === lastCategoryItem.main_category ? (lastCategoryItem.sub_process || '') : ''
                                                         });
                                                     }
                                                 }}
@@ -952,7 +1019,7 @@ export default function ScheduleMasterList() {
                                                     handleDeleteItem={handleDeleteItem}
                                                     handleAddItem={handleAddItem}
                                                     handleOpenImport={handleOpenImport}
-                                                    spanInfo={spanInfoMap[item.id] || { isMainFirst: true, isProcFirst: true, mainRowSpan: 1, procRowSpan: 1 }}
+                                                    spanInfo={spanInfoMap[item.id] || { isProcessFirst: true, isSubProcessFirst: true, processRowSpan: 1, subProcessRowSpan: 1 }}
                                                     standardItems={standardItems}
                                                     onApplyStandard={handleApplyStandardToRow}
                                                 />
@@ -972,7 +1039,8 @@ export default function ScheduleMasterList() {
                                         <col width="34" />
                                         <col width="30" />
                                         <col width="140" />
-                                        <col width="300" />
+                                        <col width="180" />
+                                        <col width="280" />
                                         <col width="140" />
                                         <col width="60" />
                                         <col width="90" />

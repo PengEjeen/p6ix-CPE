@@ -70,8 +70,10 @@ const StandardSuggestList = ({
                             onSelect(std);
                         }}
                     >
-                        <div className="font-semibold">{std.item_name || std.category}</div>
-                        <div className="text-xs text-gray-400">{std.process_name || std.main_category || std.category}</div>
+                        <div className="font-semibold">{std.sub_category || std.work_type_name || std.item_name || std.category}</div>
+                        <div className="text-xs text-gray-400">
+                            {(std.main_category || "-")} / {(std.category || std.process_name || "-")}
+                        </div>
                     </button>
                 );
             })}
