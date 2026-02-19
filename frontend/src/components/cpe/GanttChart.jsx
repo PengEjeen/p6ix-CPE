@@ -14,10 +14,150 @@ import { buildMoveUpdatesByDelta } from "./gantt/utils/moveUpdates";
 import { useAutoScale } from "./gantt/hooks/useAutoScale";
 import GanttToolbar from "./gantt/ui/GanttToolbar";
 import LinkEditorPopover from "./gantt/ui/LinkEditorPopover";
-import { buildParallelStateFromSegments } from "../../utils/parallelSegments";
+import { buildParallelStateFromSegments, deriveParallelMeta, getParallelSegmentsFromItem } from "../../utils/parallelSegments";
 import toast from "react-hot-toast";
 import { useTutorial } from "../../hooks/useTutorial";
 import { ganttChartSteps } from "../../config/tutorialSteps";
+
+const GANTT_VIEW_MODE = {
+    CATEGORY: "category",
+    PROCESS: "process",
+    WORK_TYPE: "work_type"
+};
+
+const toViewId = (prefix, value) => `${prefix}-${encodeURIComponent(String(value || "-"))}`;
+
+const getCriticalMeta = (item) => {
+    const taskStart = parseFloat(item?.startDay) || 0;
+    const durationDays = parseFloat(item?.durationDays) || 0;
+    const taskEnd = taskStart + durationDays;
+    const relativeParallelSegments = getParallelSegmentsFromItem(item, durationDays);
+    const parallelMeta = deriveParallelMeta(durationDays, relativeParallelSegments);
+    const rawRedStart = taskStart + parallelMeta.frontParallelDays;
+    const rawRedEnd = taskEnd - parallelMeta.backParallelDays;
+    const redStart = Math.max(taskStart, Math.min(taskEnd, rawRedStart));
+    const redEnd = Math.max(redStart, Math.min(taskEnd, rawRedEnd));
+    const remarksText = String(item?.remarks || "").trim();
+    const hasParallelMarker = (
+        remarksText === "병행작업"
+        || Boolean(item?._parallelGroup)
+        || Boolean(item?.parallelGroup)
+        || Boolean(item?.parallel_group)
+        || Boolean(item?.is_parallelism)
+    );
+    const isFullyParallel = parallelMeta.parallelDays >= durationDays;
+    const isParallel = hasParallelMarker || isFullyParallel;
+    const hasCriticalSegment = parallelMeta.criticalDays > 0 && redEnd > redStart;
+
+    return { redStart, redEnd, isParallel, hasCriticalSegment };
+};
+
+const buildAggregatedViewData = (itemsWithTiming, mode) => {
+    if (!Array.isArray(itemsWithTiming) || itemsWithTiming.length === 0) {
+        return { items: [], itemToViewId: new Map() };
+    }
+    if (mode === GANTT_VIEW_MODE.WORK_TYPE) {
+        const itemToViewId = new Map(itemsWithTiming.map((item) => [item.id, item.id]));
+        return { items: itemsWithTiming, itemToViewId };
+    }
+
+    const grouped = new Map();
+    const itemToViewId = new Map();
+    itemsWithTiming.forEach((item, index) => {
+        const start = parseFloat(item.startDay) || 0;
+        const end = start + (parseFloat(item.durationDays) || 0);
+        const main = String(item.main_category || "기타");
+        const section = String(item.process || "미분류 구분");
+        const process = String(item.sub_process || "미분류 공정");
+
+        const isSectionMode = mode === GANTT_VIEW_MODE.CATEGORY;
+        const groupKey = isSectionMode
+            ? `${main}|||${section}`
+            : `${main}|||${section}|||${process}`;
+        const displayProcess = section;
+        const displayWorkType = isSectionMode ? section : process;
+
+        if (!grouped.has(groupKey)) {
+            grouped.set(groupKey, {
+                id: toViewId(isSectionMode ? "view-section" : "view-process", groupKey),
+                main_category: main,
+                process: displayProcess,
+                sub_process: isSectionMode ? "" : process,
+                work_type: displayWorkType,
+                startDay: start,
+                endDay: end,
+                order: index,
+                members: []
+            });
+        } else {
+            const bucket = grouped.get(groupKey);
+            if (start < bucket.startDay) bucket.startDay = start;
+            if (end > bucket.endDay) bucket.endDay = end;
+        }
+        const bucket = grouped.get(groupKey);
+        bucket.members.push(item);
+        itemToViewId.set(item.id, bucket.id);
+    });
+
+    const items = Array.from(grouped.values())
+        .sort((a, b) => a.order - b.order)
+        .map(({ order, members, ...row }) => {
+            const durationDays = Math.max(0, row.endDay - row.startDay);
+            let cpRedStart = Infinity;
+            let cpRedEnd = -Infinity;
+            let hasCriticalSegment = false;
+            let hasNonParallel = false;
+
+            members.forEach((member) => {
+                const memberMeta = getCriticalMeta(member);
+                if (!memberMeta.isParallel) hasNonParallel = true;
+                if (!memberMeta.isParallel && memberMeta.hasCriticalSegment) {
+                    hasCriticalSegment = true;
+                    cpRedStart = Math.min(cpRedStart, memberMeta.redStart);
+                    cpRedEnd = Math.max(cpRedEnd, memberMeta.redEnd);
+                }
+            });
+
+            const normalizedCpRedStart = Number.isFinite(cpRedStart) ? cpRedStart : row.startDay;
+            const normalizedCpRedEnd = Number.isFinite(cpRedEnd) ? cpRedEnd : row.startDay;
+            return {
+                ...row,
+                durationDays,
+                calendar_days: durationDays,
+                cp_red_start: normalizedCpRedStart,
+                cp_red_end: normalizedCpRedEnd,
+                _hasCriticalSegment: hasCriticalSegment,
+                is_parallelism: !hasNonParallel
+            };
+        });
+
+    return { items, itemToViewId };
+};
+
+const buildAggregatedLinks = (links, itemToViewId) => {
+    if (!Array.isArray(links) || links.length === 0) return [];
+    if (!(itemToViewId instanceof Map) || itemToViewId.size === 0) return [];
+
+    const dedup = new Map();
+    links.forEach((link) => {
+        const from = itemToViewId.get(link.from);
+        const to = itemToViewId.get(link.to);
+        if (!from || !to || from === to) return;
+        const type = link.type || "FS";
+        const lag = parseFloat(link.lag) || 0;
+        const key = `${from}|${to}|${type}|${lag}`;
+        if (dedup.has(key)) return;
+        dedup.set(key, {
+            id: `view-link-${encodeURIComponent(key)}`,
+            from,
+            to,
+            type,
+            lag
+        });
+    });
+
+    return Array.from(dedup.values());
+};
 
 export default function GanttChart({
     items,
@@ -31,7 +171,8 @@ export default function GanttChart({
     subTasks,
     onCreateSubtask,
     onUpdateSubtask,
-    onDeleteSubtask
+    onDeleteSubtask,
+    readOnly = false
 }) {
     const pixelsPerUnit = 40;
     const setGanttDateScale = useScheduleStore((state) => state.setGanttDateScale);
@@ -56,10 +197,12 @@ export default function GanttChart({
     // eslint-disable-next-line no-unused-vars
     const [draggedItem, setDraggedItem] = useState(null);
     const [dateScale, setDateScale] = useState(1);
+    const [ganttViewMode, setGanttViewMode] = useState(GANTT_VIEW_MODE.WORK_TYPE);
     const [hasUserScaled, setHasUserScaled] = useState(false);
     const [linkMode, setLinkMode] = useState(false);
     const [subtaskMode, setSubtaskMode] = useState(false);
     const [isScrolling, setIsScrolling] = useState(false);
+    const canEdit = !readOnly && ganttViewMode === GANTT_VIEW_MODE.WORK_TYPE;
 
     // Tutorial
     useTutorial('ganttChart', ganttChartSteps);
@@ -128,6 +271,7 @@ export default function GanttChart({
 
     // Subtask Copy/Paste (Object Level)
     React.useEffect(() => {
+        if (!canEdit) return;
         const handleKeyDown = async (e) => {
             // Ignore if typing in an input
             if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable) {
@@ -184,12 +328,21 @@ export default function GanttChart({
 
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [selectedSubtaskIds, selectedItemIds, subTasks, copiedSubtask, onCreateSubtask]);
+    }, [canEdit, selectedSubtaskIds, selectedItemIds, subTasks, copiedSubtask, onCreateSubtask]);
 
-    // Calculate Grid Data FIRST (needed for handlers)
-    const { itemsWithTiming, totalDays, dailyLoads } = useMemo(() => {
+    // Calculate base data on work-type rows first, then build display view.
+    const { itemsWithTiming: baseItemsWithTiming, totalDays, dailyLoads } = useMemo(() => {
         return calculateGanttItems(items);
     }, [items]);
+
+    const { items: itemsWithTiming, itemToViewId } = useMemo(() => {
+        return buildAggregatedViewData(baseItemsWithTiming, ganttViewMode);
+    }, [baseItemsWithTiming, ganttViewMode]);
+
+    const visibleLinks = useMemo(() => {
+        if (ganttViewMode === GANTT_VIEW_MODE.WORK_TYPE) return links;
+        return buildAggregatedLinks(links, itemToViewId);
+    }, [ganttViewMode, links, itemToViewId]);
 
     const handleItemClick = useCallback((itemId, source, event) => {
         const isMulti = event?.shiftKey || event?.metaKey || event?.ctrlKey;
@@ -266,6 +419,7 @@ export default function GanttChart({
     }, []);
 
     const handleBarResizing = useCallback((itemId, duration, x, y) => {
+        if (!canEdit) return;
         if (!itemId) {
             setSimulation(null);
             return;
@@ -294,7 +448,7 @@ export default function GanttChart({
             x,
             y
         });
-    }, [items]);
+    }, [canEdit, items]);
 
     const timeline = useMemo(() => generateTimeline(startDate, totalDays, dateScale), [startDate, totalDays, dateScale]);
 
@@ -320,15 +474,17 @@ export default function GanttChart({
     const shiftSubTasksForItem = useScheduleStore((state) => state.shiftSubTasksForItem);
 
     const handleGroupDrag = useCallback((deltaDays) => {
+        if (!canEdit) return;
         if (!deltaDays || !Array.isArray(selectedItemIds) || selectedItemIds.length < 1) return;
         const updates = buildMoveUpdatesByDelta(selectedItemIds, itemsWithTiming, deltaDays);
         moveTaskBars(updates);
         selectedItemIds.forEach((id) => {
             shiftSubTasksForItem(id, deltaDays);
         });
-    }, [itemsWithTiming, moveTaskBars, selectedItemIds, shiftSubTasksForItem]);
+    }, [canEdit, itemsWithTiming, moveTaskBars, selectedItemIds, shiftSubTasksForItem]);
 
     const handleGroupDragPreview = useCallback((deltaDays) => {
+        if (!canEdit) return;
         if (!deltaDays || !Array.isArray(selectedItemIds) || selectedItemIds.length < 1) return;
 
         if (!groupPreviewRef.current) {
@@ -342,13 +498,14 @@ export default function GanttChart({
         if (subtaskUpdates.length > 0) {
             moveSubTasks(subtaskUpdates);
         }
-    }, [itemsWithTiming, moveSubTasks, moveTaskBars, selectedItemIds, subTasks]);
+    }, [canEdit, itemsWithTiming, moveSubTasks, moveTaskBars, selectedItemIds, subTasks]);
 
     const handleGroupDragEnd = useCallback(() => {
         groupPreviewRef.current = null;
     }, []);
 
     const handleBarDragPreview = useCallback((draggedId, newStartDay) => {
+        if (!canEdit) return;
         if (Array.isArray(selectedItemIds) && selectedItemIds.length > 1) return;
         if (draggedId && newStartDay !== null && newStartDay !== undefined) {
             moveTaskBars([{ id: draggedId, newStartDay }]);
@@ -375,7 +532,7 @@ export default function GanttChart({
         if (subtaskUpdates.length > 0) {
             moveSubTasks(subtaskUpdates);
         }
-    }, [itemsWithTiming, moveSubTasks, moveTaskBars, selectedItemIds, subTasks]);
+    }, [canEdit, itemsWithTiming, moveSubTasks, moveTaskBars, selectedItemIds, subTasks]);
 
     const handleBarDragEnd = useCallback((draggedId) => {
         if (!dragPreviewRef.current) return;
@@ -383,6 +540,7 @@ export default function GanttChart({
     }, []);
 
     const handleLinkAnchorClick = useCallback((itemId, anchor) => {
+        if (!canEdit) return;
         if (!linkMode) return;
         if (!linkDraft) {
             setLinkDraft({ fromId: itemId, fromAnchor: anchor });
@@ -398,21 +556,23 @@ export default function GanttChart({
             addLink(newLink);
         }
         setLinkDraft(null);
-    }, [addLink, linkDraft, linkMode, links]);
+    }, [addLink, canEdit, linkDraft, linkMode, links]);
 
     const handleCreateLink = useCallback((fromId, fromAnchor, toId, toAnchor) => {
+        if (!canEdit) return;
         if (!fromId || !toId) return;
         if (fromId === toId && fromAnchor === toAnchor) return;
         const newLink = buildLink({ fromId, fromAnchor, toId, toAnchor });
         if (!isDuplicateLink(links, newLink)) {
             addLink(newLink);
         }
-    }, [addLink, links]);
+    }, [addLink, canEdit, links]);
 
     const handleLinkClick = useCallback((linkId, x, y) => {
+        if (!canEdit) return;
         setSelectedLinkId(linkId);
         setLinkEditor({ id: linkId, x, y });
-    }, []);
+    }, [canEdit]);
 
     const handleLinkEditorClose = useCallback(() => {
         setLinkEditor(null);
@@ -426,22 +586,41 @@ export default function GanttChart({
     }, [linkMode]);
 
     React.useEffect(() => {
+        if (canEdit) return;
+        setLinkMode(false);
+        setSubtaskMode(false);
+        setLinkDraft(null);
+        setLinkEditor(null);
+        setSelectedLinkId(null);
+        setSelectedSubtaskIds([]);
+    }, [canEdit]);
+
+    React.useEffect(() => {
+        const visibleIds = new Set(itemsWithTiming.map((item) => item.id));
+        setSelectedItemIds((prev) => prev.filter((id) => visibleIds.has(id)));
+    }, [itemsWithTiming]);
+
+    React.useEffect(() => {
         if (!aiActiveItemId) return;
+        if (!itemsWithTiming.some((item) => item.id === aiActiveItemId)) return;
         handleItemClick(aiActiveItemId, 'sidebar');
-    }, [aiActiveItemId, handleItemClick]);
+    }, [aiActiveItemId, handleItemClick, itemsWithTiming]);
 
     const handleCreateSubtask = useCallback((itemId, startDay, durationDays) => {
+        if (!canEdit) return;
         if (onCreateSubtask) onCreateSubtask(itemId, startDay, durationDays);
-    }, [onCreateSubtask]);
+    }, [canEdit, onCreateSubtask]);
 
     const handleUpdateSubtask = useCallback((id, updates) => {
+        if (!canEdit) return;
         if (onUpdateSubtask) onUpdateSubtask(id, updates);
-    }, [onUpdateSubtask]);
+    }, [canEdit, onUpdateSubtask]);
 
     const handleDeleteSubtask = useCallback((id) => {
+        if (!canEdit) return;
         if (onDeleteSubtask) onDeleteSubtask(id);
         setSelectedSubtaskIds((prev) => prev.filter((subtaskId) => subtaskId !== id));
-    }, [onDeleteSubtask]);
+    }, [canEdit, onDeleteSubtask]);
 
     // Calculate category completion milestones
     const categoryMilestones = useMemo(() => {
@@ -549,6 +728,7 @@ export default function GanttChart({
 
     // Handlers
     const handleBarDrag = useCallback((itemId, newStartDay) => {
+        if (!canEdit) return;
         const item = items.find(i => i.id === itemId);
         if (!item) return;
         const isSelected = selectedItemIds.includes(itemId);
@@ -646,9 +826,10 @@ export default function GanttChart({
                 shiftSubTasksForItem(itemId, dragDelta);
             }
         }
-    }, [items, itemsWithTiming, moveTaskBars, selectedItemIds, shiftSubTasksForItem]);
+    }, [canEdit, items, itemsWithTiming, moveTaskBars, selectedItemIds, shiftSubTasksForItem]);
 
     const handleBarResize = useCallback((itemId, newDuration, x, y) => {
+        if (!canEdit) return;
         // Trigger Popover for Logic Choice
         const item = items.find(i => i.id === itemId);
         if (!item) return;
@@ -683,7 +864,7 @@ export default function GanttChart({
                 y: finalY
             });
         }, 10);
-    }, [items]);
+    }, [canEdit, items]);
 
     return (
         <div className="h-full flex flex-col bg-white rounded-2xl border border-gray-100 shadow-2xl overflow-hidden font-sans">
@@ -693,11 +874,14 @@ export default function GanttChart({
                 <GanttToolbar
                     dateScale={dateScale}
                     onSetScale={handleSetScale}
+                    viewMode={ganttViewMode}
+                    onChangeViewMode={setGanttViewMode}
                     linkMode={linkMode}
                     setLinkMode={setLinkMode}
                     linkDraft={linkDraft}
                     subtaskMode={subtaskMode}
                     setSubtaskMode={setSubtaskMode}
+                    canEdit={canEdit}
                 />
             </div>
 
@@ -742,7 +926,7 @@ export default function GanttChart({
                             pixelsPerUnit={pixelsPerUnit}
                             dateScale={dateScale}
                             itemsWithTiming={itemsWithTiming}
-                            links={links}
+                            links={visibleLinks}
                             categoryMilestones={categoryMilestones}
                             onBarDragStart={handleBarDrag}
                             onBarDragPreview={handleBarDragPreview}
@@ -757,21 +941,22 @@ export default function GanttChart({
                             onGroupDragPreview={handleGroupDragPreview}
                             onGroupDragEnd={handleGroupDragEnd}
                             onMoveSubtasks={moveSubTasks}
-                            linkMode={linkMode}
+                            linkMode={canEdit ? linkMode : false}
                             onLinkAnchorClick={handleLinkAnchorClick}
-                            onLinkClick={handleLinkClick}
-                            selectedLinkId={selectedLinkId}
+                            onLinkClick={canEdit ? handleLinkClick : undefined}
+                            selectedLinkId={canEdit ? selectedLinkId : null}
                             aiPreviewItems={aiPreviewItems}
                             aiOriginalItems={aiOriginalItems}
                             aiActiveItemId={aiActiveItemId}
                             onCreateLink={handleCreateLink}
-                            subtaskMode={subtaskMode}
+                            subtaskMode={canEdit ? subtaskMode : false}
                             subTasks={subTasks}
                             selectedSubtaskIds={selectedSubtaskIds}
                             onSelectSubtask={handleSubtaskSelect}
                             onCreateSubtask={handleCreateSubtask}
                             onUpdateSubtask={handleUpdateSubtask}
                             onDeleteSubtask={handleDeleteSubtask}
+                            readOnly={!canEdit}
                         />
 
                     </div>
@@ -779,7 +964,7 @@ export default function GanttChart({
 
                 {/* Floating Simulation Tooltip */}
                 <AnimatePresence>
-                    {simulation && (
+                    {canEdit && simulation && (
                         <motion.div
                             initial={{ opacity: 0, y: 10, scale: 0.95 }}
                             animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -816,7 +1001,7 @@ export default function GanttChart({
 
                 {/* Contextual Brain Interaction */}
                 <ContextualBrainPopover
-                    data={popover}
+                    data={canEdit ? popover : null}
                     onClose={() => {
                         setPopover(null);
                         setSimulation(null);
@@ -835,7 +1020,7 @@ export default function GanttChart({
 
                 {/* Overlap Resolution Popup (Drag Only) */}
                 <OverlapResolvePopover
-                    data={overlapPopover}
+                    data={canEdit ? overlapPopover : null}
                     onClose={() => setOverlapPopover(null)}
                     onSelectCurrentAsCP={() => {
                         if (!overlapPopover) return;
@@ -961,7 +1146,7 @@ export default function GanttChart({
                 />
 
                 <LinkEditorPopover
-                    linkEditor={linkEditor}
+                    linkEditor={canEdit ? linkEditor : null}
                     links={links}
                     updateLink={updateLink}
                     deleteLink={deleteLink}

@@ -15,14 +15,27 @@ export default function CriticalPathLayer({
         const taskStart = parseFloat(item?.startDay) || 0;
         const durationDays = parseFloat(item?.durationDays) || 0;
         const taskEnd = taskStart + durationDays;
+        const customRedStart = Number(item?.cp_red_start);
+        const customRedEnd = Number(item?.cp_red_end);
+        if (Number.isFinite(customRedStart) && Number.isFinite(customRedEnd)) {
+            const redStart = Math.max(taskStart, Math.min(taskEnd, customRedStart));
+            const redEnd = Math.max(redStart, Math.min(taskEnd, customRedEnd));
+            const hasCriticalSegment = typeof item?._hasCriticalSegment === "boolean"
+                ? item._hasCriticalSegment && redEnd > redStart
+                : redEnd > redStart;
+            return { taskStart, taskEnd, redStart, redEnd, hasCriticalSegment };
+        }
+
         const relativeParallelSegments = getParallelSegmentsFromItem(item, durationDays);
         const parallelMeta = deriveParallelMeta(durationDays, relativeParallelSegments);
         const rawRedStart = taskStart + parallelMeta.frontParallelDays;
         const rawRedEnd = taskEnd - parallelMeta.backParallelDays;
         const redStart = Math.max(taskStart, Math.min(taskEnd, rawRedStart));
         const redEnd = Math.max(redStart, Math.min(taskEnd, rawRedEnd));
-
-        return { taskStart, taskEnd, redStart, redEnd, hasCriticalSegment: parallelMeta.criticalDays > 0 };
+        const hasCriticalSegment = typeof item?._hasCriticalSegment === "boolean"
+            ? item._hasCriticalSegment && redEnd > redStart
+            : parallelMeta.criticalDays > 0;
+        return { taskStart, taskEnd, redStart, redEnd, hasCriticalSegment };
     };
 
     const isParallelItem = (item) => {

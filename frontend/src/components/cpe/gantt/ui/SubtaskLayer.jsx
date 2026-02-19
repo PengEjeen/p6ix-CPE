@@ -27,7 +27,8 @@ export default function SubtaskLayer({
     getSnapCandidate,
     hasSubtaskOverlap,
     overlapsCriticalPath,
-    setRenameModal
+    setRenameModal,
+    readOnly = false
 }) {
     const dragSuppressRef = React.useRef(false);
     const renderSubtask = (subtask) => {
@@ -52,6 +53,7 @@ export default function SubtaskLayer({
         const isSelected = Array.isArray(selectedSubtaskIds) && selectedSubtaskIds.includes(subtask.id);
 
         const handleDragStart = (e, mode) => {
+            if (readOnly) return;
             e.preventDefault();
             e.stopPropagation();
             dragSuppressRef.current = false;
@@ -206,7 +208,7 @@ export default function SubtaskLayer({
                     {subtask.label || "부공종"}
                 </div>
                 <div
-                    className={`absolute rounded-full cursor-grab select-none pointer-events-auto group/row
+                    className={`absolute rounded-full ${readOnly ? "cursor-default" : "cursor-grab"} select-none pointer-events-auto group/row
                         ${isSelected ? "bg-slate-600/90 text-white ring-2 ring-slate-300" : "bg-slate-300/90 text-slate-900"}
                     `}
                     style={{ left: `${leftPx}px`, top: `${top}px`, height: `${height}px`, width: `${widthPx}px` }}
@@ -220,21 +222,26 @@ export default function SubtaskLayer({
                         if (onSelectSubtask) onSelectSubtask(subtask.id, e);
                     }}
                     onDoubleClick={(e) => {
+                        if (readOnly) return;
                         e.stopPropagation();
                         setRenameModal({ open: true, id: subtask.id, value: subtask.label || "부공종" });
                     }}
                 >
-                    <div
-                        className="absolute left-0 top-1/2 -translate-x-1/2 -translate-y-1/2 w-3.5 h-3.5 rounded-full bg-white border-2 border-slate-500 cursor-ew-resize pointer-events-auto"
-                        data-subtask-item="true"
-                        onMouseDown={(e) => handleDragStart(e, "resize-start")}
-                    />
-                    <div
-                        className="absolute right-0 top-1/2 translate-x-1/2 -translate-y-1/2 w-3.5 h-3.5 rounded-full bg-white border-2 border-slate-500 cursor-ew-resize pointer-events-auto"
-                        data-subtask-item="true"
-                        onMouseDown={(e) => handleDragStart(e, "resize-end")}
-                    />
-                    {linkMode && (
+                    {!readOnly && (
+                        <div
+                            className="absolute left-0 top-1/2 -translate-x-1/2 -translate-y-1/2 w-3.5 h-3.5 rounded-full bg-white border-2 border-slate-500 cursor-ew-resize pointer-events-auto"
+                            data-subtask-item="true"
+                            onMouseDown={(e) => handleDragStart(e, "resize-start")}
+                        />
+                    )}
+                    {!readOnly && (
+                        <div
+                            className="absolute right-0 top-1/2 translate-x-1/2 -translate-y-1/2 w-3.5 h-3.5 rounded-full bg-white border-2 border-slate-500 cursor-ew-resize pointer-events-auto"
+                            data-subtask-item="true"
+                            onMouseDown={(e) => handleDragStart(e, "resize-end")}
+                        />
+                    )}
+                    {!readOnly && linkMode && (
                         <>
                             <button
                                 type="button"
@@ -273,7 +280,7 @@ export default function SubtaskLayer({
                             />
                         </>
                     )}
-                    {isSelected && (
+                    {!readOnly && isSelected && (
                         <button
                             type="button"
                             className="absolute -right-3 -top-4 w-4 h-4 rounded-full bg-white text-slate-700 border border-slate-300 text-[10px] leading-[14px] shadow-sm pointer-events-auto z-50"

@@ -47,7 +47,8 @@ const GanttChartArea = ({
     onSelectSubtask,
     onCreateSubtask,
     onUpdateSubtask,
-    onDeleteSubtask
+    onDeleteSubtask,
+    readOnly = false
 }) => {
     const aiPreviewMap = useMemo(() => {
         if (!aiPreviewItems || !aiOriginalItems) return new Map();
@@ -97,6 +98,31 @@ const GanttChartArea = ({
         const taskStart = parseFloat(item?.startDay) || 0;
         const durationDays = parseFloat(item?.durationDays) || 0;
         const taskEnd = taskStart + durationDays;
+        const customRedStart = Number(item?.cp_red_start);
+        const customRedEnd = Number(item?.cp_red_end);
+
+        if (Number.isFinite(customRedStart) && Number.isFinite(customRedEnd)) {
+            const redStart = Math.max(taskStart, Math.min(taskEnd, customRedStart));
+            const redEnd = Math.max(redStart, Math.min(taskEnd, customRedEnd));
+            const hasCriticalSegment = typeof item?._hasCriticalSegment === "boolean"
+                ? item._hasCriticalSegment && redEnd > redStart
+                : redEnd > redStart;
+            const criticalSegments = hasCriticalSegment ? [{ start: redStart, end: redEnd }] : [];
+            return { taskStart, taskEnd, redStart, redEnd, parallelSegments: [], criticalSegments, hasCriticalSegment };
+        }
+
+        if (durationDays <= 0) {
+            return {
+                taskStart,
+                taskEnd,
+                redStart: taskStart,
+                redEnd: taskStart,
+                parallelSegments: [],
+                criticalSegments: [],
+                hasCriticalSegment: false
+            };
+        }
+
         const relativeParallelSegments = getParallelSegmentsFromItem(item, durationDays);
         const parallelMeta = deriveParallelMeta(durationDays, relativeParallelSegments);
         const rawRedStart = taskStart + parallelMeta.frontParallelDays;
@@ -347,6 +373,7 @@ const GanttChartArea = ({
     }, [itemsWithTiming, pxFactor, getEffectiveRedRange]);
 
     const handleSubtaskDrawStart = useCallback((e) => {
+        if (readOnly) return;
         if (!subtaskMode) return;
         if (e.button !== 0) return;
         e.preventDefault();
@@ -394,7 +421,7 @@ const GanttChartArea = ({
 
         document.addEventListener('mousemove', handleMouseMove);
         document.addEventListener('mouseup', handleMouseUp);
-    }, [subtaskMode, rowH, itemsWithTiming, pxFactor, onCreateSubtask, hasSubtaskOverlap, getSnapCandidate]);
+    }, [readOnly, subtaskMode, rowH, itemsWithTiming, pxFactor, onCreateSubtask, hasSubtaskOverlap, getSnapCandidate]);
 
     const handleCanvasMouseDown = useCallback((e) => {
         if (subtaskMode) return;
@@ -595,11 +622,12 @@ const GanttChartArea = ({
                     hasSubtaskOverlap={hasSubtaskOverlap}
                     overlapsCriticalPath={overlapsCriticalPath}
                     setRenameModal={setRenameModal}
+                    readOnly={readOnly}
                 />
 
                 {/* Subtask Draw Overlay */}
                 <div
-                    className={`absolute inset-0 z-30 ${subtaskMode ? 'cursor-crosshair' : 'pointer-events-none'}`}
+                    className={`absolute inset-0 z-30 ${!readOnly && subtaskMode ? 'cursor-crosshair' : 'pointer-events-none'}`}
                     style={{ height: `${itemsWithTiming.length * rowH}px` }}
                     onMouseDown={handleSubtaskDrawStart}
                 />
@@ -639,6 +667,7 @@ const GanttChartArea = ({
                             greySegments={[...parallelSegments, ...containedGrey]}
                             getBarSnapCandidate={getBarSnapCandidate}
                             dataChartRow
+                            readOnly={readOnly}
                         />
                     );
                 })}

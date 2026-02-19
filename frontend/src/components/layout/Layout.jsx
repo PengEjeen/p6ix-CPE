@@ -57,6 +57,10 @@ function Layout() {
     navigate("/login");
   };
 
+  const mainLayoutClass = isMobile
+    ? "ml-0 w-full"
+    : (menuOpen ? "ml-60 w-[calc(100%-15rem)]" : "ml-12 w-[calc(100%-3rem)]");
+
   return (
     <div className="h-screen w-full flex bg-[#1e1e2f] text-white overflow-hidden relative">
       {/* 모바일용 오버레이 */}
@@ -164,12 +168,11 @@ function Layout() {
 
       {/* === 메인 === */}
       <main
-        className={`flex-1 flex flex-col bg-[#1e1e2f] transition-all duration-300 ${menuOpen && !isMobile ? "ml-60" : "ml-12"
-          }`}
+        className={`min-w-0 flex flex-col bg-[#1e1e2f] transition-all duration-300 ${mainLayoutClass}`}
       >
         <Header />
         <div
-          className={`scroll-container flex-1 overflow-y-auto p-6 text-gray-200 ${isMainScrolling ? 'scrolling' : ''}`}
+          className={`scroll-container min-w-0 flex-1 overflow-y-auto p-6 text-gray-200 ${isMainScrolling ? 'scrolling' : ''}`}
           onScroll={handleMainScroll}
         >
           <Outlet />

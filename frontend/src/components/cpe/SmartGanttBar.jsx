@@ -27,7 +27,8 @@ const SmartGanttBar = ({
     aiActive,
     greySegments = [],
     getBarSnapCandidate,
-    dataChartRow
+    dataChartRow,
+    readOnly = false
 }) => {
     const [isResizing, setIsResizing] = useState(false);
     const [isDragging, setIsDragging] = useState(false);
@@ -51,6 +52,10 @@ const SmartGanttBar = ({
 
     // --- Drag Logic ---
     const handleBarDrag = (e) => {
+        if (readOnly) {
+            if (onItemClick) onItemClick(item.id, 'chart', e);
+            return;
+        }
         if (e.target.classList.contains('resize-handle')) return;
 
         setIsDragging(true);
@@ -110,6 +115,7 @@ const SmartGanttBar = ({
 
     // --- Resize Logic ---
     const handleResizeStart = (e) => {
+        if (readOnly) return;
         e.stopPropagation();
         setIsResizing(true);
         const startX = e.clientX;
@@ -184,7 +190,7 @@ const SmartGanttBar = ({
 
             {/* Smart Active Bar (Node Style) */}
             <div
-                className={`absolute top-2 h-7 flex items-center cursor-grab z-20 ${aiActive ? "ring-2 ring-blue-400/80" : ""}`}
+                className={`absolute top-2 h-7 flex items-center z-20 ${readOnly ? "cursor-default" : "cursor-grab"} ${aiActive ? "ring-2 ring-blue-400/80" : ""}`}
                 style={{
                     left: `${leftPx}px`,
                     width: `${widthPx}px`,
@@ -276,16 +282,18 @@ const SmartGanttBar = ({
                 <div className={`absolute left-0 w-3.5 h-3.5 bg-white border-2 border-slate-500 rounded-full shadow-sm -translate-x-1/2 z-20`}></div>
 
                 {/* 3. End Node (Circle & Resize Handle) */}
-                <motion.div
-                    className="absolute right-0 w-3.5 h-3.5 bg-white border-2 border-slate-500 rounded-full shadow-sm translate-x-1/2 cursor-ew-resize hover:scale-125 hover:border-violet-600 transition-all z-20 resize-handle"
-                    onMouseDown={handleResizeStart}
-                >
-                    {/* Inner Dot for visual grip */}
-                    <div className="absolute inset-0.5 bg-slate-200 rounded-full pointer-events-none"></div>
-                </motion.div>
+                {!readOnly && (
+                    <motion.div
+                        className="absolute right-0 w-3.5 h-3.5 bg-white border-2 border-slate-500 rounded-full shadow-sm translate-x-1/2 cursor-ew-resize hover:scale-125 hover:border-violet-600 transition-all z-20 resize-handle"
+                        onMouseDown={handleResizeStart}
+                    >
+                        {/* Inner Dot for visual grip */}
+                        <div className="absolute inset-0.5 bg-slate-200 rounded-full pointer-events-none"></div>
+                    </motion.div>
+                )}
             </div>
 
-            {linkMode && (
+            {!readOnly && linkMode && (
                 <>
                     <button
                         type="button"

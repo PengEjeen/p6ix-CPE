@@ -3,7 +3,7 @@ import { useParams } from "react-router-dom";
 import { saveScheduleData, initializeDefaultItems, fetchScheduleItems, exportScheduleExcel } from "../api/cpe_all/construction_schedule";
 import { updateWorkCondition } from "../api/cpe/calc";
 import toast from "react-hot-toast";
-import { Trash2 } from "lucide-react";
+import { ArrowDown, ArrowUp, ChevronLeft, ChevronRight, Trash2, X } from "lucide-react";
 
 import { DndContext, closestCenter, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
@@ -26,6 +26,8 @@ import { calculateTotalCalendarDays, calculateTotalCalendarMonths } from "../uti
 import { calculateGanttItems } from "../components/cpe/ganttUtils";
 import { fetchProductivities } from "../api/cpe_all/productivity";
 import { scheduleMasterListSteps } from "../config/tutorialSteps";
+
+const HORIZONTAL_HINT_STORAGE_KEY = "scheduleMaster.horizontalHintSeen";
 
 export default function ScheduleMasterList() {
     const { id: projectId } = useParams();
@@ -149,7 +151,12 @@ export default function ScheduleMasterList() {
     const [floorBatchRange, setFloorBatchRange] = useState({ min: "", max: "" });
     const selectAllRef = useRef(null);
     const tableHeaderRef = useRef(null);
+    const tableScrollRef = useRef(null);
     const [tableHeaderHeight, setTableHeaderHeight] = useState(44);
+    const [hasHorizontalOverflow, setHasHorizontalOverflow] = useState(false);
+    const [canScrollLeft, setCanScrollLeft] = useState(false);
+    const [canScrollRight, setCanScrollRight] = useState(false);
+    const [showHorizontalHint, setShowHorizontalHint] = useState(false);
     const selectionDragModeRef = useRef(null);
     const selectionDragVisitedRef = useRef(new Set());
 
@@ -217,6 +224,25 @@ export default function ScheduleMasterList() {
         return () => window.removeEventListener("mouseup", handleMouseUp);
     }, [isSelectionDragging]);
 
+    const updateHorizontalScrollState = useCallback(() => {
+        const el = tableScrollRef.current;
+        if (!el) return;
+        const maxLeft = Math.max(0, el.scrollWidth - el.clientWidth);
+        const hasOverflow = maxLeft > 1;
+        setHasHorizontalOverflow(hasOverflow);
+        setCanScrollLeft(hasOverflow && el.scrollLeft > 2);
+        setCanScrollRight(hasOverflow && el.scrollLeft < maxLeft - 2);
+    }, []);
+
+    const dismissHorizontalHint = useCallback(() => {
+        setShowHorizontalHint(false);
+        try {
+            window.localStorage.setItem(HORIZONTAL_HINT_STORAGE_KEY, "1");
+        } catch {
+            // ignore storage errors
+        }
+    }, []);
+
     // Scroll handler for custom scrollbar
     const handleScroll = useCallback((e) => {
         setIsScrolling(true);
@@ -224,7 +250,38 @@ export default function ScheduleMasterList() {
         window.scrollTimeout = setTimeout(() => {
             setIsScrolling(false);
         }, 1000);
-    }, []);
+        updateHorizontalScrollState();
+    }, [updateHorizontalScrollState]);
+
+    useEffect(() => {
+        if (viewMode !== "table") return;
+        const raf = window.requestAnimationFrame(() => {
+            updateHorizontalScrollState();
+        });
+        const handleResize = () => updateHorizontalScrollState();
+        window.addEventListener("resize", handleResize);
+        return () => {
+            window.cancelAnimationFrame(raf);
+            window.removeEventListener("resize", handleResize);
+        };
+    }, [items, updateHorizontalScrollState, viewMode]);
+
+    useEffect(() => {
+        if (viewMode !== "table" || !hasHorizontalOverflow) return;
+        let seen = false;
+        try {
+            seen = window.localStorage.getItem(HORIZONTAL_HINT_STORAGE_KEY) === "1";
+        } catch {
+            // ignore storage errors
+        }
+        if (!seen) setShowHorizontalHint(true);
+    }, [hasHorizontalOverflow, viewMode]);
+
+    useEffect(() => {
+        if (showHorizontalHint && canScrollLeft) {
+            dismissHorizontalHint();
+        }
+    }, [canScrollLeft, dismissHorizontalHint, showHorizontalHint]);
 
     const handleExportExcel = useCallback(async () => {
         try {
@@ -629,6 +686,30 @@ export default function ScheduleMasterList() {
         toast.success("대공종이 삭제되었습니다.");
     };
 
+    const handleMoveCategory = useCallback((category, direction) => {
+        const categoryOrder = [];
+        const groupedByCategory = new Map();
+
+        items.forEach((item) => {
+            const key = item.main_category || "기타";
+            if (!groupedByCategory.has(key)) {
+                groupedByCategory.set(key, []);
+                categoryOrder.push(key);
+            }
+            groupedByCategory.get(key).push(item);
+        });
+
+        const currentIndex = categoryOrder.indexOf(category);
+        if (currentIndex < 0) return;
+
+        const targetIndex = direction === "up" ? currentIndex - 1 : currentIndex + 1;
+        if (targetIndex < 0 || targetIndex >= categoryOrder.length) return;
+
+        [categoryOrder[currentIndex], categoryOrder[targetIndex]] = [categoryOrder[targetIndex], categoryOrder[currentIndex]];
+        const reorderedItems = categoryOrder.flatMap((key) => groupedByCategory.get(key) || []);
+        reorderItems(reorderedItems);
+    }, [items, reorderItems]);
+
     const handleOpenFloorBatchModal = useCallback((category, categoryItems) => {
         setFloorBatchModal({ category, categoryItems });
         setFloorBatchRange({ min: "", max: "" });
@@ -987,21 +1068,23 @@ export default function ScheduleMasterList() {
         activeItem && dropTargetItem && activeItem.main_category !== dropTargetItem.main_category
     );
     const renderTableView = ({ forPrint = false } = {}) => (
-        <div
-            data-tutorial="schedule-table"
-            className={`scroll-container w-full overflow-auto rounded-xl border border-gray-700 shadow-xl bg-[#2c2c3a] relative ${isScrolling ? 'scrolling' : ''} ${forPrint ? 'print-table' : ''}`}
-            style={{ height: '100%' }}
-            onScroll={forPrint ? undefined : handleScroll}
-        >
-            <DndContext
+        <div className="relative h-full w-full">
+            <div
+                data-tutorial="schedule-table"
+                className={`scroll-container w-full overflow-auto rounded-xl border border-gray-700 shadow-xl bg-[#2c2c3a] relative ${isScrolling ? 'scrolling' : ''} ${forPrint ? 'print-table' : ''}`}
+                style={{ height: '100%' }}
+                ref={forPrint ? undefined : tableScrollRef}
+                onScroll={forPrint ? undefined : handleScroll}
+            >
+                <DndContext
                 sensors={sensors}
                 collisionDetection={closestCenter}
                 onDragStart={handleDragStart}
                 onDragOver={handleDragOver}
                 onDragCancel={handleDragCancel}
                 onDragEnd={handleDragEnd}
-            >
-                <table className="w-full text-m box-border table-fixed border-collapse bg-[#2c2c3a] rounded-lg text-gray-200">
+                >
+                    <table className="w-full text-m box-border table-fixed border-collapse bg-[#2c2c3a] rounded-lg text-gray-200">
                     <colgroup>
                         <col width="34" />
                         <col width="30" />
@@ -1104,7 +1187,7 @@ export default function ScheduleMasterList() {
                                             </td>
                                         </tr>
                                     ),
-                                    ...Object.entries(groupedItems).map(([category, categoryItems]) => (
+                                    ...Object.entries(groupedItems).map(([category, categoryItems], categoryIndex, categoryEntries) => (
                                         <React.Fragment key={category}>
                                             {(() => {
                                                 const categoryCalDays = calculateTotalCalendarDays(categoryItems);
@@ -1145,7 +1228,36 @@ export default function ScheduleMasterList() {
                                                                 );
                                                             })()}
                                                         </div>
-                                                        <div className={`flex items-center gap-2 ${forPrint ? "no-print" : ""}`}>
+                                                        <div
+                                                            className={`flex items-center gap-2 ${forPrint
+                                                                ? "no-print"
+                                                                : "sticky right-0 z-[1] ml-auto pl-3 pr-1 py-1 border-l border-gray-700 bg-[#242433]/95 backdrop-blur-sm"
+                                                                }`}
+                                                        >
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => handleMoveCategory(category, "up")}
+                                                                disabled={categoryIndex === 0}
+                                                                className={`px-2 py-1.5 rounded-lg text-xs font-semibold border transition ${categoryIndex === 0
+                                                                    ? "border-gray-700 text-gray-500 cursor-not-allowed"
+                                                                    : "border-gray-600 text-gray-200 hover:bg-[#3a3a4a]"
+                                                                    }`}
+                                                                title="대공종 위로 이동"
+                                                            >
+                                                                <ArrowUp size={14} />
+                                                            </button>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => handleMoveCategory(category, "down")}
+                                                                disabled={categoryIndex === categoryEntries.length - 1}
+                                                                className={`px-2 py-1.5 rounded-lg text-xs font-semibold border transition ${categoryIndex === categoryEntries.length - 1
+                                                                    ? "border-gray-700 text-gray-500 cursor-not-allowed"
+                                                                    : "border-gray-600 text-gray-200 hover:bg-[#3a3a4a]"
+                                                                    }`}
+                                                                title="대공종 아래로 이동"
+                                                            >
+                                                                <ArrowDown size={14} />
+                                                            </button>
                                                             {String(category).includes("골조") && (
                                                                 <button
                                                                     type="button"
@@ -1230,8 +1342,38 @@ export default function ScheduleMasterList() {
                         </tbody>
                     </SortableContext>
 
-                </table>
-            </DndContext>
+                    </table>
+                </DndContext>
+            </div>
+            {!forPrint && hasHorizontalOverflow && canScrollLeft && (
+                <div className="pointer-events-none absolute inset-y-0 left-0 z-20 flex items-center">
+                    <div className="h-full w-12 bg-gradient-to-r from-[#1f1f2b] to-transparent" />
+                    <div className="absolute left-2 rounded-full border border-gray-600 bg-[#1f1f2b]/90 p-1 text-gray-200">
+                        <ChevronLeft size={14} />
+                    </div>
+                </div>
+            )}
+            {!forPrint && hasHorizontalOverflow && canScrollRight && (
+                <div className="pointer-events-none absolute inset-y-0 right-0 z-20 flex items-center justify-end">
+                    <div className="h-full w-12 bg-gradient-to-l from-[#1f1f2b] to-transparent" />
+                    <div className="absolute right-2 rounded-full border border-gray-600 bg-[#1f1f2b]/90 p-1 text-gray-200">
+                        <ChevronRight size={14} />
+                    </div>
+                </div>
+            )}
+            {!forPrint && showHorizontalHint && hasHorizontalOverflow && (
+                <div className="absolute right-3 top-3 z-30 flex items-center gap-2 rounded-lg border border-blue-500/40 bg-[#1b2338]/95 px-3 py-2 text-xs text-blue-100 shadow-lg">
+                    <span>좌우 이동: Shift + 휠 또는 하단 스크롤바 사용</span>
+                    <button
+                        type="button"
+                        className="rounded p-0.5 text-blue-200 hover:bg-blue-500/20"
+                        onClick={dismissHorizontalHint}
+                        aria-label="가로 스크롤 힌트 닫기"
+                    >
+                        <X size={12} />
+                    </button>
+                </div>
+            )}
         </div>
     );
 

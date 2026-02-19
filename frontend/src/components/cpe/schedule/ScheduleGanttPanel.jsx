@@ -20,7 +20,8 @@ export default function ScheduleGanttPanel({
     subTasks,
     onCreateSubtask,
     onUpdateSubtask,
-    onDeleteSubtask
+    onDeleteSubtask,
+    readOnly = false
 }) {
     return (
         <div className="flex-1 min-h-0 flex gap-4">
@@ -38,6 +39,7 @@ export default function ScheduleGanttPanel({
                     onCreateSubtask={onCreateSubtask}
                     onUpdateSubtask={onUpdateSubtask}
                     onDeleteSubtask={onDeleteSubtask}
+                    readOnly={readOnly}
                 />
             </div>
             {(aiMode !== "idle" || aiLogs.length > 0) && (
