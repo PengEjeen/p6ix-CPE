@@ -1,5 +1,5 @@
 import React, { useMemo, useRef, useState } from "react";
-import { Trash2, Link, RefreshCw, Plus, GripVertical } from "lucide-react";
+import { Trash2, Link, GripVertical } from "lucide-react";
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import StandardSuggestList from "./StandardSuggestList";
@@ -9,6 +9,8 @@ const ScheduleTableRow = ({
     isLinked,
     isSelected = false,
     onToggleSelect,
+    onStartSelectionDrag,
+    onDragSelectionEnter,
     handleChange,
     handleDeleteItem,
     handleAddItem,
@@ -19,7 +21,12 @@ const ScheduleTableRow = ({
     operatingRates = [],
     workDayType = "6d",
     standardItems = [],
-    onApplyStandard
+    onApplyStandard,
+    isDropTarget = false,
+    dropPosition = null,
+    isDropInvalid = false,
+    isPartOfDraggingGroup = false,
+    isDragActive = false
 }) => {
     // Auto-match operating rate by main_category
     const rateObj = operatingRates.find((rate) => rate.main_category === item.main_category);
@@ -54,6 +61,14 @@ const ScheduleTableRow = ({
         style.opacity = 1;
         style.boxShadow = "0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)";
         style.backgroundColor = "white";
+    }
+
+    if (!isOverlay && isDropTarget && dropPosition) {
+        const indicatorColor = isDropInvalid ? "rgba(248, 113, 113, 0.9)" : "rgba(56, 189, 248, 0.95)";
+        const dropShadow = dropPosition === "before"
+            ? `inset 0 3px 0 0 ${indicatorColor}`
+            : `inset 0 -3px 0 0 ${indicatorColor}`;
+        style.boxShadow = style.boxShadow ? `${style.boxShadow}, ${dropShadow}` : dropShadow;
     }
 
     const [activeField, setActiveField] = useState(null);
@@ -136,16 +151,31 @@ const ScheduleTableRow = ({
         <tr
             ref={setNodeRef}
             style={style}
-            className={`hover:bg-white/5 transition-colors text-base ${rowClassName} ${isSelected ? "bg-blue-900/20" : ""} ${isDragging && !isOverlay ? "bg-blue-900/20" : ""}`}
+            className={`hover:bg-white/5 transition-colors text-base ${rowClassName} ${isSelected ? "bg-blue-900/20" : ""} ${isDragging && !isOverlay ? "bg-blue-900/20" : ""} ${isPartOfDraggingGroup && !isDragging ? "bg-blue-900/25" : ""} ${isDropTarget ? (isDropInvalid ? "bg-red-900/15" : "bg-cyan-900/15") : ""}`}
         >
             {/* Row Select */}
-            <td className="border-r border-gray-700 text-center p-1">
+            <td
+                className="border-r border-gray-700 text-center p-1 select-none cursor-cell"
+                onMouseDown={(e) => {
+                    if (isOverlay || e.button !== 0) return;
+                    e.preventDefault();
+                    e.stopPropagation();
+                    onStartSelectionDrag?.(item.id);
+                }}
+                onMouseEnter={(e) => {
+                    if (isOverlay || e.buttons !== 1) return;
+                    onDragSelectionEnter?.(item.id);
+                }}
+            >
                 {!isOverlay ? (
                     <input
                         type="checkbox"
                         checked={isSelected}
-                        onChange={() => onToggleSelect?.(item.id)}
-                        onClick={(e) => e.stopPropagation()}
+                        readOnly
+                        onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                        }}
                         className="h-3.5 w-3.5 accent-blue-500 cursor-pointer"
                         aria-label="행 선택"
                     />
@@ -153,8 +183,18 @@ const ScheduleTableRow = ({
             </td>
 
             {/* Drag Handle */}
-            <td className="border-r border-gray-700 text-center text-gray-400 cursor-grab active:cursor-grabbing p-1" {...attributes} {...listeners}>
-                <GripVertical size={14} className="mx-auto" />
+            <td className={`border-r border-gray-700 text-center p-1 ${isDragActive ? "text-blue-300" : "text-gray-400"}`}>
+                <button
+                    type="button"
+                    aria-label="행 이동"
+                    title={isPartOfDraggingGroup ? "선택 항목 일괄 이동" : "행 이동"}
+                    disabled={isOverlay}
+                    className={`mx-auto flex h-6 w-6 items-center justify-center rounded-md transition ${isOverlay ? "text-gray-500 cursor-default" : "cursor-grab active:cursor-grabbing hover:bg-blue-500/20 hover:text-blue-100 active:scale-95"} ${isDragging ? "bg-blue-500/30 text-blue-100" : ""}`}
+                    {...attributes}
+                    {...listeners}
+                >
+                    <GripVertical size={14} className="mx-auto" />
+                </button>
             </td>
 
             {/* Classification (구분) - keep using process data */}

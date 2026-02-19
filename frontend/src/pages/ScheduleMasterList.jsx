@@ -5,7 +5,7 @@ import { updateWorkCondition } from "../api/cpe/calc";
 import toast from "react-hot-toast";
 import { Trash2 } from "lucide-react";
 
-import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, DragOverlay } from '@dnd-kit/core';
+import { DndContext, closestCenter, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
 
 import StandardImportModal from "../components/cpe/StandardImportModal";
@@ -125,8 +125,6 @@ export default function ScheduleMasterList() {
         handleAiApply
     } = useAIScheduleOptimizer(items, operatingRates, workDayType, projectName, setStoreItems);
 
-    const { activeId, handleDragStart, handleDragEnd } = useDragHandlers(items, reorderItems);
-
     // Tutorial Hook - driver.js handles everything automatically
     useTutorial('scheduleMasterList', scheduleMasterListSteps);
 
@@ -146,21 +144,59 @@ export default function ScheduleMasterList() {
     const [isScrolling, setIsScrolling] = useState(false);
     const [standardItems, setStandardItems] = useState([]);
     const [selectedItemIds, setSelectedItemIds] = useState([]);
+    const [isSelectionDragging, setIsSelectionDragging] = useState(false);
     const [floorBatchModal, setFloorBatchModal] = useState(null);
     const [floorBatchRange, setFloorBatchRange] = useState({ min: "", max: "" });
     const selectAllRef = useRef(null);
     const tableHeaderRef = useRef(null);
     const [tableHeaderHeight, setTableHeaderHeight] = useState(44);
+    const selectionDragModeRef = useRef(null);
+    const selectionDragVisitedRef = useRef(new Set());
 
     const allItemIds = useMemo(() => items.map((item) => item.id), [items]);
     const selectedCount = selectedItemIds.length;
     const allSelected = allItemIds.length > 0 && selectedCount === allItemIds.length;
+    const {
+        activeId,
+        overId,
+        handleDragStart,
+        handleDragOver,
+        handleDragCancel,
+        handleDragEnd
+    } = useDragHandlers(items, reorderItems, selectedItemIds);
 
     const toggleSelectItem = useCallback((id) => {
         setSelectedItemIds((prev) => (
             prev.includes(id) ? prev.filter((itemId) => itemId !== id) : [...prev, id]
         ));
     }, []);
+
+    const startSelectionDrag = useCallback((id) => {
+        if (!id) return;
+        const shouldSelect = !selectedItemIds.includes(id);
+        selectionDragModeRef.current = shouldSelect;
+        selectionDragVisitedRef.current = new Set([id]);
+        setIsSelectionDragging(true);
+        setSelectedItemIds((prev) => {
+            if (shouldSelect) {
+                return prev.includes(id) ? prev : [...prev, id];
+            }
+            return prev.filter((itemId) => itemId !== id);
+        });
+    }, [selectedItemIds]);
+
+    const dragSelectItem = useCallback((id) => {
+        if (!isSelectionDragging || !id) return;
+        if (selectionDragVisitedRef.current.has(id)) return;
+        selectionDragVisitedRef.current.add(id);
+        const shouldSelect = selectionDragModeRef.current !== false;
+        setSelectedItemIds((prev) => {
+            if (shouldSelect) {
+                return prev.includes(id) ? prev : [...prev, id];
+            }
+            return prev.filter((itemId) => itemId !== id);
+        });
+    }, [isSelectionDragging]);
 
     const toggleSelectAllItems = useCallback((checked) => {
         setSelectedItemIds(checked ? allItemIds : []);
@@ -169,6 +205,17 @@ export default function ScheduleMasterList() {
     const clearSelection = useCallback(() => {
         setSelectedItemIds([]);
     }, []);
+
+    useEffect(() => {
+        if (!isSelectionDragging) return;
+        const handleMouseUp = () => {
+            setIsSelectionDragging(false);
+            selectionDragModeRef.current = null;
+            selectionDragVisitedRef.current.clear();
+        };
+        window.addEventListener("mouseup", handleMouseUp);
+        return () => window.removeEventListener("mouseup", handleMouseUp);
+    }, [isSelectionDragging]);
 
     // Scroll handler for custom scrollbar
     const handleScroll = useCallback((e) => {
@@ -631,19 +678,49 @@ export default function ScheduleMasterList() {
             return;
         }
 
-        const toFloorLabel = (floor) => (floor < 0 ? `B${Math.abs(floor)}F` : `${floor}F`);
-        const extractBaseContent = (value) => {
+        const toFloorLabel = (floor) => (floor < 0 ? `지하${Math.abs(floor)}층` : `지상${floor}층`);
+        const isFloorLikeName = (value) => {
             const raw = String(value || "").trim();
-            const match = raw.match(/^\s*(?:B?\d+F)\s*\((.*)\)\s*$/i);
-            if (match && match[1]) return match[1].trim();
-            return raw;
+            if (!raw) return false;
+            return /^(지하|지상)\s*\d+\s*층$/i.test(raw) || /^B\d+F$/i.test(raw) || /^\d+F$/i.test(raw);
         };
 
-        const baseContent = extractBaseContent(template.work_type) || "내용";
-        const existingWorkTypeSet = new Set(
+        // Use one contiguous block as template.
+        // Priority: existing floor block -> current(last) block.
+        const getBlockByStartIndex = (startIdx) => {
+            if (startIdx < 0 || startIdx >= categoryItems.length) return [];
+            const baseProcess = String(categoryItems[startIdx]?.process || "");
+            const baseSubProcess = String(categoryItems[startIdx]?.sub_process || "");
+            const block = [];
+            for (let idx = startIdx; idx < categoryItems.length; idx += 1) {
+                const row = categoryItems[idx];
+                if (
+                    String(row?.process || "") !== baseProcess ||
+                    String(row?.sub_process || "") !== baseSubProcess
+                ) {
+                    break;
+                }
+                block.push(row);
+            }
+            return block;
+        };
+
+        const firstFloorLikeIndex = categoryItems.findIndex((row) => isFloorLikeName(row?.sub_process));
+        const floorTemplateBlock = firstFloorLikeIndex >= 0 ? getBlockByStartIndex(firstFloorLikeIndex) : [];
+        const fallbackStartIndex = Math.max(0, categoryItems.findIndex((row) => row.id === template.id));
+        const fallbackTemplateBlock = getBlockByStartIndex(fallbackStartIndex);
+        const templateBlock = (floorTemplateBlock.length > 0 ? floorTemplateBlock : fallbackTemplateBlock)
+            .filter((row) => String(row?.work_type || "").trim().length > 0);
+
+        if (templateBlock.length === 0) {
+            toast.error("복제할 기준 공종 묶음을 찾을 수 없습니다.");
+            return;
+        }
+
+        const existingPairSet = new Set(
             items
                 .filter((item) => item.main_category === category)
-                .map((item) => String(item.work_type || "").trim().toUpperCase())
+                .map((item) => `${String(item.sub_process || "").trim()}|${String(item.work_type || "").trim()}`.toUpperCase())
         );
 
         const lastCategoryIndex = lastCategoryItem
@@ -652,56 +729,65 @@ export default function ScheduleMasterList() {
         const baseInsertIndex = lastCategoryIndex >= 0 ? lastCategoryIndex + 1 : items.length;
 
         let insertIndex = baseInsertIndex;
-        let createdCount = 0;
-        let skippedCount = 0;
+        let createdRowCount = 0;
+        let skippedRowCount = 0;
+        let createdFloorCount = 0;
         const ts = Date.now();
 
-        floors.forEach((floor, idx) => {
+        floors.forEach((floor, floorIdx) => {
             const floorLabel = toFloorLabel(floor);
-            const workTypeLabel = `${floorLabel} (${baseContent})`;
-            const workTypeKey = workTypeLabel.toUpperCase();
-            if (existingWorkTypeSet.has(workTypeKey)) {
-                skippedCount += 1;
-                return;
+            let floorCreated = 0;
+
+            templateBlock.forEach((sourceRow, rowIdx) => {
+                const pairKey = `${floorLabel}|${String(sourceRow.work_type || "").trim()}`.toUpperCase();
+                if (existingPairSet.has(pairKey)) {
+                    skippedRowCount += 1;
+                    return;
+                }
+
+                const newItem = {
+                    id: `floor-${ts}-${floorIdx}-${rowIdx}-${Math.random().toString(36).slice(2, 6)}`,
+                    main_category: category,
+                    process: sourceRow.process || template.process || "",
+                    sub_process: floorLabel,
+                    work_type: sourceRow.work_type || "",
+                    unit: sourceRow.unit || "",
+                    quantity: sourceRow.quantity ?? 0,
+                    quantity_formula: sourceRow.quantity_formula || "",
+                    productivity: sourceRow.productivity ?? 0,
+                    crew_size: sourceRow.crew_size ?? 1,
+                    note: sourceRow.note || "",
+                    remarks: sourceRow.remarks || "",
+                    operating_rate_type: sourceRow.operating_rate_type || "EARTH",
+                    operating_rate_value: sourceRow.operating_rate_value ?? 0,
+                    standard_code: sourceRow.standard_code || "",
+                    application_rate: sourceRow.application_rate ?? 100,
+                    front_parallel_days: sourceRow.front_parallel_days ?? 0,
+                    back_parallel_days: sourceRow.back_parallel_days ?? 0,
+                    parallel_segments: Array.isArray(sourceRow.parallel_segments) ? sourceRow.parallel_segments : []
+                };
+
+                addItemAtIndex(newItem, insertIndex);
+                insertIndex += 1;
+                existingPairSet.add(pairKey);
+                createdRowCount += 1;
+                floorCreated += 1;
+            });
+
+            if (floorCreated > 0) {
+                createdFloorCount += 1;
             }
-
-            const newItem = {
-                id: `floor-${ts}-${idx}-${Math.random().toString(36).slice(2, 6)}`,
-                main_category: category,
-                process: "철골공사",
-                sub_process: template.sub_process || "",
-                work_type: workTypeLabel,
-                unit: template.unit || "",
-                quantity: template.quantity ?? 0,
-                quantity_formula: template.quantity_formula || "",
-                productivity: template.productivity ?? 0,
-                crew_size: template.crew_size ?? 1,
-                note: template.note || "",
-                remarks: template.remarks || "",
-                operating_rate_type: template.operating_rate_type || "EARTH",
-                operating_rate_value: template.operating_rate_value ?? 0,
-                standard_code: template.standard_code || "",
-                application_rate: template.application_rate ?? 100,
-                front_parallel_days: 0,
-                back_parallel_days: 0,
-                parallel_segments: []
-            };
-
-            addItemAtIndex(newItem, insertIndex);
-            insertIndex += 1;
-            existingWorkTypeSet.add(workTypeKey);
-            createdCount += 1;
         });
 
-        if (createdCount === 0) {
+        if (createdRowCount === 0) {
             toast.error("생성 가능한 신규 층 공정이 없습니다.");
             return;
         }
 
-        if (skippedCount > 0) {
-            toast.success(`${createdCount}개 생성, ${skippedCount}개는 기존 공정과 중복되어 건너뜀`);
+        if (skippedRowCount > 0) {
+            toast.success(`${createdFloorCount}개 층 / ${createdRowCount}개 공종 생성, ${skippedRowCount}개 중복 건너뜀`);
         } else {
-            toast.success(`${createdCount}개 층 공정을 생성했습니다.`);
+            toast.success(`${createdFloorCount}개 층 / ${createdRowCount}개 공종 생성`);
         }
         handleCloseFloorBatchModal();
     }, [addItemAtIndex, floorBatchModal, floorBatchRange.max, floorBatchRange.min, handleCloseFloorBatchModal, items]);
@@ -804,7 +890,33 @@ export default function ScheduleMasterList() {
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
     </div>;
 
-    const activeItem = activeId ? items.find(i => i.id === activeId) : null;
+    const activeItem = activeId ? items.find((i) => i.id === activeId) : null;
+    const dragMovingItemIds = (() => {
+        if (!activeId) return [];
+        const selectedSet = new Set(selectedItemIds);
+        const activeSelected = selectedSet.has(activeId);
+        if (activeSelected && selectedSet.size > 1) {
+            return items.filter((item) => selectedSet.has(item.id)).map((item) => item.id);
+        }
+        return [activeId];
+    })();
+    const dragMovingItemSet = new Set(dragMovingItemIds);
+    const dropTargetId = (() => {
+        if (!activeId || !overId || activeId === overId) return null;
+        if (dragMovingItemSet.has(overId)) return null;
+        return overId;
+    })();
+    const dropPosition = (() => {
+        if (!dropTargetId || !activeId) return null;
+        const activeIndex = items.findIndex((item) => item.id === activeId);
+        const overIndex = items.findIndex((item) => item.id === dropTargetId);
+        if (activeIndex === -1 || overIndex === -1) return null;
+        return activeIndex < overIndex ? "after" : "before";
+    })();
+    const dropTargetItem = dropTargetId ? items.find((item) => item.id === dropTargetId) : null;
+    const isDropInvalid = Boolean(
+        activeItem && dropTargetItem && activeItem.main_category !== dropTargetItem.main_category
+    );
     const renderTableView = ({ forPrint = false } = {}) => (
         <div
             data-tutorial="schedule-table"
@@ -816,6 +928,8 @@ export default function ScheduleMasterList() {
                 sensors={sensors}
                 collisionDetection={closestCenter}
                 onDragStart={handleDragStart}
+                onDragOver={handleDragOver}
+                onDragCancel={handleDragCancel}
                 onDragEnd={handleDragEnd}
             >
                 <table className="w-full text-m box-border table-fixed border-collapse bg-[#2c2c3a] rounded-lg text-gray-200">
@@ -1011,6 +1125,8 @@ export default function ScheduleMasterList() {
                                                     item={item}
                                                     isSelected={selectedItemIds.includes(item.id)}
                                                     onToggleSelect={toggleSelectItem}
+                                                    onStartSelectionDrag={startSelectionDrag}
+                                                    onDragSelectionEnter={dragSelectItem}
                                                     rowClassName={rowIndex % 2 === 0 ? "bg-[#232332]" : "bg-[#2c2c3a]"}
                                                     operatingRates={operatingRates}
                                                     workDayType={workDayType}
@@ -1022,6 +1138,11 @@ export default function ScheduleMasterList() {
                                                     spanInfo={spanInfoMap[item.id] || { isProcessFirst: true, isSubProcessFirst: true, processRowSpan: 1, subProcessRowSpan: 1 }}
                                                     standardItems={standardItems}
                                                     onApplyStandard={handleApplyStandardToRow}
+                                                    isDragActive={Boolean(activeId)}
+                                                    isPartOfDraggingGroup={Boolean(activeId) && dragMovingItemSet.has(item.id)}
+                                                    isDropTarget={dropTargetId === item.id}
+                                                    dropPosition={dropTargetId === item.id ? dropPosition : null}
+                                                    isDropInvalid={isDropInvalid && dropTargetId === item.id}
                                                 />
                                             ))}
                                         </React.Fragment>
@@ -1031,53 +1152,6 @@ export default function ScheduleMasterList() {
                         </tbody>
                     </SortableContext>
 
-                    {!forPrint && (
-                        <DragOverlay>
-                            {activeItem ? (
-                                <table className="w-full text-sm box-border table-fixed border-collapse bg-[#2c2c3a] shadow-2xl skew-y-1 origin-top-left opacity-95">
-                                    <colgroup>
-                                        <col width="34" />
-                                        <col width="30" />
-                                        <col width="140" />
-                                        <col width="180" />
-                                        <col width="280" />
-                                        <col width="140" />
-                                        <col width="60" />
-                                        <col width="90" />
-                                        <col width="100" />
-                                        <col width="70" />
-                                        <col width="100" />
-                                        <col width="80" />
-                                        <col width="100" />
-                                        <col width="90" />
-                                        <col width="200" />
-                                        <col width="500" />
-                                        <col width="180" />
-                                        <col width="60" />
-
-                                    </colgroup>
-                                    <tbody>
-                                        <ScheduleTableRow
-                                            item={activeItem}
-                                            isSelected={false}
-                                            onToggleSelect={() => { }}
-                                            isLinked={activeItem.link_module_type && activeItem.link_module_type !== 'NONE'}
-                                            operatingRates={operatingRates}
-                                            workDayType={workDayType}
-                                            handleChange={() => { }}
-                                            handleDeleteItem={() => { }}
-                                            handleAddItem={() => { }}
-                                            handleOpenImport={() => { }}
-                                            spanInfo={{}}
-                                            isOverlay={true}
-                                            standardItems={[]}
-                                            onApplyStandard={() => { }}
-                                        />
-                                    </tbody>
-                                </table>
-                            ) : null}
-                        </DragOverlay>
-                    )}
                 </table>
             </DndContext>
         </div>
@@ -1234,7 +1308,7 @@ export default function ScheduleMasterList() {
                         </div>
 
                         <p className="mt-3 text-xs text-gray-400">
-                            지하는 음수로 입력됩니다. 예: `-3 ~ 30` 입력 시 `B3F ~ B1F, 1F ~ 30F` 생성
+                            지하는 음수로 입력됩니다. 예: `-3 ~ 30` 입력 시 `지하3층 ~ 지하1층, 지상1층 ~ 지상30층` 생성
                         </p>
 
                         <div className="mt-5 flex justify-end gap-2">
