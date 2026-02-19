@@ -14,6 +14,7 @@ function Header() {
   const [open, setOpen] = useState(false);
   const [project, setProject] = useState(null);
   const [isExporting, setIsExporting] = useState(false);
+  const [showExportGuideModal, setShowExportGuideModal] = useState(false);
 
   // 항상 호출되지만, 내부에서 id 체크
   useEffect(() => {
@@ -108,6 +109,7 @@ function Header() {
       link.remove();
       window.URL.revokeObjectURL(url);
       toast.success("보고서 내보내기 완료");
+      setShowExportGuideModal(true);
     } catch (error) {
       console.error("보고서 내보내기 실패:", error);
       toast.error("보고서 내보내기 실패");
@@ -120,70 +122,93 @@ function Header() {
   if (!id) return null;
 
   return (
-    <header className="w-full border-b border-gray-700 bg-[#1e1e2f] text-white px-6 py-3 flex items-start justify-between relative z-[10000] shadow-md shadow-black/20 gap-4">
-      <div className="relative flex flex-col items-start">
-        <div className="flex items-center gap-2">
-          {/* 드롭다운 버튼 */}
-          <button
-            onClick={() => setOpen(!open)}
-            className="flex items-center gap-3 px-5 py-2.5 rounded-md hover:bg-[#3b3b4f] transition"
-          >
-            <span className="font-bold text-xl text-white">
-              {project?.title || "로딩 중..."}
-            </span>
-            <span className="font-medium text-lg">{activeMenu.name}</span>
-            {open ? (
-              <FiChevronUp className="transition-transform duration-300" size={25} />
-            ) : (
-              <FiChevronDown className="transition-transform duration-300" size={25} />
-            )}
-          </button>
-
-          {project?.calc_type === "TOTAL" && (
+    <>
+      <header className="w-full border-b border-gray-700 bg-[#1e1e2f] text-white px-6 py-3 flex items-start justify-between relative z-[10000] shadow-md shadow-black/20 gap-4">
+        <div className="relative flex flex-col items-start">
+          <div className="flex items-center gap-2">
+            {/* 드롭다운 버튼 */}
             <button
-              type="button"
-              onClick={handleExportReport}
-              disabled={isExporting}
-              className={`inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-semibold transition ${isExporting
-                ? "cursor-not-allowed border-gray-700 bg-[#2a2a3a] text-gray-500"
-                : "border-gray-600 bg-[#3b3b4f] text-gray-100 hover:bg-[#4b4b5f]"
-                }`}
+              onClick={() => setOpen(!open)}
+              className="flex items-center gap-3 px-5 py-2.5 rounded-md hover:bg-[#3b3b4f] transition"
             >
-              <FiDownload size={16} />
-              {isExporting ? "내보내는 중..." : "보고서 내보내기"}
+              <span className="font-bold text-xl text-white">
+                {project?.title || "로딩 중..."}
+              </span>
+              <span className="font-medium text-lg">{activeMenu.name}</span>
+              {open ? (
+                <FiChevronUp className="transition-transform duration-300" size={25} />
+              ) : (
+                <FiChevronDown className="transition-transform duration-300" size={25} />
+              )}
             </button>
-          )}
-        </div>
 
-        {/* 프로젝트 설명 */}
-        <span className="ml-5 mt-1 text-sm text-gray-400">
-          {project?.description || "프로젝트 설명이 없습니다."}
-        </span>
-
-        {/* 드롭다운 메뉴 */}
-        {open && (
-          <div className="absolute top-full left-0 mt-3 w-60 bg-[#2c2c3a] border border-gray-700 rounded-md shadow-lg z-[10001] divide-y divide-gray-700">
-            {menus.map((menu) => (
+            {project?.calc_type === "TOTAL" && (
               <button
-                key={menu.path}
-                onClick={() => {
-                  navigate(menu.path);
-                  setOpen(false);
-                }}
-                className={`block w-full text-left px-4 py-3 transition ${location.pathname === menu.path
-                  ? "bg-[#3b3b4f] text-white"
-                  : "hover:bg-[#3b3b4f] text-gray-300"
+                type="button"
+                onClick={handleExportReport}
+                disabled={isExporting}
+                className={`inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-semibold transition ${isExporting
+                  ? "cursor-not-allowed border-gray-700 bg-[#2a2a3a] text-gray-500"
+                  : "border-gray-600 bg-[#3b3b4f] text-gray-100 hover:bg-[#4b4b5f]"
                   }`}
               >
-                <div className="font-medium text-base">{menu.name}</div>
-                <div className="text-xs text-gray-400 mt-0.5">{menu.desc}</div>
+                <FiDownload size={16} />
+                {isExporting ? "내보내는 중..." : "보고서 내보내기"}
               </button>
-            ))}
+            )}
           </div>
-        )}
-      </div>
-    </header>
 
+          {/* 프로젝트 설명 */}
+          <span className="ml-5 mt-1 text-sm text-gray-400">
+            {project?.description || "프로젝트 설명이 없습니다."}
+          </span>
+
+          {/* 드롭다운 메뉴 */}
+          {open && (
+            <div className="absolute top-full left-0 mt-3 w-60 bg-[#2c2c3a] border border-gray-700 rounded-md shadow-lg z-[10001] divide-y divide-gray-700">
+              {menus.map((menu) => (
+                <button
+                  key={menu.path}
+                  onClick={() => {
+                    navigate(menu.path);
+                    setOpen(false);
+                  }}
+                  className={`block w-full text-left px-4 py-3 transition ${location.pathname === menu.path
+                    ? "bg-[#3b3b4f] text-white"
+                    : "hover:bg-[#3b3b4f] text-gray-300"
+                    }`}
+                >
+                  <div className="font-medium text-base">{menu.name}</div>
+                  <div className="text-xs text-gray-400 mt-0.5">{menu.desc}</div>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      </header>
+
+      {showExportGuideModal && (
+        <div className="fixed inset-0 z-[10002] flex items-center justify-center bg-black/55 backdrop-blur-sm">
+          <div className="w-[460px] max-w-[92vw] rounded-2xl border border-gray-700 bg-[#2c2c3a] shadow-2xl overflow-hidden">
+            <div className="px-6 py-4 border-b border-gray-700 bg-[#3a3a4a]">
+              <h3 className="text-lg font-semibold text-gray-100">보고서 확인 안내</h3>
+            </div>
+            <div className="px-6 py-6 text-sm text-gray-300 whitespace-pre-line leading-relaxed">
+              {"Word에서 목차 페이지 번호가 바로 갱신되지 않으면\n문서를 연 뒤 Ctrl + A 후 F9를 눌러 필드를 업데이트해 주세요."}
+            </div>
+            <div className="px-6 py-4 flex justify-end border-t border-gray-700 bg-[#2c2c3a]">
+              <button
+                type="button"
+                onClick={() => setShowExportGuideModal(false)}
+                className="px-4 py-2 text-sm font-semibold rounded-lg bg-blue-600 text-white hover:bg-blue-500 transition"
+              >
+                확인
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 }
 

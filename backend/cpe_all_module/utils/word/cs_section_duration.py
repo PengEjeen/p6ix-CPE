@@ -20,6 +20,58 @@ from .cs_template import (
 )
 
 
+_BOOKMARK_ID = 1
+
+
+def _add_bookmark(paragraph, name):
+    global _BOOKMARK_ID
+    from docx.oxml import OxmlElement
+    from docx.oxml.ns import qn
+
+    if not name:
+        return
+
+    start = OxmlElement("w:bookmarkStart")
+    start.set(qn("w:id"), str(_BOOKMARK_ID))
+    start.set(qn("w:name"), str(name))
+
+    end = OxmlElement("w:bookmarkEnd")
+    end.set(qn("w:id"), str(_BOOKMARK_ID))
+
+    # Keep bookmark markers in valid w:p content position:
+    # right after optional w:pPr, not before it.
+    insert_idx = 0
+    if len(paragraph._p) > 0 and paragraph._p[0].tag == qn("w:pPr"):
+        insert_idx = 1
+    paragraph._p.insert(insert_idx, start)
+    paragraph._p.append(end)
+    _BOOKMARK_ID += 1
+
+
+def _add_main_heading(document, text, bookmark_name=None):
+    heading = document.add_heading(text, level=1)
+    heading.paragraph_format.keep_with_next = True
+    heading.paragraph_format.keep_together = True
+    _add_bookmark(heading, bookmark_name)
+    return heading
+
+
+def _add_subheading(document, text, bookmark_name=None):
+    heading = document.add_heading(text, level=3)
+    heading.paragraph_format.keep_with_next = True
+    heading.paragraph_format.keep_together = True
+    _add_bookmark(heading, bookmark_name)
+    return heading
+
+
+def _add_section_heading(document, text, bookmark_name=None):
+    heading = document.add_heading(text, level=2)
+    heading.paragraph_format.keep_with_next = True
+    heading.paragraph_format.keep_together = True
+    _add_bookmark(heading, bookmark_name)
+    return heading
+
+
 def add_duration_analysis_section(
     document,
     ordered_categories=None,
@@ -36,9 +88,16 @@ def add_duration_analysis_section(
     operating_rate_calc_data=None,
     weather_appendix_data=None,
 ):
-    document.add_heading("1. 공사기간 분석", level=1)
-    document.add_heading("1.1 공사기간 산정 (국토교통부 공사기간 산정 기준)", level=2)
-    document.add_heading("1.1.1 공사기간의 정의", level=3)
+    global _BOOKMARK_ID
+    _BOOKMARK_ID = 1
+
+    _add_main_heading(document, "1. 공사기간 분석", "bm_chapter_1")
+    _add_section_heading(
+        document,
+        "1.1 공사기간 산정 (국토교통부 공사기간 산정 기준)",
+        "bm_sec_1_1",
+    )
+    _add_subheading(document, "1.1.1 공사기간의 정의")
 
     document.add_paragraph(
         "• 공사기간은 건설공사 계약의 착수일로부터 완료일까지의 기간을 의미하며, "
@@ -62,7 +121,7 @@ def add_duration_analysis_section(
         "④ 정리기간: 준공검사 준비, 시설물 인수 및 청소 등 현장 정리에 필요한 기간"
     )
 
-    document.add_heading("1.1.2 ①준비기간과 ④정리기간", level=3)
+    _add_subheading(document, "1.1.2 ①준비기간과 ④정리기간")
     document.add_paragraph("• 준비기간 및 정리기간은 비작업일수를 별도로 계산하지 않는다.")
     document.add_paragraph(
         "• 공사 유형별 준비기간 예시를 참고하고 본 공사의 특성을 고려하여 산정한다 "
@@ -93,8 +152,8 @@ def add_duration_analysis_section(
         "(예: 정리기간 30일 적용)."
     )
 
-    document.add_heading("1.2 근로시간 적용 기준", level=2)
-    document.add_heading("1.2.1 근로시간 정의", level=3)
+    _add_section_heading(document, "1.2 근로시간 적용 기준", "bm_sec_1_2")
+    _add_subheading(document, "1.2.1 근로시간 정의")
     document.add_paragraph("• 2021년 개정된 「근로기준법」상의 기준시간의 정의는 다음과 같다.")
 
     document.add_paragraph("<참고> 근로기준법 제50조 근로시간")
@@ -137,7 +196,7 @@ def add_duration_analysis_section(
     labor53_table.rows[1].cells[1].text = LABOR53_TEXT
 
     document.add_paragraph("• 상기 개정 법령의 연장근로는 주당 최대 12시간 그대로 유지")
-    document.add_heading("1.2.2 근로시간 적용", level=3)
+    _add_subheading(document, "1.2.2 근로시간 적용")
     document.add_paragraph(
         "• 근로기준법 및 국토교통부 고시의 기준을 바탕으로 개정 전/후를 아래와 같이 비교한다."
     )
@@ -195,7 +254,7 @@ def add_duration_analysis_section(
         "➡ 비작업일수 9일 적용"
     )
 
-    document.add_heading("1.2.3 법정공휴일 수", level=3)
+    _add_subheading(document, "1.2.3 법정공휴일 수")
     document.add_paragraph(
         "• 비작업일수 산출을 위한 요소 중 법정공휴일은 공공 기준의 공휴일 데이터를 기준으로 산정하고, "
         "비작업일수에 포함하여 계산한다."
@@ -250,8 +309,8 @@ def add_duration_analysis_section(
     for bullet in HOLIDAY_PUBLIC_BULLETS:
         document.add_paragraph(bullet)
 
-    document.add_heading("1.3 비작업일수 산정", level=2)
-    document.add_heading("1.3.1 개요", level=3)
+    _add_section_heading(document, "1.3 비작업일수 산정", "bm_sec_1_3")
+    _add_subheading(document, "1.3.1 개요")
     document.add_paragraph(
         "• 비작업일수(공사불능일수)의 산정기준은 국토부 고시에 명시된 산출방식에 따라 도출한다."
     )
@@ -326,7 +385,7 @@ def add_duration_analysis_section(
     for line in NON_WORK_EXAMPLE_TEXTS:
         document.add_paragraph(line)
 
-    document.add_heading("1.3.2 기후 여건으로 인한 비작업일수", level=3)
+    _add_subheading(document, "1.3.2 기후 여건으로 인한 비작업일수")
     document.add_paragraph(
         "• 국토부 고시 부록 3에 제시된 기상 조건별·지역별 비작업일수 조건을 기준으로 검토한다."
     )
@@ -451,7 +510,7 @@ def add_duration_analysis_section(
 
 
 def _add_operating_rate_section(document, operating_rate_calc_data):
-    document.add_heading("1.3.3 공사가동률 산정", level=3)
+    _add_subheading(document, "1.3.3 공사가동률 산정")
     calc_data = operating_rate_calc_data or {}
     document.add_paragraph(calc_data.get("note", "※ 프로젝트 데이터 기준 공사 가동률"))
 
@@ -528,7 +587,7 @@ def _add_operating_rate_section(document, operating_rate_calc_data):
 
 
 def _add_calendar_section(document, operating_rate_calc_data):
-    document.add_heading("1.3.4 공사별 적용 캘린더", level=3)
+    _add_subheading(document, "1.3.4 공사별 적용 캘린더")
     calc_data = operating_rate_calc_data or {}
     calendars = calc_data.get("calendars") or []
     if not calendars:
@@ -673,7 +732,7 @@ def _add_standard_productivity_section(document, ordered_categories=None, groupe
     ordered_categories = list(ordered_categories or [])
     grouped_items = grouped_items or {}
 
-    document.add_heading("1.4 공종별 표준작업량 산정", level=2)
+    _add_section_heading(document, "1.4 공종별 표준작업량 산정", "bm_sec_1_4")
     section_index = 1
     any_rows = False
 
@@ -699,9 +758,9 @@ def _add_standard_productivity_section(document, ordered_categories=None, groupe
             continue
 
         any_rows = True
-        document.add_heading(
+        _add_subheading(
+            document,
             f"1.4.{section_index} {main_category}: 표준품셈 및 가이드 라인 기준 적용",
-            level=3,
         )
         section_index += 1
 
@@ -725,6 +784,9 @@ def _add_standard_productivity_section(document, ordered_categories=None, groupe
 
 
 def _add_calendar_day_output_section(document, ordered_categories=None, grouped_items=None, rate_map=None):
+    from docx.enum.section import WD_ORIENTATION, WD_SECTION_START
+    from docx.shared import Mm
+
     def _num_or_dash(value, digits=1):
         number = to_number(value)
         if number is None:
@@ -799,13 +861,20 @@ def _add_calendar_day_output_section(document, ordered_categories=None, grouped_
     grouped_items = grouped_items or {}
     rate_map = rate_map or {}
 
-    document.add_heading("1.5 실공사기간 Calendar Day 산출", level=2)
+    section = document.add_section(WD_SECTION_START.NEW_PAGE)
+    section.orientation = WD_ORIENTATION.LANDSCAPE
+    section.page_width = Mm(297)
+    section.page_height = Mm(210)
+    section.left_margin = Mm(10)
+    section.right_margin = Mm(10)
+
+    _add_section_heading(document, "1.5 실공사기간 Calendar Day 산출", "bm_sec_1_5")
 
     prep_categories = [c for c in ordered_categories if "준비" in str(c)]
     civil_categories = [c for c in ordered_categories if c not in prep_categories]
 
     if prep_categories:
-        document.add_heading("1.5.1 공사준비", level=3)
+        _add_subheading(document, "1.5.1 공사준비")
         document.add_paragraph("※ 준비기간은 비작업일수를 계상하지 않음.")
         for category in prep_categories:
             items = grouped_items.get(category) or []
@@ -813,7 +882,7 @@ def _add_calendar_day_output_section(document, ordered_categories=None, grouped_
                 continue
             _create_category_table(category, items, show_rate=False)
 
-    document.add_heading("1.5.2 토목공사", level=3)
+    _add_subheading(document, "1.5.2 토목공사")
     if not civil_categories:
         document.add_paragraph("토목공사 데이터 없음")
         return
@@ -937,10 +1006,10 @@ def _add_schedule_write_criteria_section(
     pure_work_days = max(working_total - prep_total - cleanup_total, 0)
     total_project_days = prep_total + non_work_total + pure_work_days + cleanup_total
 
-    document.add_heading("1.6 공사예정공정표 작성기준", level=2)
-    document.add_heading(
+    _add_section_heading(document, "1.6 공사예정공정표 작성기준", "bm_sec_1_6")
+    _add_subheading(
+        document,
         "1.6.1 공사기간 산출 [국토교통부 고시 제 2021-1080호 제6조(공사기간 산정) 준용]",
-        level=3,
     )
 
     document.add_paragraph("① 비작업일수 · 작업일수 산정 : 공종별로 산정 (주공정 선상에 있는 대공종 기준)")
@@ -1030,9 +1099,9 @@ def _add_schedule_write_criteria_section(
 
 
 def _add_schedule_chart_section(document, project_name="", gantt_image_bytes=None):
-    document.add_heading("1.7 공사예정 공정표", level=2)
+    _add_section_heading(document, "1.7 공사예정 공정표", "bm_sec_1_7")
     title_name = str(project_name or "프로젝트").strip()
-    document.add_heading(f"1.7.1 공사예정공정표({title_name})", level=3)
+    _add_subheading(document, f"1.7.1 공사예정공정표({title_name})")
 
     if not gantt_image_bytes:
         document.add_paragraph("공정표 이미지 생성 데이터가 없어 삽입하지 못했습니다.")
@@ -1111,8 +1180,11 @@ def _add_weather_appendix_section(document, weather_appendix_data=None):
     appendix_section.orientation = WD_ORIENTATION.PORTRAIT
     appendix_section.page_width = Mm(210)
     appendix_section.page_height = Mm(297)
+    appendix_section.left_margin = Mm(10)
+    appendix_section.right_margin = Mm(10)
 
-    document.add_heading("1.8 별첨", level=2)
+    _add_section_heading(document, "1.8 별첨", "bm_sec_1_8")
+    summary_table_count = 0
 
     for appendix in appendices:
         number = appendix.get("number")
@@ -1122,9 +1194,12 @@ def _add_weather_appendix_section(document, weather_appendix_data=None):
             f"별첨.{number} {title}(현장 최근거리 {region_label}관측소 "
             f"{period_label} 평균)"
         )
-        document.add_heading(heading, level=3)
+        _add_subheading(document, heading, f"bm_appendix_{number}")
 
         for case in (appendix.get("cases") or []):
+            if summary_table_count > 0 and summary_table_count % 2 == 0:
+                document.add_page_break()
+
             case_label = case.get("case_label", "-")
             applied_categories = case.get("applied_categories") or []
             applied_text = ", ".join(applied_categories) if applied_categories else "-"
@@ -1155,10 +1230,19 @@ def _add_weather_appendix_section(document, weather_appendix_data=None):
             if number == 6:
                 document.add_paragraph("- ※ 소수점 둘째자리는 반올림하여 산정함.")
             document.add_paragraph("")
+            summary_table_count += 1
 
     if yearly_tables:
-        document.add_heading("<별첨> 년도별 기상 휴지일수 현황", level=3)
-        for status_table in yearly_tables:
+        if summary_table_count > 0:
+            document.add_page_break()
+        _add_subheading(
+            document,
+            "<별첨> 년도별 기상 휴지일수 현황",
+            "bm_appendix_yearly_status",
+        )
+        for idx, status_table in enumerate(yearly_tables):
+            if idx > 0:
+                document.add_page_break()
             source_label = status_table.get("source_label", "-")
             station_id = status_table.get("station_id", "-")
             table_region = status_table.get("region_label", region_label)
