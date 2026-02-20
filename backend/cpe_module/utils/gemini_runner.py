@@ -1,12 +1,19 @@
 import yaml
+from pathlib import Path
 from google import genai
 from django.forms.models import model_to_dict
 from cpe_module.models.quotation_models import Quotation
 import environ 
 
 env = environ.Env()
-environ.Env.read_env()
-GEMINI_KEY = env("GEMINI_API_KEY")
+
+BASE_DIR = Path(__file__).resolve().parents[2]
+for env_path in (BASE_DIR / "backend" / ".env", BASE_DIR / ".env"):
+    if env_path.exists():
+        environ.Env.read_env(env_path)
+        break
+
+GEMINI_KEY = env("GEMINI_API_KEY", default="")
 
 def extract_criteria_summary(prep, earth, frame):
     return {
@@ -153,6 +160,8 @@ def gemini_runner(
         prompt_filled = base_prompt.format(**merged_data)
 
         # Gemini API 호출
+        if not GEMINI_KEY:
+            return "(AI 분석 스킵: GEMINI_API_KEY 미설정)"
         client = genai.Client(api_key=GEMINI_KEY)
 
         response = client.models.generate_content(
@@ -180,6 +189,8 @@ def gantt_ai_log_runner(payload: dict) -> str:
         base_prompt = config["prompt"]
         prompt_filled = base_prompt.format(**safe_data)
 
+        if not GEMINI_KEY:
+            return "(AI 요약 스킵: GEMINI_API_KEY 미설정)"
         client = genai.Client(api_key=GEMINI_KEY)
         response = client.models.generate_content(
             model="gemini-2.5-flash",

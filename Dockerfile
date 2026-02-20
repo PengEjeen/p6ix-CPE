@@ -6,6 +6,12 @@ WORKDIR /app/frontend
 COPY frontend/package*.json ./
 RUN npm ci
 
+# Build-time frontend envs (public Vite vars)
+ARG VITE_API_BASE=/api
+ARG VITE_PERSIST_LOGIN=false
+ENV VITE_API_BASE=$VITE_API_BASE
+ENV VITE_PERSIST_LOGIN=$VITE_PERSIST_LOGIN
+
 # 소스 복사 + 빌드 (Vite 기준 dist)
 COPY frontend/ .
 RUN npm run build

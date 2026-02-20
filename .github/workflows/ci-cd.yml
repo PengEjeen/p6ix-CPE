@@ -28,6 +28,9 @@ jobs:
 
       - name: Build frontend
         working-directory: frontend
+        env:
+          VITE_API_BASE: ${{ vars.VITE_API_BASE }}
+          VITE_PERSIST_LOGIN: ${{ vars.VITE_PERSIST_LOGIN }}
         run: npm run build
 
       - name: Set up Python
@@ -43,17 +46,29 @@ jobs:
       - name: Django system check
         working-directory: backend
         env:
-          SECRET_KEY: ci-secret-key
-        run: python manage.py check
+          SECRET_KEY: ${{ secrets.DJANGO_SECRET_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          KAKAO_CLIENT_ID: ${{ secrets.KAKAO_CLIENT_ID }}
+          WEATHER_API_KEY: ${{ secrets.WEATHER_API_KEY }}
+        run: SECRET_KEY="${SECRET_KEY:-ci-secret-key}" python manage.py check
 
       - name: Django tests
         working-directory: backend
         env:
-          SECRET_KEY: ci-secret-key
-        run: python manage.py test
+          SECRET_KEY: ${{ secrets.DJANGO_SECRET_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          KAKAO_CLIENT_ID: ${{ secrets.KAKAO_CLIENT_ID }}
+          WEATHER_API_KEY: ${{ secrets.WEATHER_API_KEY }}
+        run: SECRET_KEY="${SECRET_KEY:-ci-secret-key}" python manage.py test
 
       - name: Build Docker image (validation)
-        run: docker build -t p6ix_cpe:ci .
+        run: |
+          docker build \
+            --build-arg VITE_API_BASE="${{ vars.VITE_API_BASE }}" \
+            --build-arg VITE_PERSIST_LOGIN="${{ vars.VITE_PERSIST_LOGIN }}" \
+            -t p6ix_cpe:ci .
 
   cd:
     name: Push image to Docker Hub
@@ -92,5 +107,8 @@ jobs:
           context: .
           file: Dockerfile
           push: true
+          build-args: |
+            VITE_API_BASE=${{ vars.VITE_API_BASE }}
+            VITE_PERSIST_LOGIN=${{ vars.VITE_PERSIST_LOGIN }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
