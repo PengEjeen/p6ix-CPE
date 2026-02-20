@@ -125,7 +125,7 @@ function Login() {
 
   return (
     <div
-      data-theme="mid"
+      data-theme="navy"
       data-theme-lock="auth"
       className="min-h-screen flex items-center justify-center relative overflow-hidden bg-[#1e1e2f]"
     >

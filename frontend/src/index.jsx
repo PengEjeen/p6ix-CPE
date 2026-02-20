@@ -3,11 +3,18 @@ import ReactDOM from 'react-dom/client';
 import './index.css';
 import App from './App.jsx';
 
+const normalizeInitialTheme = (value) => {
+  if (value === "light") return "white";
+  if (value === "mid") return "navy";
+  if (value === "white" || value === "navy" || value === "dark" || value === "brown") return value;
+  return "navy";
+};
+
 try {
-  const initialTheme = window.localStorage.getItem("p6ix_theme_mode") || "mid";
+  const initialTheme = normalizeInitialTheme(window.localStorage.getItem("p6ix_theme_mode"));
   document.documentElement.setAttribute("data-theme", initialTheme);
 } catch {
-  document.documentElement.setAttribute("data-theme", "mid");
+  document.documentElement.setAttribute("data-theme", "navy");
 }
 
 const root = ReactDOM.createRoot(document.getElementById('root'));

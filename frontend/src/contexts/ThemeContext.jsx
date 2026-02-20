@@ -1,16 +1,22 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 
 const THEME_STORAGE_KEY = "p6ix_theme_mode";
-const THEMES = ["light", "mid", "dark"];
+const THEMES = ["white", "navy", "dark", "brown"];
+const DEFAULT_THEME = "navy";
+const LEGACY_THEME_ALIASES = {
+  light: "white",
+  mid: "navy",
+};
 
 const ThemeContext = createContext({
-  theme: "mid",
+  theme: DEFAULT_THEME,
   setTheme: () => {},
   themes: THEMES,
 });
 
 function normalizeTheme(value) {
-  return THEMES.includes(value) ? value : "mid";
+  const normalized = LEGACY_THEME_ALIASES[value] || value;
+  return THEMES.includes(normalized) ? normalized : DEFAULT_THEME;
 }
 
 export function ThemeProvider({ children }) {
@@ -18,7 +24,7 @@ export function ThemeProvider({ children }) {
     try {
       return normalizeTheme(window.localStorage.getItem(THEME_STORAGE_KEY));
     } catch {
-      return "mid";
+      return DEFAULT_THEME;
     }
   });
 
@@ -51,4 +57,3 @@ export function ThemeProvider({ children }) {
 export function useTheme() {
   return useContext(ThemeContext);
 }
-

@@ -6,6 +6,7 @@
 @tailwind utilities;
 
 :root,
+[data-theme="navy"],
 [data-theme="mid"] {
   --navy-bg: #1e1e2f;
   --navy-surface: #2c2c3a;
@@ -128,6 +129,7 @@
   --legacy-gray-bg-600: #3e4b64;
 }
 
+[data-theme="white"],
 [data-theme="light"] {
   --navy-bg: #f4f6fb;
   --navy-surface: #ffffff;
@@ -189,7 +191,71 @@
   --legacy-gray-bg-600: #cbd5e1;
 }
 
-[data-theme="light"] { color-scheme: light; }
+[data-theme="brown"] {
+  --navy-bg: #f3ece3;
+  --navy-surface: #fffaf3;
+  --navy-surface-2: #f8f1e7;
+  --navy-surface-3: #e7d8c6;
+  --navy-border: #cdb89d;
+  --navy-border-soft: #d8c8b3;
+  --navy-text: #111827;
+  --navy-text-muted: #111827;
+  --navy-accent: #6e5238;
+  --navy-accent-hover: #5f462f;
+  --navy-success: #55735a;
+  --navy-danger: #8a4f4f;
+  --ui-icon-color: #111827;
+  --ui-accent-text-color: #111827;
+  --ui-outline-text-color: #111827;
+  --ui-outline-border-color: #bda589;
+  --ui-outline-hover-bg: rgb(110 82 56 / 0.18);
+
+  --legacy-bg-main: #f3ece3;
+  --legacy-bg-main-alt: #f0e7dd;
+  --legacy-bg-surface: #fffaf3;
+  --legacy-bg-surface-2: #f8f1e7;
+  --legacy-bg-surface-soft: #f2e8dc;
+  --legacy-bg-elev: #eadcc8;
+  --legacy-bg-hover: #e3d3bd;
+  --legacy-bg-hover-strong: #dbc8ad;
+  --legacy-bg-input: #fff7ef;
+  --legacy-bg-input-2: #f8efe4;
+  --legacy-bg-deep: #efe5d9;
+  --legacy-bg-deeper: #ebdfd1;
+  --legacy-bg-chip: #eadcc8;
+  --legacy-bg-table-soft: #f1e7da;
+  --legacy-bg-table: #e8d9c6;
+  --legacy-bg-table-2: #deccb5;
+  --legacy-bg-row-even: #f2e8dc;
+  --legacy-bg-row-alt: #ece1d3;
+  --legacy-bg-emphasis: #e0cdb5;
+  --legacy-bg-badge: #e7d7c3;
+  --legacy-bg-row-hover: #e6d6c1;
+  --legacy-bg-row-hover-2: #dbc8ae;
+  --legacy-bg-hover-stronger: #d1bc9f;
+  --legacy-bg-muted-1: #efe2d1;
+
+  --legacy-text-main: #111827;
+  --legacy-text-100: #111827;
+  --legacy-text-200: #111827;
+  --legacy-text-300: #111827;
+  --legacy-text-400: #111827;
+  --legacy-text-500: #111827;
+
+  --legacy-border-700: #ccb79d;
+  --legacy-border-600: #d5c2aa;
+  --legacy-border-500: #b99e80;
+
+  --legacy-gray-bg-900: #e5d6c2;
+  --legacy-gray-bg-800: #eadfce;
+  --legacy-gray-bg-700: #e2d1ba;
+  --legacy-gray-bg-600: #d6bfa2;
+}
+
+[data-theme="white"],
+[data-theme="light"],
+[data-theme="brown"] { color-scheme: light; }
+[data-theme="navy"],
 [data-theme="mid"],
 [data-theme="dark"] { color-scheme: dark; }
 
@@ -486,7 +552,34 @@ code {
 [data-theme] .border-white\/10 { border-color: color-mix(in srgb, var(--legacy-border-700) 75%, transparent) !important; }
 [data-theme] .border-white\/20 { border-color: var(--legacy-border-700) !important; }
 
-/* Light theme text-contrast fixes: force low-contrast utility text to black */
+/* White theme text-contrast fixes: force low-contrast utility text to black */
+:is([data-theme="white"], [data-theme="brown"]) :is(
+  [class*="text-white/"],
+  [class*="text-gray-"],
+  [class*="text-slate-"],
+  [class*="text-zinc-"],
+  [class*="text-neutral-"],
+  [class*="text-stone-"],
+  [class*="text-blue-"],
+  [class*="text-indigo-"],
+  [class*="text-violet-"],
+  [class*="text-cyan-"],
+  [class*="text-sky-"],
+  [class*="text-yellow-"],
+  [class*="text-orange-"],
+  [class*="text-red-"],
+  [class*="text-rose-"],
+  [class*="text-teal-"],
+  [class*="text-lime-"],
+  [class*="text-amber-"],
+  [class*="text-emerald-"],
+  [class*="text-[#"],
+  [class*="text-[rgb("],
+  [class*="text-[rgba("]
+):not([data-theme="navy"] *):not([data-theme="mid"] *) {
+  color: #111827 !important;
+}
+
 [data-theme="light"] :is(
   [class*="text-white/"],
   [class*="text-gray-"],
@@ -499,12 +592,74 @@ code {
   [class*="text-violet-"],
   [class*="text-cyan-"],
   [class*="text-sky-"],
+  [class*="text-yellow-"],
+  [class*="text-orange-"],
+  [class*="text-red-"],
+  [class*="text-rose-"],
+  [class*="text-teal-"],
+  [class*="text-lime-"],
   [class*="text-amber-"],
   [class*="text-emerald-"],
   [class*="text-[#"],
   [class*="text-[rgb("],
   [class*="text-[rgba("]
-):not([data-theme="mid"] *) {
+):not([data-theme="navy"] *):not([data-theme="mid"] *) {
+  color: #111827 !important;
+}
+
+:is([data-theme="white"], [data-theme="brown"]) :is(
+  [class*="hover:text-white"],
+  [class*="focus:text-white"],
+  [class*="active:text-white"],
+  [class*="hover:text-gray-"],
+  [class*="focus:text-gray-"],
+  [class*="active:text-gray-"],
+  [class*="hover:text-slate-"],
+  [class*="focus:text-slate-"],
+  [class*="active:text-slate-"],
+  [class*="hover:text-zinc-"],
+  [class*="focus:text-zinc-"],
+  [class*="active:text-zinc-"],
+  [class*="hover:text-neutral-"],
+  [class*="focus:text-neutral-"],
+  [class*="active:text-neutral-"],
+  [class*="hover:text-stone-"],
+  [class*="focus:text-stone-"],
+  [class*="active:text-stone-"],
+  [class*="hover:text-blue-"],
+  [class*="focus:text-blue-"],
+  [class*="active:text-blue-"],
+  [class*="hover:text-indigo-"],
+  [class*="focus:text-indigo-"],
+  [class*="active:text-indigo-"],
+  [class*="hover:text-violet-"],
+  [class*="focus:text-violet-"],
+  [class*="active:text-violet-"],
+  [class*="hover:text-cyan-"],
+  [class*="focus:text-cyan-"],
+  [class*="active:text-cyan-"],
+  [class*="hover:text-sky-"],
+  [class*="focus:text-sky-"],
+  [class*="active:text-sky-"],
+  [class*="hover:text-yellow-"],
+  [class*="focus:text-yellow-"],
+  [class*="active:text-yellow-"],
+  [class*="hover:text-orange-"],
+  [class*="focus:text-orange-"],
+  [class*="active:text-orange-"],
+  [class*="hover:text-red-"],
+  [class*="focus:text-red-"],
+  [class*="active:text-red-"],
+  [class*="hover:text-rose-"],
+  [class*="focus:text-rose-"],
+  [class*="active:text-rose-"],
+  [class*="hover:text-teal-"],
+  [class*="focus:text-teal-"],
+  [class*="active:text-teal-"],
+  [class*="hover:text-lime-"],
+  [class*="focus:text-lime-"],
+  [class*="active:text-lime-"]
+):is(:hover, :focus, :active):not([data-theme="navy"] *):not([data-theme="mid"] *) {
   color: #111827 !important;
 }
 
@@ -541,8 +696,48 @@ code {
   [class*="active:text-cyan-"],
   [class*="hover:text-sky-"],
   [class*="focus:text-sky-"],
-  [class*="active:text-sky-"]
-):is(:hover, :focus, :active):not([data-theme="mid"] *) {
+  [class*="active:text-sky-"],
+  [class*="hover:text-yellow-"],
+  [class*="focus:text-yellow-"],
+  [class*="active:text-yellow-"],
+  [class*="hover:text-orange-"],
+  [class*="focus:text-orange-"],
+  [class*="active:text-orange-"],
+  [class*="hover:text-red-"],
+  [class*="focus:text-red-"],
+  [class*="active:text-red-"],
+  [class*="hover:text-rose-"],
+  [class*="focus:text-rose-"],
+  [class*="active:text-rose-"],
+  [class*="hover:text-teal-"],
+  [class*="focus:text-teal-"],
+  [class*="active:text-teal-"],
+  [class*="hover:text-lime-"],
+  [class*="focus:text-lime-"],
+  [class*="active:text-lime-"]
+):is(:hover, :focus, :active):not([data-theme="navy"] *):not([data-theme="mid"] *) {
+  color: #111827 !important;
+}
+
+:is([data-theme="white"], [data-theme="brown"]) .group:hover :is(
+  [class*="group-hover:text-white"],
+  [class*="group-hover:text-gray-"],
+  [class*="group-hover:text-slate-"],
+  [class*="group-hover:text-zinc-"],
+  [class*="group-hover:text-neutral-"],
+  [class*="group-hover:text-stone-"],
+  [class*="group-hover:text-blue-"],
+  [class*="group-hover:text-indigo-"],
+  [class*="group-hover:text-violet-"],
+  [class*="group-hover:text-cyan-"],
+  [class*="group-hover:text-sky-"],
+  [class*="group-hover:text-yellow-"],
+  [class*="group-hover:text-orange-"],
+  [class*="group-hover:text-red-"],
+  [class*="group-hover:text-rose-"],
+  [class*="group-hover:text-teal-"],
+  [class*="group-hover:text-lime-"]
+):not([data-theme="navy"] *):not([data-theme="mid"] *) {
   color: #111827 !important;
 }
 
@@ -557,7 +752,13 @@ code {
   [class*="group-hover:text-indigo-"],
   [class*="group-hover:text-violet-"],
   [class*="group-hover:text-cyan-"],
-  [class*="group-hover:text-sky-"]
-):not([data-theme="mid"] *) {
+  [class*="group-hover:text-sky-"],
+  [class*="group-hover:text-yellow-"],
+  [class*="group-hover:text-orange-"],
+  [class*="group-hover:text-red-"],
+  [class*="group-hover:text-rose-"],
+  [class*="group-hover:text-teal-"],
+  [class*="group-hover:text-lime-"]
+):not([data-theme="navy"] *):not([data-theme="mid"] *) {
   color: #111827 !important;
 }

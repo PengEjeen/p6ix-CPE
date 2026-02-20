@@ -94,9 +94,10 @@ function Header() {
     menus.find((m) => location.pathname === m.path) || menus[0];
 
   const themeOptions = [
-    { key: "light", label: "화이트" },
-    { key: "mid", label: "중간" },
+    { key: "white", label: "화이트" },
+    { key: "navy", label: "네이비" },
     { key: "dark", label: "다크" },
+    { key: "brown", label: "브라운" },
   ];
 
   const handleExportReport = async () => {

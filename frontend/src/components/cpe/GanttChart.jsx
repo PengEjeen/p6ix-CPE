@@ -868,7 +868,7 @@ export default function GanttChart({
 
     return (
         <div
-            data-theme="mid"
+            data-theme="navy"
             data-theme-lock="gantt"
             className="gantt-fixed-theme h-full flex flex-col bg-white rounded-2xl border border-gray-100 shadow-2xl overflow-hidden font-sans"
         >
