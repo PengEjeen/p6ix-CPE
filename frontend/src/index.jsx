@@ -3,6 +3,13 @@ import ReactDOM from 'react-dom/client';
 import './index.css';
 import App from './App.jsx';
 
+try {
+  const initialTheme = window.localStorage.getItem("p6ix_theme_mode") || "mid";
+  document.documentElement.setAttribute("data-theme", initialTheme);
+} catch {
+  document.documentElement.setAttribute("data-theme", "mid");
+}
+
 const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(
   // <React.StrictMode>  // 배포 시에 주석 해제 - alert 두 번 발생

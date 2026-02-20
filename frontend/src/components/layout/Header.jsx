@@ -6,6 +6,7 @@ import toast from "react-hot-toast";
 import {
   FiChevronDown, FiChevronUp, FiDownload
 } from "react-icons/fi";
+import { useTheme } from "../../contexts/ThemeContext";
 
 function Header() {
   const navigate = useNavigate();
@@ -15,6 +16,7 @@ function Header() {
   const [project, setProject] = useState(null);
   const [isExporting, setIsExporting] = useState(false);
   const [showExportGuideModal, setShowExportGuideModal] = useState(false);
+  const { theme, setTheme } = useTheme();
 
   // 항상 호출되지만, 내부에서 id 체크
   useEffect(() => {
@@ -90,6 +92,12 @@ function Header() {
 
   const activeMenu =
     menus.find((m) => location.pathname === m.path) || menus[0];
+
+  const themeOptions = [
+    { key: "light", label: "화이트" },
+    { key: "mid", label: "중간" },
+    { key: "dark", label: "다크" },
+  ];
 
   const handleExportReport = async () => {
     if (!id || isExporting) return;
@@ -184,6 +192,23 @@ function Header() {
               ))}
             </div>
           )}
+        </div>
+
+        <div className="flex items-center gap-1 rounded-lg border border-gray-600 bg-[#2a2a3a] p-1">
+          {themeOptions.map((opt) => (
+            <button
+              key={opt.key}
+              type="button"
+              onClick={() => setTheme(opt.key)}
+              className={`px-3 py-1.5 text-xs font-semibold rounded-md transition ${theme === opt.key
+                ? "bg-[#3b3b4f] text-white"
+                : "text-gray-300 hover:bg-[#3b3b4f]"
+                }`}
+              aria-pressed={theme === opt.key}
+            >
+              {opt.label}
+            </button>
+          ))}
         </div>
       </header>
 

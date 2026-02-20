@@ -867,7 +867,11 @@ export default function GanttChart({
     }, [canEdit, items]);
 
     return (
-        <div className="h-full flex flex-col bg-white rounded-2xl border border-gray-100 shadow-2xl overflow-hidden font-sans">
+        <div
+            data-theme="mid"
+            data-theme-lock="gantt"
+            className="gantt-fixed-theme h-full flex flex-col bg-white rounded-2xl border border-gray-100 shadow-2xl overflow-hidden font-sans"
+        >
 
             {/* --- Toolbar --- */}
             <div data-tutorial="gantt-toolbar">

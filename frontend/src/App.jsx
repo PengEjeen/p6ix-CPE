@@ -16,6 +16,7 @@ import PileBasisList from "./pages/PileBasisList";
 import BoredPileBasisList from "./pages/BoredPileBasisList";
 import ScheduleMasterList from "./pages/ScheduleMasterList";
 import { ConfirmProvider } from "./contexts/ConfirmContext";
+import { ThemeProvider } from "./contexts/ThemeContext";
 
 const router = createBrowserRouter(
   createRoutesFromElements(
@@ -42,10 +43,12 @@ const router = createBrowserRouter(
 
 function App() {
   return (
-    <ConfirmProvider>
-      <Toaster position="top-right" reverseOrder={false} />
-      <RouterProvider router={router} />
-    </ConfirmProvider>
+    <ThemeProvider>
+      <ConfirmProvider>
+        <Toaster position="top-right" reverseOrder={false} />
+        <RouterProvider router={router} />
+      </ConfirmProvider>
+    </ThemeProvider>
   );
 }
 
