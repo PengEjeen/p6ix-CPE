@@ -2,6 +2,7 @@
  * Smart Gantt Editor - Solver Logic
  * 역산 로직 및 공기 산정 공통 함수
  */
+import { findOperatingRateForItem } from "./operatingRateKeys";
 
 /**
  * 기본 공기 산정 로직 (Forward Calculation)
@@ -20,8 +21,8 @@ export const calculateItem = (item, operatingRates = [], workDayType = '6d') => 
     const daily_production = productivity * crew_size;
     const working_days = daily_production > 0 ? quantity / daily_production : 0;
 
-    // 가동율 조회 (Match by main_category)
-    const rateObj = operatingRates.find(r => r.main_category === item.main_category);
+    // 가동률 조회 (main+process 우선, main_category fallback)
+    const rateObj = findOperatingRateForItem(operatingRates, item);
     let rateValue = 100;
 
     if (item.operating_rate_value) {

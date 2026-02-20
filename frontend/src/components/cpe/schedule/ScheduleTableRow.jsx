@@ -3,6 +3,7 @@ import { Trash2, Link, GripVertical } from "lucide-react";
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import StandardSuggestList from "./StandardSuggestList";
+import { findOperatingRateForItem } from "../../../utils/operatingRateKeys";
 
 const ScheduleTableRow = ({
     item,
@@ -28,15 +29,13 @@ const ScheduleTableRow = ({
     isPartOfDraggingGroup = false,
     isDragActive = false
 }) => {
-    // Auto-match operating rate by main_category
-    const rateObj = operatingRates.find((rate) => rate.main_category === item.main_category);
+    // main+process 우선 매칭, 없으면 main_category 매칭
+    const rateObj = findOperatingRateForItem(operatingRates, item);
 
     // Use auto-calculated operating_rate directly from WorkScheduleWeight
     let rateValue = item.operating_rate_value ?? 100;
-    let runRate = null;
     if (rateObj) {
         rateValue = rateObj.operating_rate || 100;
-        runRate = rateObj.work_week_days;
     }
     const {
         attributes,
