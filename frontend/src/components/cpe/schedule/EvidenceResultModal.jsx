@@ -642,7 +642,7 @@ export default function EvidenceResultModal({
     if (!isOpen) return null;
 
     return (
-        <div className="fixed inset-0 z-[999] flex items-center justify-center bg-black/60 backdrop-blur-sm">
+        <div className="fixed inset-0 z-[13000] flex items-center justify-center bg-black/60 backdrop-blur-sm">
             <div className="w-[min(1200px,94vw)] max-h-[90vh] overflow-hidden rounded-2xl border border-gray-700 bg-[#2c2c3a] shadow-2xl flex flex-col">
                 <div className="px-6 py-4 border-b border-gray-700 bg-[#3a3a4a] flex items-center justify-between">
                     <div>

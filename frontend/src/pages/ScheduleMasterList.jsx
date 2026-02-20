@@ -3,13 +3,12 @@ import { useParams } from "react-router-dom";
 import { saveScheduleData, initializeDefaultItems, fetchScheduleItems, exportScheduleExcel } from "../api/cpe_all/construction_schedule";
 import { updateWorkCondition } from "../api/cpe/calc";
 import toast from "react-hot-toast";
-import { ArrowDown, ArrowUp, ChevronLeft, ChevronRight, Trash2, X } from "lucide-react";
+import { ArrowDown, ArrowUp, ChevronLeft, ChevronRight, Layers3, MoreVertical, Plus, RefreshCw, SlidersHorizontal, Trash2, X } from "lucide-react";
 
 import { DndContext, closestCenter, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
 
 import StandardImportModal from "../components/cpe/StandardImportModal";
-import TableToolbarRow from "../components/cpe/schedule/TableToolbarRow";
 import ScheduleHeader from "../components/cpe/schedule/ScheduleHeader";
 import ScheduleGanttPanel from "../components/cpe/schedule/ScheduleGanttPanel";
 import EvidenceResultModal from "../components/cpe/schedule/EvidenceResultModal";
@@ -149,9 +148,11 @@ export default function ScheduleMasterList() {
     const [isSelectionDragging, setIsSelectionDragging] = useState(false);
     const [floorBatchModal, setFloorBatchModal] = useState(null);
     const [floorBatchRange, setFloorBatchRange] = useState({ min: "", max: "" });
+    const [openCategoryMenu, setOpenCategoryMenu] = useState(null);
     const selectAllRef = useRef(null);
     const tableHeaderRef = useRef(null);
     const tableScrollRef = useRef(null);
+    const categoryMenuRef = useRef(null);
     const [tableHeaderHeight, setTableHeaderHeight] = useState(44);
     const [hasHorizontalOverflow, setHasHorizontalOverflow] = useState(false);
     const [canScrollLeft, setCanScrollLeft] = useState(false);
@@ -282,6 +283,24 @@ export default function ScheduleMasterList() {
             dismissHorizontalHint();
         }
     }, [canScrollLeft, dismissHorizontalHint, showHorizontalHint]);
+
+    useEffect(() => {
+        if (!openCategoryMenu) return;
+        const handleClickOutside = (event) => {
+            if (categoryMenuRef.current && !categoryMenuRef.current.contains(event.target)) {
+                setOpenCategoryMenu(null);
+            }
+        };
+        const handleEscape = (event) => {
+            if (event.key === "Escape") setOpenCategoryMenu(null);
+        };
+        window.addEventListener("mousedown", handleClickOutside);
+        window.addEventListener("keydown", handleEscape);
+        return () => {
+            window.removeEventListener("mousedown", handleClickOutside);
+            window.removeEventListener("keydown", handleEscape);
+        };
+    }, [openCategoryMenu]);
 
     const handleExportExcel = useCallback(async () => {
         try {
@@ -1227,86 +1246,142 @@ export default function ScheduleMasterList() {
                                                             })()}
                                                         </div>
                                                         <div
-                                                            className={`flex items-center gap-2 ${forPrint
+                                                            className={`flex items-center ${forPrint
                                                                 ? "no-print"
-                                                                : "sticky right-0 z-[1] ml-auto pl-3 pr-1 py-1 border-l border-[var(--navy-border-soft)] bg-[rgb(44_44_58/0.96)] backdrop-blur-sm"
+                                                                : "sticky right-1 z-[25] ml-auto border-l border-[var(--navy-border-soft)] bg-[rgb(44_44_58/0.96)] py-1 pl-3 pr-1 backdrop-blur-sm"
                                                                 }`}
                                                         >
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => handleMoveCategory(category, "up")}
-                                                                disabled={categoryIndex === 0}
-                                                                className={`px-2 py-1.5 rounded-lg text-xs font-semibold border transition ${categoryIndex === 0
-                                                                    ? "border-gray-700 text-gray-500 cursor-not-allowed"
-                                                                    : "border-[var(--navy-border)] text-[var(--navy-text)] hover:bg-[var(--navy-surface-3)]"
-                                                                    }`}
-                                                                title="대공종 위로 이동"
+                                                            <div
+                                                                className="relative inline-flex items-center gap-1 rounded-lg border border-[var(--navy-border)] bg-[var(--navy-surface)] p-1 shadow-sm"
+                                                                ref={openCategoryMenu === category ? categoryMenuRef : undefined}
                                                             >
-                                                                <ArrowUp size={14} />
-                                                            </button>
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => handleMoveCategory(category, "down")}
-                                                                disabled={categoryIndex === categoryEntries.length - 1}
-                                                                className={`px-2 py-1.5 rounded-lg text-xs font-semibold border transition ${categoryIndex === categoryEntries.length - 1
-                                                                    ? "border-gray-700 text-gray-500 cursor-not-allowed"
-                                                                    : "border-[var(--navy-border)] text-[var(--navy-text)] hover:bg-[var(--navy-surface-3)]"
-                                                                    }`}
-                                                                title="대공종 아래로 이동"
-                                                            >
-                                                                <ArrowDown size={14} />
-                                                            </button>
-                                                            {String(category).includes("골조") && (
                                                                 <button
                                                                     type="button"
-                                                                    onClick={() => handleOpenFloorBatchModal(category, categoryItems)}
-                                                                    className="ui-btn-outline"
+                                                                    onClick={() => {
+                                                                        handleMoveCategory(category, "up");
+                                                                        setOpenCategoryMenu(null);
+                                                                    }}
+                                                                    disabled={categoryIndex === 0}
+                                                                    className={`flex h-8 w-8 items-center justify-center rounded-md border transition ${categoryIndex === 0
+                                                                        ? "cursor-not-allowed border-gray-700 text-gray-500"
+                                                                        : "border-[var(--navy-border)] text-[var(--navy-text)] hover:bg-[var(--navy-surface-3)]"
+                                                                        }`}
+                                                                    title="대공종 위로 이동"
+                                                                    aria-label="대공종 위로 이동"
                                                                 >
-                                                                    층별 공정 생성
+                                                                    <ArrowUp size={14} />
                                                                 </button>
-                                                            )}
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => handleDeleteCategory(category, categoryItems)}
-                                                                className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-red-500/40 text-red-200 hover:bg-red-500/10"
-                                                            >
-                                                                대공종 삭제
-                                                            </button>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => {
+                                                                        handleMoveCategory(category, "down");
+                                                                        setOpenCategoryMenu(null);
+                                                                    }}
+                                                                    disabled={categoryIndex === categoryEntries.length - 1}
+                                                                    className={`flex h-8 w-8 items-center justify-center rounded-md border transition ${categoryIndex === categoryEntries.length - 1
+                                                                        ? "cursor-not-allowed border-gray-700 text-gray-500"
+                                                                        : "border-[var(--navy-border)] text-[var(--navy-text)] hover:bg-[var(--navy-surface-3)]"
+                                                                        }`}
+                                                                    title="대공종 아래로 이동"
+                                                                    aria-label="대공종 아래로 이동"
+                                                                >
+                                                                    <ArrowDown size={14} />
+                                                                </button>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => {
+                                                                        const lastCategoryItem = categoryItems[categoryItems.length - 1] || items[0];
+                                                                        if (lastCategoryItem) {
+                                                                            handleAddItem({
+                                                                                ...lastCategoryItem,
+                                                                                main_category: category,
+                                                                                process: category === lastCategoryItem.main_category ? lastCategoryItem.process : "",
+                                                                                sub_process: category === lastCategoryItem.main_category ? (lastCategoryItem.sub_process || "") : ""
+                                                                            });
+                                                                        }
+                                                                        setOpenCategoryMenu(null);
+                                                                    }}
+                                                                    className="flex h-8 w-8 items-center justify-center rounded-md border border-[var(--navy-accent)] bg-[var(--navy-accent)] text-white transition hover:bg-[var(--navy-accent-hover)]"
+                                                                    title="항목 추가"
+                                                                    aria-label="항목 추가"
+                                                                >
+                                                                    <Plus size={13} />
+                                                                </button>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => {
+                                                                        handleDeleteCategory(category, categoryItems);
+                                                                        setOpenCategoryMenu(null);
+                                                                    }}
+                                                                    className="flex h-8 w-8 items-center justify-center rounded-md border border-red-500/40 text-red-200 transition hover:bg-red-500/10"
+                                                                    title="대공종 삭제"
+                                                                    aria-label="대공종 삭제"
+                                                                >
+                                                                    <Trash2 size={13} />
+                                                                </button>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => setOpenCategoryMenu((prev) => (prev === category ? null : category))}
+                                                                    className="flex h-8 w-8 items-center justify-center rounded-md border border-[var(--navy-border)] text-[var(--navy-text)] transition hover:bg-[var(--navy-surface-3)]"
+                                                                    title="더보기"
+                                                                    aria-label="더보기"
+                                                                >
+                                                                    <MoreVertical size={13} />
+                                                                </button>
+                                                                {openCategoryMenu === category && (
+                                                                    <div className="absolute right-0 top-[calc(100%+6px)] z-[60] min-w-[172px] rounded-lg border border-[var(--navy-border-soft)] bg-[var(--navy-surface)] p-1 shadow-2xl">
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() => {
+                                                                                const lastCategoryItem = categoryItems[categoryItems.length - 1] || items[0];
+                                                                                if (lastCategoryItem) {
+                                                                                    handleOpenImport({
+                                                                                        ...lastCategoryItem,
+                                                                                        main_category: category
+                                                                                    });
+                                                                                }
+                                                                                setOpenCategoryMenu(null);
+                                                                            }}
+                                                                            className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-[var(--navy-text)] transition hover:bg-[var(--navy-surface-3)]"
+                                                                        >
+                                                                            <RefreshCw size={12} />
+                                                                            표준품셈 선택
+                                                                        </button>
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() => {
+                                                                                const lastCategoryItem = categoryItems[categoryItems.length - 1] || items[0];
+                                                                                setEvidenceTargetParent(lastCategoryItem || null);
+                                                                                setEvidenceModalOpen(true);
+                                                                                setOpenCategoryMenu(null);
+                                                                            }}
+                                                                            className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-[var(--navy-text)] transition hover:bg-[var(--navy-surface-3)]"
+                                                                        >
+                                                                            <SlidersHorizontal size={12} />
+                                                                            근거 데이터 반영
+                                                                        </button>
+                                                                        {String(category).includes("골조") && (
+                                                                            <button
+                                                                                type="button"
+                                                                                onClick={() => {
+                                                                                    handleOpenFloorBatchModal(category, categoryItems);
+                                                                                    setOpenCategoryMenu(null);
+                                                                                }}
+                                                                                className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-[var(--navy-text)] transition hover:bg-[var(--navy-surface-3)]"
+                                                                            >
+                                                                                <Layers3 size={12} />
+                                                                                층별 공정 생성
+                                                                            </button>
+                                                                        )}
+                                                                    </div>
+                                                                )}
+                                                            </div>
                                                         </div>
                                                     </div>
                                                 </td>
                                             </tr>
                                                 );
                                             })()}
-                                            <TableToolbarRow
-                                                colSpan={17}
-                                                className={forPrint ? "no-print" : ""}
-                                                onImport={() => {
-                                                    const lastCategoryItem = categoryItems[categoryItems.length - 1] || items[0];
-                                                    if (lastCategoryItem) {
-                                                        handleOpenImport({
-                                                            ...lastCategoryItem,
-                                                            main_category: category
-                                                        });
-                                                    }
-                                                }}
-                                                onAdd={() => {
-                                                    const lastCategoryItem = categoryItems[categoryItems.length - 1] || items[0];
-                                                    if (lastCategoryItem) {
-                                                        handleAddItem({
-                                                            ...lastCategoryItem,
-                                                            main_category: category,
-                                                            process: category === lastCategoryItem.main_category ? lastCategoryItem.process : '',
-                                                            sub_process: category === lastCategoryItem.main_category ? (lastCategoryItem.sub_process || '') : ''
-                                                        });
-                                                    }
-                                                }}
-                                                onEvidence={() => {
-                                                    const lastCategoryItem = categoryItems[categoryItems.length - 1] || items[0];
-                                                    setEvidenceTargetParent(lastCategoryItem || null);
-                                                    setEvidenceModalOpen(true);
-                                                }}
-                                            />
                                             {categoryItems.map((item, rowIndex) => (
                                                 <ScheduleTableRow
                                                     key={item.id}
@@ -1495,7 +1570,7 @@ export default function ScheduleMasterList() {
             )}
 
             {floorBatchModal && (
-                <div className="fixed inset-0 z-[12000] flex items-center justify-center bg-black/60 backdrop-blur-sm">
+                <div className="fixed inset-0 z-[13000] flex items-center justify-center bg-black/60 backdrop-blur-sm">
                     <div className="w-[460px] rounded-xl border border-[var(--navy-border-soft)] bg-[var(--navy-surface)] p-6 shadow-2xl">
                         <h3 className="text-lg font-bold text-gray-100">층별 공정 일괄생성</h3>
                         <p className="mt-1 text-sm text-gray-400">

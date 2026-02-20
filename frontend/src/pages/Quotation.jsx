@@ -454,7 +454,7 @@ export default function Quotation() {
 
         {/* 전체보기 모달 */}
         {showModal && (
-          <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex justify-center items-center z-50">
+          <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex justify-center items-center z-[13000]">
             <div className="bg-[#2c2c3a] w-[80vw] h-[80vh] rounded-xl shadow-2xl flex flex-col border border-gray-700">
               {/* 모달 헤더 */}
               <div className="flex justify-between items-center px-5 py-3 rounded-xl border-b border-gray-600 bg-[#3a3a4a]">

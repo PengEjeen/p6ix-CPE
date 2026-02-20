@@ -302,7 +302,7 @@ function Projects() {
 
       {/* === 새 갑지 생성 모달 === */}
       {openModal && (
-        <div className="fixed inset-0 flex items-center justify-center bg-black/60 z-50">
+        <div className="fixed inset-0 flex items-center justify-center bg-black/60 z-[13000]">
           <div className="bg-[#2c2c3a] border border-gray-700 rounded-xl p-8 w-[420px] shadow-2xl">
             <h3 className="text-2xl font-semibold text-white mb-6 text-center">
               새 갑지 생성
@@ -354,7 +354,7 @@ function Projects() {
 
       {/* === 설명 수정 모달 === */}
       {descModal && (
-        <div className="fixed inset-0 flex items-center justify-center bg-black/60 z-50">
+        <div className="fixed inset-0 flex items-center justify-center bg-black/60 z-[13000]">
           <div className="bg-[#2c2c3a] border border-gray-700 rounded-xl p-8 w-[500px] shadow-2xl">
             <h3 className="text-2xl font-semibold text-white mb-6 text-center">
               설명 수정

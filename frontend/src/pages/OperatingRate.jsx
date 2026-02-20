@@ -641,7 +641,7 @@ export default function OperatingRate() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center backdrop-blur-sm"
+            className="fixed inset-0 bg-black/60 z-[13000] flex items-center justify-center backdrop-blur-sm"
           >
             <div className="bg-[#2a2a35] p-8 rounded-lg shadow-2xl flex flex-col items-center border border-gray-700">
               <div className="animate-spin rounded-full h-10 w-10 border-4 border-blue-500 border-t-transparent mb-4"></div>
