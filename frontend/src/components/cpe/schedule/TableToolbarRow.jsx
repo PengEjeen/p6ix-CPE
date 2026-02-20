@@ -3,13 +3,13 @@ import { RefreshCw, Plus, SlidersHorizontal } from "lucide-react";
 
 export default function TableToolbarRow({ colSpan, onImport, onAdd, onEvidence, className = "" }) {
     return (
-        <tr className={`bg-[#1f1f2b] border-b border-gray-700 ${className}`}>
+        <tr className={`bg-[var(--navy-bg)] border-b border-[var(--navy-border-soft)] ${className}`}>
             <td colSpan={colSpan} className="px-4 py-2">
                 <div className="flex flex-wrap items-center gap-2">
                     <button
                         data-tutorial="standard-import"
                         onClick={onImport}
-                        className="flex items-center gap-1.5 px-3 py-1.5 bg-[#2c2c3a] hover:bg-[#38384a] text-gray-200 rounded-lg text-sm font-semibold border border-gray-700 transition"
+                        className="ui-btn-secondary text-sm inline-flex items-center gap-1.5"
                     >
                         <RefreshCw size={14} />
                         표준품셈 선택
@@ -17,14 +17,14 @@ export default function TableToolbarRow({ colSpan, onImport, onAdd, onEvidence, 
                     <button
                         data-tutorial="add-schedule"
                         onClick={onAdd}
-                        className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm font-semibold transition"
+                        className="ui-btn-primary text-sm inline-flex items-center gap-1.5"
                     >
                         <Plus size={14} />
                         항목 추가
                     </button>
                     <button
                         onClick={onEvidence}
-                        className="flex items-center gap-1.5 px-3 py-1.5 bg-[#2c2c3a] hover:bg-[#38384a] text-blue-200 rounded-lg text-sm font-semibold border border-blue-600/50 transition"
+                        className="ui-btn-outline text-sm inline-flex items-center gap-1.5"
                     >
                         <SlidersHorizontal size={14} />
                         근거 데이터 반영

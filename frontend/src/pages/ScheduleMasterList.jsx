@@ -1037,7 +1037,7 @@ export default function ScheduleMasterList() {
     };
 
     if (loading) return <div className="p-8 flex justify-center items-center h-full">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[var(--navy-accent)]"></div>
     </div>;
 
     const activeItem = activeId ? items.find((i) => i.id === activeId) : null;
@@ -1071,7 +1071,7 @@ export default function ScheduleMasterList() {
         <div className="relative h-full w-full">
             <div
                 data-tutorial="schedule-table"
-                className={`scroll-container w-full overflow-auto rounded-xl border border-gray-700 shadow-xl bg-[#2c2c3a] relative ${isScrolling ? 'scrolling' : ''} ${forPrint ? 'print-table' : ''}`}
+                className={`scroll-container w-full overflow-auto rounded-xl border border-[var(--navy-border-soft)] shadow-xl bg-[var(--navy-surface)] relative ${isScrolling ? 'scrolling' : ''} ${forPrint ? 'print-table' : ''}`}
                 style={{ height: '100%' }}
                 ref={forPrint ? undefined : tableScrollRef}
                 onScroll={forPrint ? undefined : handleScroll}
@@ -1084,7 +1084,7 @@ export default function ScheduleMasterList() {
                 onDragCancel={handleDragCancel}
                 onDragEnd={handleDragEnd}
                 >
-                    <table className="w-full text-m box-border table-fixed border-collapse bg-[#2c2c3a] rounded-lg text-gray-200">
+                    <table className="w-full text-m box-border table-fixed border-collapse bg-[var(--navy-surface)] rounded-lg text-[var(--navy-text)]">
                     <colgroup>
                         <col width="34" />
                         <col width="30" />
@@ -1105,34 +1105,34 @@ export default function ScheduleMasterList() {
                         <col width="60" />
 
                     </colgroup>
-                    <thead ref={tableHeaderRef} className="bg-[#3a3a4a] text-gray-200">
-                        <tr className="bg-[#2c2c3a] text-gray-300 font-medium sticky top-0 z-[2] shadow-sm border-b border-gray-700">
-                            <th className="sticky top-0 bg-[#2c2c3a] border-r border-gray-700 px-1 z-10">
+                    <thead ref={tableHeaderRef} className="bg-[var(--navy-surface-3)] text-[var(--navy-text)]">
+                        <tr className="bg-[var(--navy-surface)] text-[var(--navy-text-muted)] font-medium sticky top-0 z-[2] shadow-sm border-b border-[var(--navy-border-soft)]">
+                            <th className="sticky top-0 bg-[var(--navy-surface)] border-r border-[var(--navy-border-soft)] px-1 z-10">
                                 <input
                                     ref={selectAllRef}
                                     type="checkbox"
                                     checked={allSelected}
                                     onChange={(e) => toggleSelectAllItems(e.target.checked)}
-                                    className="h-3.5 w-3.5 accent-blue-500 cursor-pointer"
+                                    className="h-3.5 w-3.5 accent-[var(--navy-accent)] cursor-pointer"
                                     aria-label="전체 선택"
                                 />
                             </th>
-                            <th className="sticky top-0 bg-[#2c2c3a] border-r border-gray-700 px-1 z-10"></th>
-                            <th className="sticky top-0 bg-[#2c2c3a] border-r border-gray-700 px-2 py-2 z-10">구분</th>
-                            <th className="sticky top-0 bg-[#2c2c3a] border-r border-gray-700 px-2 py-2 z-10">공정</th>
-                            <th className="sticky top-0 bg-[#2c2c3a] border-r border-gray-700 px-2 py-2 z-10">공종</th>
-                            <th className="sticky top-0 bg-[#2c2c3a] border-r border-gray-700 px-2 py-2 z-10">수량산출(개산)</th>
-                            <th className="sticky top-0 bg-[#2c2c3a] border-r border-gray-700 px-2 py-2 z-10">단위</th>
-                            <th className="sticky top-0 bg-[#2c2c3a] border-r border-gray-700 px-2 py-2 z-10">내역수량</th>
-                            <th className="sticky top-0 bg-[#2c2c3a] border-r border-gray-700 px-2 py-2 z-10">단위 작업량</th>
-                            <th className="sticky top-0 bg-[#2c2c3a] border-r border-gray-700 px-2 py-2 z-10">투입조</th>
-                            <th className="sticky top-0 bg-[#2c2c3a] border-r border-gray-700 px-2 py-2 z-10">생산량/일</th>
-                            <th className="sticky top-0 bg-[#2c2c3a] border-r border-gray-700 px-2 py-2 z-10">반영률(%)</th>
-                            <th className="sticky top-0 bg-[#2c2c3a] border-r border-gray-700 px-2 py-2 z-10">작업기간 W/D</th>
-                            <th className="sticky top-0 bg-[#2c2c3a] border-r border-gray-700 px-2 py-2 z-10">가동률</th>
-                            <th className="sticky top-0 bg-blue-900/40 border-r border-gray-700 px-2 py-2 text-blue-200 font-bold z-10" data-tutorial="calendar-day">Cal Day</th>
-                            <th className="sticky top-0 bg-[#2c2c3a] border-r border-gray-700 px-2 py-2 z-10">비고</th>
-                            <th className="sticky top-0 bg-[#2c2c3a] border-r border-gray-700 px-2 py-2 z-10"></th>
+                            <th className="sticky top-0 bg-[var(--navy-surface)] border-r border-[var(--navy-border-soft)] px-1 z-10"></th>
+                            <th className="sticky top-0 bg-[var(--navy-surface)] border-r border-[var(--navy-border-soft)] px-2 py-2 z-10">구분</th>
+                            <th className="sticky top-0 bg-[var(--navy-surface)] border-r border-[var(--navy-border-soft)] px-2 py-2 z-10">공정</th>
+                            <th className="sticky top-0 bg-[var(--navy-surface)] border-r border-[var(--navy-border-soft)] px-2 py-2 z-10">공종</th>
+                            <th className="sticky top-0 bg-[var(--navy-surface)] border-r border-[var(--navy-border-soft)] px-2 py-2 z-10">수량산출(개산)</th>
+                            <th className="sticky top-0 bg-[var(--navy-surface)] border-r border-[var(--navy-border-soft)] px-2 py-2 z-10">단위</th>
+                            <th className="sticky top-0 bg-[var(--navy-surface)] border-r border-[var(--navy-border-soft)] px-2 py-2 z-10">내역수량</th>
+                            <th className="sticky top-0 bg-[var(--navy-surface)] border-r border-[var(--navy-border-soft)] px-2 py-2 z-10">단위 작업량</th>
+                            <th className="sticky top-0 bg-[var(--navy-surface)] border-r border-[var(--navy-border-soft)] px-2 py-2 z-10">투입조</th>
+                            <th className="sticky top-0 bg-[var(--navy-surface)] border-r border-[var(--navy-border-soft)] px-2 py-2 z-10">생산량/일</th>
+                            <th className="sticky top-0 bg-[var(--navy-surface)] border-r border-[var(--navy-border-soft)] px-2 py-2 z-10">반영률(%)</th>
+                            <th className="sticky top-0 bg-[var(--navy-surface)] border-r border-[var(--navy-border-soft)] px-2 py-2 z-10">작업기간 W/D</th>
+                            <th className="sticky top-0 bg-[var(--navy-surface)] border-r border-[var(--navy-border-soft)] px-2 py-2 z-10">가동률</th>
+                            <th className="sticky top-0 bg-[var(--navy-surface-3)] border-r border-[var(--navy-border-soft)] px-2 py-2 text-[var(--navy-text)] font-bold z-10" data-tutorial="calendar-day">Cal Day</th>
+                            <th className="sticky top-0 bg-[var(--navy-surface)] border-r border-[var(--navy-border-soft)] px-2 py-2 z-10">비고</th>
+                            <th className="sticky top-0 bg-[var(--navy-surface)] border-r border-[var(--navy-border-soft)] px-2 py-2 z-10"></th>
                         </tr>
                     </thead>
                     <SortableContext items={items} strategy={verticalListSortingStrategy}>
@@ -1147,25 +1147,25 @@ export default function ScheduleMasterList() {
 
                                 return [
                                     (
-                                        <tr key="add-main-category" className={`bg-[#232332] ${forPrint ? "no-print" : ""}`}>
+                                        <tr key="add-main-category" className={`bg-[var(--navy-bg)] ${forPrint ? "no-print" : ""}`}>
                                             <td
                                                 colSpan="17"
-                                                className={`px-4 py-3 ${forPrint ? "" : "sticky z-[9] bg-[#232332] border-b border-gray-700"}`}
+                                                className={`px-4 py-3 ${forPrint ? "" : "sticky z-[9] bg-[var(--navy-bg)] border-b border-[var(--navy-border-soft)]"}`}
                                                 style={forPrint ? undefined : { top: `${tableHeaderHeight + 12}px` }}
                                             >
                                                 <div className="flex flex-wrap items-center gap-3">
-                                                    <div className="text-sm font-semibold text-gray-200">대공종 추가</div>
+                                                    <div className="text-sm font-semibold text-[var(--navy-text)]">대공종 추가</div>
                                                     <input
                                                         type="text"
                                                         value={newMainCategory}
                                                         onChange={(e) => setNewMainCategory(e.target.value)}
                                                         placeholder="대공종명 입력"
-                                                        className="min-w-[220px] bg-[#1f1f2b] border border-gray-600 rounded px-3 py-1.5 text-sm text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500/40"
+                                                        className="ui-input min-w-[220px]"
                                                     />
                                                     <button
                                                         type="button"
                                                         onClick={handleAddMainCategory}
-                                                        className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-blue-600 text-white hover:bg-blue-500"
+                                                        className="ui-btn-primary"
                                                     >
                                                         추가
                                                     </button>
@@ -1191,18 +1191,18 @@ export default function ScheduleMasterList() {
                                                 const categoryCalDays = calculateTotalCalendarDays(categoryItems);
                                                 const categoryCalMonths = calculateTotalCalendarMonths(categoryCalDays);
                                                 return (
-                                            <tr className="bg-gradient-to-r from-[#2c2c3a] to-[#242433] border-t border-gray-700">
+                                            <tr className="bg-gradient-to-r from-[var(--navy-surface)] to-[var(--navy-surface-2)] border-t border-[var(--navy-border-soft)]">
                                                 <td colSpan="17" className="px-4 py-2.5">
                                                     <div className="flex items-center justify-between gap-2">
                                                         <div className="flex items-center gap-2">
-                                                            <div className="w-1 h-5 bg-blue-400 rounded-full"></div>
-                                                            <h3 className="font-bold text-gray-100 text-base tracking-tight">
+                                                            <div className="ui-accent-dot w-1 h-5 rounded-full"></div>
+                                                            <h3 className="font-bold text-[var(--navy-text)] text-base tracking-tight">
                                                                 {category}
                                                             </h3>
-                                                            <span className="text-xs text-gray-400 bg-[#1f1f2b] px-2 py-0.5 rounded-full border border-gray-700">
+                                                            <span className="text-xs text-[var(--navy-text-muted)] bg-[var(--navy-bg)] px-2 py-0.5 rounded-full border border-[var(--navy-border-soft)]">
                                                                 {categoryItems.length}개 항목
                                                             </span>
-                                                            <span className="text-xs text-blue-200 bg-blue-900/20 px-2 py-0.5 rounded-full border border-blue-500/40 font-semibold">
+                                                            <span className="text-xs ui-accent-text bg-[rgb(59_59_79/0.22)] px-2 py-0.5 rounded-full border border-[rgb(75_85_99/0.45)] font-semibold">
                                                                 {categoryCalDays}일 ({categoryCalMonths}개월)
                                                             </span>
                                                             {/* Category-specific Run Rate */}
@@ -1211,9 +1211,9 @@ export default function ScheduleMasterList() {
                                                                 const currentRunRate = categoryRate?.work_week_days || 6;
                                                                 return (
                                                                     <div className="flex items-center gap-2 ml-4">
-                                                                        <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Run Rate</label>
+                                                                        <label className="text-[10px] font-bold text-[var(--navy-text-muted)] uppercase tracking-widest">Run Rate</label>
                                                                         <select
-                                                                            className="bg-[#181825] text-gray-100 font-bold text-sm py-1 px-2 rounded-lg border border-gray-700 focus:border-blue-500"
+                                                                            className="ui-input py-1 px-2"
                                                                             value={currentRunRate}
                                                                             onChange={(e) => handleCategoryRunRateChange(category, e.target.value)}
                                                                             disabled={forPrint}
@@ -1229,7 +1229,7 @@ export default function ScheduleMasterList() {
                                                         <div
                                                             className={`flex items-center gap-2 ${forPrint
                                                                 ? "no-print"
-                                                                : "sticky right-0 z-[1] ml-auto pl-3 pr-1 py-1 border-l border-gray-700 bg-[#242433]/95 backdrop-blur-sm"
+                                                                : "sticky right-0 z-[1] ml-auto pl-3 pr-1 py-1 border-l border-[var(--navy-border-soft)] bg-[rgb(44_44_58/0.96)] backdrop-blur-sm"
                                                                 }`}
                                                         >
                                                             <button
@@ -1238,7 +1238,7 @@ export default function ScheduleMasterList() {
                                                                 disabled={categoryIndex === 0}
                                                                 className={`px-2 py-1.5 rounded-lg text-xs font-semibold border transition ${categoryIndex === 0
                                                                     ? "border-gray-700 text-gray-500 cursor-not-allowed"
-                                                                    : "border-gray-600 text-gray-200 hover:bg-[#3a3a4a]"
+                                                                    : "border-[var(--navy-border)] text-[var(--navy-text)] hover:bg-[var(--navy-surface-3)]"
                                                                     }`}
                                                                 title="대공종 위로 이동"
                                                             >
@@ -1250,7 +1250,7 @@ export default function ScheduleMasterList() {
                                                                 disabled={categoryIndex === categoryEntries.length - 1}
                                                                 className={`px-2 py-1.5 rounded-lg text-xs font-semibold border transition ${categoryIndex === categoryEntries.length - 1
                                                                     ? "border-gray-700 text-gray-500 cursor-not-allowed"
-                                                                    : "border-gray-600 text-gray-200 hover:bg-[#3a3a4a]"
+                                                                    : "border-[var(--navy-border)] text-[var(--navy-text)] hover:bg-[var(--navy-surface-3)]"
                                                                     }`}
                                                                 title="대공종 아래로 이동"
                                                             >
@@ -1260,7 +1260,7 @@ export default function ScheduleMasterList() {
                                                                 <button
                                                                     type="button"
                                                                     onClick={() => handleOpenFloorBatchModal(category, categoryItems)}
-                                                                    className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-blue-500/40 text-blue-200 hover:bg-blue-500/10"
+                                                                    className="ui-btn-outline"
                                                                 >
                                                                     층별 공정 생성
                                                                 </button>
@@ -1315,7 +1315,7 @@ export default function ScheduleMasterList() {
                                                     onToggleSelect={toggleSelectItem}
                                                     onStartSelectionDrag={startSelectionDrag}
                                                     onDragSelectionEnter={dragSelectItem}
-                                                    rowClassName={rowIndex % 2 === 0 ? "bg-[#232332]" : "bg-[#2c2c3a]"}
+                                                    rowClassName={rowIndex % 2 === 0 ? "bg-[var(--navy-bg)]" : "bg-[var(--navy-surface)]"}
                                                     operatingRates={operatingRates}
                                                     workDayType={workDayType}
                                                     isLinked={item.link_module_type && item.link_module_type !== 'NONE'}
@@ -1345,26 +1345,26 @@ export default function ScheduleMasterList() {
             </div>
             {!forPrint && hasHorizontalOverflow && canScrollLeft && (
                 <div className="pointer-events-none absolute inset-y-0 left-0 z-20 flex items-center">
-                    <div className="h-full w-12 bg-gradient-to-r from-[#1f1f2b] to-transparent" />
-                    <div className="absolute left-2 rounded-full border border-gray-600 bg-[#1f1f2b]/90 p-1 text-gray-200">
+                    <div className="h-full w-12 bg-gradient-to-r from-[var(--navy-bg)] to-transparent" />
+                    <div className="absolute left-2 rounded-full border border-[var(--navy-border)] bg-[rgb(30_30_47/0.9)] p-1 text-[var(--navy-text)]">
                         <ChevronLeft size={14} />
                     </div>
                 </div>
             )}
             {!forPrint && hasHorizontalOverflow && canScrollRight && (
                 <div className="pointer-events-none absolute inset-y-0 right-0 z-20 flex items-center justify-end">
-                    <div className="h-full w-12 bg-gradient-to-l from-[#1f1f2b] to-transparent" />
-                    <div className="absolute right-2 rounded-full border border-gray-600 bg-[#1f1f2b]/90 p-1 text-gray-200">
+                    <div className="h-full w-12 bg-gradient-to-l from-[var(--navy-bg)] to-transparent" />
+                    <div className="absolute right-2 rounded-full border border-[var(--navy-border)] bg-[rgb(30_30_47/0.9)] p-1 text-[var(--navy-text)]">
                         <ChevronRight size={14} />
                     </div>
                 </div>
             )}
             {!forPrint && showHorizontalHint && hasHorizontalOverflow && (
-                <div className="absolute right-3 top-3 z-30 flex items-center gap-2 rounded-lg border border-blue-500/40 bg-[#1b2338]/95 px-3 py-2 text-xs text-blue-100 shadow-lg">
+                <div className="ui-hint absolute right-3 top-3 z-30 flex items-center gap-2">
                     <span>좌우 이동: Shift + 휠 또는 하단 스크롤바 사용</span>
                     <button
                         type="button"
-                        className="rounded p-0.5 text-blue-200 hover:bg-blue-500/20"
+                        className="rounded p-0.5 text-[var(--navy-text)] hover:bg-[rgb(75_85_99/0.25)]"
                         onClick={dismissHorizontalHint}
                         aria-label="가로 스크롤 힌트 닫기"
                     >
@@ -1376,7 +1376,7 @@ export default function ScheduleMasterList() {
     );
 
     return (
-        <div className="h-screen w-full flex flex-col bg-[#1f1f2b] overflow-hidden text-gray-200">
+        <div className="h-screen w-full flex flex-col bg-[var(--navy-bg)] overflow-hidden text-[var(--navy-text)]">
             {/* Header Section (Fixed) */}
             <div className="flex-none w-full max-w-[2400px] mx-auto p-6 pb-2">
                 <ScheduleHeader
@@ -1496,10 +1496,10 @@ export default function ScheduleMasterList() {
 
             {floorBatchModal && (
                 <div className="fixed inset-0 z-[12000] flex items-center justify-center bg-black/60 backdrop-blur-sm">
-                    <div className="w-[460px] rounded-xl border border-gray-700 bg-[#2c2c3a] p-6 shadow-2xl">
+                    <div className="w-[460px] rounded-xl border border-[var(--navy-border-soft)] bg-[var(--navy-surface)] p-6 shadow-2xl">
                         <h3 className="text-lg font-bold text-gray-100">층별 공정 일괄생성</h3>
                         <p className="mt-1 text-sm text-gray-400">
-                            대공종: <span className="font-semibold text-blue-200">{floorBatchModal.category}</span>
+                            대공종: <span className="font-semibold ui-accent-text">{floorBatchModal.category}</span>
                         </p>
 
                         <div className="mt-4 grid grid-cols-2 gap-3">
@@ -1510,7 +1510,7 @@ export default function ScheduleMasterList() {
                                     value={floorBatchRange.min}
                                     onChange={(e) => setFloorBatchRange((prev) => ({ ...prev, min: e.target.value }))}
                                     placeholder="예: -3"
-                                    className="rounded-lg border border-gray-600 bg-[#1f1f2b] px-3 py-2 text-sm text-gray-100 outline-none focus:border-blue-500"
+                                    className="ui-input px-3 py-2"
                                 />
                             </label>
                             <label className="flex flex-col gap-1">
@@ -1520,7 +1520,7 @@ export default function ScheduleMasterList() {
                                     value={floorBatchRange.max}
                                     onChange={(e) => setFloorBatchRange((prev) => ({ ...prev, max: e.target.value }))}
                                     placeholder="예: 30"
-                                    className="rounded-lg border border-gray-600 bg-[#1f1f2b] px-3 py-2 text-sm text-gray-100 outline-none focus:border-blue-500"
+                                    className="ui-input px-3 py-2"
                                 />
                             </label>
                         </div>
@@ -1540,7 +1540,7 @@ export default function ScheduleMasterList() {
                             <button
                                 type="button"
                                 onClick={handleGenerateFloorBatch}
-                                className="rounded-lg bg-blue-600 px-3 py-2 text-sm font-semibold text-white hover:bg-blue-500"
+                                className="ui-btn-primary px-3 py-2 text-sm"
                             >
                                 공정 생성
                             </button>

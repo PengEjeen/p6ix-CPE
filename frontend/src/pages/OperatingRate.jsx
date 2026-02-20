@@ -176,7 +176,7 @@ const GridToggle = ({ checked, onChange, disabled = false }) => (
     className={`
       relative inline-flex h-5 w-9 shrink-0 rounded-full border-2 border-transparent
       transition-colors duration-200 ease-in-out focus:outline-none
-      ${checked ? "bg-blue-600" : "bg-gray-600"}
+      ${checked ? "bg-[#2f4474]" : "bg-gray-600"}
       ${disabled ? "opacity-40 cursor-not-allowed" : "cursor-pointer"}
     `}
   >

@@ -5,6 +5,20 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  --navy-bg: #1e1e2f;
+  --navy-surface: #2c2c3a;
+  --navy-surface-2: #2a2a3a;
+  --navy-surface-3: #3b3b4f;
+  --navy-border: #4b4b5f;
+  --navy-border-soft: #374151;
+  --navy-text: #f9fafb;
+  --navy-text-muted: #9ca3af;
+  --navy-accent: #3b3b4f;
+  --navy-accent-hover: #4b4b5f;
+  --navy-success: #a6cebc;
+  --navy-danger: #d7a5a5;
+}
 
 body {
   margin: 0 !important;
@@ -13,15 +27,21 @@ body {
     sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  background: var(--navy-bg);
+  color: var(--navy-text);
 }
 
 code {
-  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
-    monospace;
+  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New', monospace;
 }
 
 @layer base {
-  /* Number input spinner remove (global) */
+  html,
+  body,
+  #root {
+    @apply h-full;
+  }
+
   input[type="number"]::-webkit-outer-spin-button,
   input[type="number"]::-webkit-inner-spin-button {
     -webkit-appearance: none;
@@ -34,20 +54,175 @@ code {
   }
 }
 
-
-
 @layer components {
+  .ui-panel {
+    @apply rounded-xl border shadow-sm;
+    background: var(--navy-surface);
+    border-color: var(--navy-border-soft);
+  }
+
+  .ui-panel-soft {
+    @apply rounded-lg border;
+    background: var(--navy-surface-2);
+    border-color: var(--navy-border-soft);
+  }
+
+  .ui-toolbar {
+    @apply rounded-xl border shadow-sm;
+    background: var(--navy-surface-2);
+    border-color: var(--navy-border-soft);
+  }
+
+  .ui-label {
+    @apply text-[10px] font-bold uppercase tracking-widest;
+    color: var(--navy-text-muted);
+  }
+
+  .ui-input {
+    @apply rounded-lg border px-3 py-1.5 text-sm font-semibold outline-none transition;
+    background: var(--navy-bg);
+    border-color: var(--navy-border);
+    color: var(--navy-text);
+  }
+
+  .ui-input:focus {
+    @apply ring-2;
+    border-color: var(--navy-accent);
+    --tw-ring-color: rgb(75 85 99 / 0.35);
+  }
+
+  .ui-icon-btn {
+    @apply rounded p-1.5 transition-colors;
+    color: #d8deef;
+  }
+
+  .ui-icon-btn:hover {
+    background: var(--navy-surface-3);
+  }
+
+  .ui-btn,
+  .ui-btn-primary,
+  .ui-btn-secondary,
+  .ui-btn-outline,
+  .ui-btn-danger {
+    @apply rounded-lg border px-3 py-1.5 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-40;
+  }
+
+  .ui-btn-primary {
+    @apply border-transparent text-white;
+    background: var(--navy-accent);
+  }
+
+  .ui-btn-primary:hover {
+    background: var(--navy-accent-hover);
+  }
+
+  .ui-btn-secondary {
+    border-color: var(--navy-border);
+    background: var(--navy-surface);
+    color: var(--navy-text);
+  }
+
+  .ui-btn-secondary:hover {
+    background: var(--navy-surface-3);
+  }
+
+  .ui-btn-outline {
+    @apply bg-transparent;
+    border-color: var(--navy-accent);
+    color: #d1d5db;
+  }
+
+  .ui-btn-outline:hover {
+    background: rgb(75 85 99 / 0.18);
+  }
+
+  .ui-btn-danger {
+    @apply bg-transparent;
+    border-color: rgb(215 165 165 / 0.45);
+    color: #f0c0c0;
+  }
+
+  .ui-btn-danger:hover {
+    background: rgb(215 165 165 / 0.12);
+  }
+
+  .ui-tab-group {
+    @apply flex gap-1 rounded-lg p-1 border;
+    background: var(--navy-surface);
+    border-color: var(--navy-border-soft);
+  }
+
+  .ui-tab {
+    @apply rounded px-3 py-1 text-xs font-semibold transition-all;
+    color: var(--navy-text-muted);
+  }
+
+  .ui-tab:hover {
+    color: var(--navy-text);
+  }
+
+  .ui-tab-active {
+    @apply shadow-sm;
+    background: var(--navy-surface-3);
+    color: var(--navy-text);
+  }
+
+  .ui-status-success {
+    color: var(--navy-success);
+  }
+
+  .ui-status-danger {
+    color: var(--navy-danger);
+  }
+
+  .ui-status-muted {
+    color: var(--navy-text);
+  }
+
+  .ui-accent-text {
+    color: #d1d5db;
+  }
+
+  .ui-accent-dot {
+    background: var(--navy-accent);
+  }
+
+  .ui-hint {
+    @apply rounded-lg border px-3 py-2 text-xs shadow-lg;
+    background: rgb(44 44 58 / 0.96);
+    border-color: rgb(75 85 99 / 0.45);
+    color: #e5e7eb;
+  }
+
   .btn-blue {
-    @apply text-white bg-blue-700 hover:bg-blue-800 focus:ring-4 focus:ring-blue-300 font-medium rounded-lg text-sm px-5 py-2.5 me-2 mb-2;
+    @apply text-white font-medium rounded-lg text-sm px-5 py-2.5 me-2 mb-2 transition;
+    background: var(--navy-accent);
+  }
+
+  .btn-blue:hover {
+    background: var(--navy-accent-hover);
   }
 
   .btn-alternative {
-    @apply py-2.5 px-5 me-2 mb-2 text-sm font-medium text-gray-900 focus:outline-none bg-white rounded-lg border border-gray-200 hover:bg-gray-100 hover:text-blue-700 focus:z-10 focus:ring-4 focus:ring-gray-100;
+    @apply py-2.5 px-5 me-2 mb-2 text-sm font-medium rounded-lg border transition;
+    background: var(--navy-surface);
+    border-color: var(--navy-border);
+    color: var(--navy-text);
   }
 
-  /* 검색 버튼 예시 ..\src\components\widgets\TmapSearch.jsx */
+  .btn-alternative:hover {
+    background: var(--navy-surface-3);
+  }
+
   .btn-search {
-    @apply flex justify-center items-center px-3 text-sm font-medium text-white bg-blue-700 rounded-lg border border-blue-700 hover:bg-blue-800 focus:ring-4 focus:outline-none focus:ring-blue-300 whitespace-nowrap max-w-40;
+    @apply flex justify-center items-center px-3 text-sm font-medium text-white rounded-lg border whitespace-nowrap max-w-40 transition;
+    background: var(--navy-accent);
+    border-color: var(--navy-accent);
+  }
+
+  .btn-search:hover {
+    background: var(--navy-accent-hover);
   }
 
   .btn-search-icon {
@@ -55,6 +230,9 @@ code {
   }
 
   .input-search {
-    @apply bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full ps-10 p-2.5;
+    @apply border text-sm rounded-lg block w-full ps-10 p-2.5;
+    background: var(--navy-bg);
+    border-color: var(--navy-border);
+    color: var(--navy-text);
   }
 }

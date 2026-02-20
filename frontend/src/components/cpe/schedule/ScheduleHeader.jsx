@@ -28,14 +28,14 @@ export default function ScheduleHeader({
     return (
         <div className="flex justify-between items-end mb-4 flex-shrink-0">
             <div>
-                <h1 className="text-2xl font-bold text-gray-100 mb-1 tracking-tight">공사기간 산정 기준</h1>
+                <h1 className="text-2xl font-bold text-[var(--navy-text)] mb-1 tracking-tight">공사기간 산정 기준</h1>
                 <div className="flex items-center gap-4">
-                    <p className="text-sm text-gray-400">Drag & Drop 지원, 자동 셀 병합</p>
-                    <div className="flex gap-1 bg-[#2c2c3a] p-1 rounded-lg border border-gray-700">
+                    <p className="text-sm text-[var(--navy-text-muted)]">Drag & Drop 지원, 자동 셀 병합</p>
+                    <div className="ui-tab-group">
                         <button
-                            className={`px-3 py-1 text-xs font-semibold rounded transition-all ${viewMode === "table"
-                                ? "bg-[#3a3a4a] text-white shadow-sm"
-                                : "text-gray-400 hover:text-white"
+                            className={`ui-tab ${viewMode === "table"
+                                ? "ui-tab-active"
+                                : ""
                                 }`}
                             onClick={() => onViewModeChange("table")}
                         >
@@ -43,9 +43,9 @@ export default function ScheduleHeader({
                         </button>
                         <button
                             data-tutorial="gantt-view"
-                            className={`px-3 py-1 text-xs font-semibold rounded transition-all ${viewMode === "gantt"
-                                ? "bg-[#3a3a4a] text-white shadow-sm"
-                                : "text-gray-400 hover:text-white"
+                            className={`ui-tab ${viewMode === "gantt"
+                                ? "ui-tab-active"
+                                : ""
                                 }`}
                             onClick={() => onViewModeChange("gantt")}
                         >
@@ -56,10 +56,10 @@ export default function ScheduleHeader({
             </div>
 
             {/* 아래의 기능 헤더는 항상 오른쪽에 위치해서 어떤 페이지 크기여도 전체가 보여야함 */}
-            <div className="flex gap-3 items-center bg-[#2c2c3a] px-4 py-2 rounded-xl border border-gray-700 shadow-sm flex-wrap">
-                <div className="flex items-center gap-1 mr-2 border-r border-gray-700 pr-3">
+            <div className="ui-toolbar flex gap-3 items-center px-4 py-2 flex-wrap">
+                <div className="flex items-center gap-1 mr-2 border-r border-[var(--navy-border)] pr-3">
                     <button
-                        className={`p-1.5 rounded hover:bg-[#3a3a4d] transition-colors ${!canUndo ? 'opacity-30 cursor-not-allowed' : 'text-gray-200'}`}
+                        className={`ui-icon-btn ${!canUndo ? 'opacity-30 cursor-not-allowed' : ''}`}
                         onClick={onUndo}
                         disabled={!canUndo}
                         title="실행 취소 (Ctrl+Z)"
@@ -67,7 +67,7 @@ export default function ScheduleHeader({
                         <Undo2 size={16} />
                     </button>
                     <button
-                        className={`p-1.5 rounded hover:bg-[#3a3a4d] transition-colors ${!canRedo ? 'opacity-30 cursor-not-allowed' : 'text-gray-200'}`}
+                        className={`ui-icon-btn ${!canRedo ? 'opacity-30 cursor-not-allowed' : ''}`}
                         onClick={onRedo}
                         disabled={!canRedo}
                         title="다시 실행 (Ctrl+Shift+Z)"
@@ -77,7 +77,7 @@ export default function ScheduleHeader({
                 </div>
 
                 <button
-                    className="p-1.5 rounded hover:bg-[#3a3a4d] text-gray-200 mr-2 transition-colors relative group"
+                    className="ui-icon-btn mr-2 relative group"
                     onClick={onSnapshotOpen}
                     title="스냅샷 / 히스토리"
                 >
@@ -85,42 +85,44 @@ export default function ScheduleHeader({
                 </button>
 
                 <div className="flex flex-col gap-1">
-                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest pl-1">Start Date</label>
+                    <label className="ui-label pl-1">Start Date</label>
                     <input
                         type="date"
-                        className="bg-[#181825] text-gray-100 font-bold text-sm py-1.5 pl-3 pr-2 rounded-lg border border-gray-700 focus:border-blue-500 w-36 uppercase"
+                        className="ui-input w-36 uppercase pl-3 pr-2"
                         value={startDate}
                         onChange={(e) => onStartDateChange(e.target.value)}
                     />
                 </div>
 
-                <div className="flex items-center gap-2">
-                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">목표 공기</label>
-                    <input
-                        type="number"
-                        min="1"
-                        placeholder={`${totalCalendarDays}`}
-                        value={aiTargetDays}
-                        onChange={(e) => onAiTargetDaysChange(e.target.value)}
-                        className="w-24 bg-[#181825] text-gray-100 font-bold text-sm py-1.5 px-3 rounded-lg border border-gray-700 focus:border-blue-500"
-                    />
-                    <span className="text-xs text-gray-500">일</span>
+                <div className="flex flex-col gap-1">
+                    <label className="ui-label pl-1">목표 공기</label>
+                    <div className="flex items-center gap-2">
+                        <input
+                            type="number"
+                            min="1"
+                            placeholder={`${totalCalendarDays}`}
+                            value={aiTargetDays}
+                            onChange={(e) => onAiTargetDaysChange(e.target.value)}
+                            className="ui-input w-24"
+                        />
+                        <span className="text-xs text-[var(--navy-text-muted)]">일</span>
+                    </div>
                 </div>
 
                 <button
                     onClick={onAiRun}
                     disabled={aiMode === "running"}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition ${aiMode === "running"
-                        ? "bg-gray-700 text-gray-400 cursor-not-allowed"
-                        : "bg-blue-600 hover:bg-blue-500 text-white"
+                    className={`ui-btn-primary ${aiMode === "running"
+                        ? "cursor-not-allowed opacity-40"
+                        : ""
                         }`}
                 >
-                    AI로 조정
+                    기간 조정
                 </button>
                 {aiMode !== "idle" && (
                     <button
                         onClick={onAiCancel}
-                        className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-gray-600 text-gray-200 hover:bg-[#3a3a4a] transition"
+                        className="ui-btn-secondary"
                     >
                         취소/되돌리기
                     </button>
@@ -128,15 +130,15 @@ export default function ScheduleHeader({
                 <button
                     data-tutorial="export-excel"
                     onClick={onExportExcel}
-                    className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-gray-600 text-gray-200 hover:bg-[#3a3a4a] transition"
+                    className="ui-btn-secondary"
                 >
                     엑셀 내보내기
                 </button>
                 <SaveButton onSave={onSave} saving={saving} data-tutorial="save-button" />
-                <div className="ml-2 px-4 py-2 rounded-xl bg-[#181825] border border-gray-700 text-sm text-gray-300">
-                    <span className="text-gray-400 mr-2">전체 기간</span>
-                    <span className="text-blue-400 font-bold text-base">{totalCalendarDays}일</span>
-                    <span className="text-gray-500 ml-2">({totalCalendarMonths}개월)</span>
+                <div className="ml-2 px-4 py-2 rounded-xl bg-[var(--navy-bg)] border border-[var(--navy-border)] text-sm text-[var(--navy-text)]">
+                    <span className="text-[var(--navy-text-muted)] mr-2">전체 기간</span>
+                    <span className="ui-accent-text font-bold text-base">{totalCalendarDays}일</span>
+                    <span className="text-[var(--navy-text-muted)] ml-2">({totalCalendarMonths}개월)</span>
                 </div>
             </div>
         </div>
