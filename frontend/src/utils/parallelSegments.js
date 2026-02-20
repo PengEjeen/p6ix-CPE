@@ -77,6 +77,12 @@ const parseSegmentsField = (value) => {
     return [];
 };
 
+export const isParallelByApplicationRate = (item) => {
+    const parsedRate = Number(item?.application_rate);
+    if (!Number.isFinite(parsedRate)) return false;
+    return Math.abs(parsedRate - 100) > EPS;
+};
+
 export const getParallelSegmentsFromItem = (item, durationOverride = null) => {
     const duration = Math.max(
         0,
@@ -95,7 +101,14 @@ export const getParallelSegmentsFromItem = (item, durationOverride = null) => {
     if (frontParallel > EPS) fallback.push({ start: 0, end: frontParallel });
     if (backParallel > EPS) fallback.push({ start: Math.max(0, duration - backParallel), end: duration });
 
-    return normalizeParallelSegments(fallback, duration);
+    const normalizedFallback = normalizeParallelSegments(fallback, duration);
+    if (normalizedFallback.length > 0) return normalizedFallback;
+
+    if (isParallelByApplicationRate(item)) {
+        return buildRightAlignedParallelSegments(duration, item?.application_rate);
+    }
+
+    return [];
 };
 
 export const getParallelUnionDays = (segments = []) => (

@@ -1,5 +1,5 @@
 import React, { useMemo, useRef, useState } from "react";
-import { Trash2, Link, GripVertical } from "lucide-react";
+import { Trash2, Link, GripVertical, Check } from "lucide-react";
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import StandardSuggestList from "./StandardSuggestList";
@@ -37,6 +37,10 @@ const ScheduleTableRow = ({
     if (rateObj) {
         rateValue = rateObj.operating_rate || 100;
     }
+    const parsedApplicationRate = parseFloat(item.application_rate);
+    const isForcedParallel = Number.isFinite(parsedApplicationRate) && Math.abs(parsedApplicationRate - 100) > 0.001;
+    // 병행 컬럼 표시는 반영률 기반으로만 판단 (100 미만 => 병행)
+    const isParallelChecked = isForcedParallel;
     const {
         attributes,
         listeners,
@@ -357,9 +361,18 @@ const ScheduleTableRow = ({
                 <input className="w-full text-sm outline-none p-1 text-gray-200 bg-[#1f1f2b] rounded font-medium" value={item.note || ""} onChange={(e) => handleChange(item.id, 'note', e.target.value)} />
             </td>
 
-            {/* Parallel Status (Remarks) */}
-            <td className="border-r border-gray-700 p-1">
-                <input className="w-full text-sm outline-none p-1 text-gray-200 bg-[#1f1f2b] rounded font-medium" value={item.remarks || ""} onChange={(e) => handleChange(item.id, 'remarks', e.target.value)} />
+            {/* Parallel Status */}
+            <td className="border-r border-gray-700 p-1 text-center align-middle">
+                <span
+                    className={`inline-flex h-4 w-4 items-center justify-center rounded border ${isParallelChecked
+                        ? "border-blue-400 bg-blue-500/25 text-blue-300"
+                        : "border-gray-600 bg-[#1f1f2b] text-transparent"
+                        }`}
+                    aria-label={isParallelChecked ? "병행" : "비병행"}
+                    title={isParallelChecked ? "병행" : "비병행"}
+                >
+                    <Check size={11} strokeWidth={3} />
+                </span>
             </td>
 
             {/* Action */}

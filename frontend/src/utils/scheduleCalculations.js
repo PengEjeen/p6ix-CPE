@@ -2,7 +2,7 @@
  * Schedule Calculation Utilities
  * Extracted from ScheduleMasterList.jsx
  */
-import { deriveParallelMeta, getParallelSegmentsFromItem } from "./parallelSegments";
+import { deriveParallelMeta, getParallelSegmentsFromItem, isParallelByApplicationRate } from "./parallelSegments";
 
 /**
  * Calculate total calendar days for a list of schedule items
@@ -68,7 +68,8 @@ export const getCriticalIds = (items) => {
         const redStart = Math.max(startDay, Math.min(taskEnd, rawRedStart));
         const rawCpEnd = taskEnd - backParallel;
         const cpEnd = Math.max(redStart, Math.min(taskEnd, rawCpEnd));
-        if (cpEnd >= cumulativeCPEnd && item.remarks !== "병행작업") {
+        const forcedParallel = isParallelByApplicationRate(item);
+        if (cpEnd >= cumulativeCPEnd && !forcedParallel && item.remarks !== "병행작업") {
             criticalIds.push(item.id);
         }
         cumulativeCPEnd = Math.max(cumulativeCPEnd, cpEnd);

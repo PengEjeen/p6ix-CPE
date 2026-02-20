@@ -1088,9 +1088,9 @@ export default function ScheduleMasterList() {
                     <colgroup>
                         <col width="34" />
                         <col width="30" />
-                        <col width="140" />
                         <col width="180" />
-                        <col width="280" />
+                        <col width="220" />
+                        <col width="320" />
                         <col width="140" />
                         <col width="60" />
                         <col width="90" />
@@ -1102,7 +1102,7 @@ export default function ScheduleMasterList() {
                         <col width="90" />
                         <col width="200" />
                         <col width="500" />
-                        <col width="180" />
+                        <col width="48" />
                         <col width="60" />
 
                     </colgroup>
@@ -1133,7 +1133,7 @@ export default function ScheduleMasterList() {
                             <th className="sticky top-0 bg-[#2c2c3a] border-r border-gray-700 px-2 py-2 z-10">가동률</th>
                             <th className="sticky top-0 bg-blue-900/40 border-r border-gray-700 px-2 py-2 text-blue-200 font-bold z-10" data-tutorial="calendar-day">Cal Day</th>
                             <th className="sticky top-0 bg-[#2c2c3a] border-r border-gray-700 px-2 py-2 z-10">비고</th>
-                            <th className="sticky top-0 bg-[#2c2c3a] border-r border-gray-700 px-2 py-2 z-10">병행여부</th>
+                            <th className="sticky top-0 bg-[#2c2c3a] border-r border-gray-700 px-2 py-2 z-10">병행</th>
                             <th className="sticky top-0 bg-[#2c2c3a] border-r border-gray-700 px-2 py-2 z-10"></th>
                         </tr>
                     </thead>

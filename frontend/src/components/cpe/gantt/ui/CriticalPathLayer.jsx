@@ -1,5 +1,5 @@
 import React from "react";
-import { deriveParallelMeta, getParallelSegmentsFromItem } from "../../../../utils/parallelSegments";
+import { deriveParallelMeta, getParallelSegmentsFromItem, isParallelByApplicationRate } from "../../../../utils/parallelSegments";
 
 export default function CriticalPathLayer({
     itemsWithTiming,
@@ -43,6 +43,8 @@ export default function CriticalPathLayer({
 
         // Check traditional parallel markers
         const hasParallelMarker = (
+            isParallelByApplicationRate(item)
+            ||
             remarksText === "병행작업"
             || Boolean(item?._parallelGroup)
             || Boolean(item?.parallelGroup)
