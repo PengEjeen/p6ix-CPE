@@ -124,7 +124,11 @@ function Login() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center relative overflow-hidden bg-[#1e1e2f]">
+    <div
+      data-theme="mid"
+      data-theme-lock="auth"
+      className="min-h-screen flex items-center justify-center relative overflow-hidden bg-[#1e1e2f]"
+    >
       {/* Background Gradients (Subtle Overlay) */}
       <div className="absolute inset-0 bg-gradient-to-br from-[#1e1e2f] via-[#252538] to-[#1e1e2f]" />
 
