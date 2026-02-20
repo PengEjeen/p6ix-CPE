@@ -14,7 +14,7 @@ import { buildMoveUpdatesByDelta } from "./gantt/utils/moveUpdates";
 import { useAutoScale } from "./gantt/hooks/useAutoScale";
 import GanttToolbar from "./gantt/ui/GanttToolbar";
 import LinkEditorPopover from "./gantt/ui/LinkEditorPopover";
-import { buildParallelStateFromSegments, deriveParallelMeta, getParallelSegmentsFromItem, isParallelByApplicationRate } from "../../utils/parallelSegments";
+import { buildParallelStateFromSegments, deriveParallelMeta, getParallelSegmentsFromItem } from "../../utils/parallelSegments";
 import toast from "react-hot-toast";
 import { useTutorial } from "../../hooks/useTutorial";
 import { ganttChartSteps } from "../../config/tutorialSteps";
@@ -39,8 +39,6 @@ const getCriticalMeta = (item) => {
     const redEnd = Math.max(redStart, Math.min(taskEnd, rawRedEnd));
     const remarksText = String(item?.remarks || "").trim();
     const hasParallelMarker = (
-        isParallelByApplicationRate(item)
-        ||
         remarksText === "병행작업"
         || Boolean(item?._parallelGroup)
         || Boolean(item?.parallelGroup)

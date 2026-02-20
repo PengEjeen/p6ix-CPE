@@ -1102,7 +1102,6 @@ export default function ScheduleMasterList() {
                         <col width="90" />
                         <col width="200" />
                         <col width="500" />
-                        <col width="48" />
                         <col width="60" />
 
                     </colgroup>
@@ -1133,7 +1132,6 @@ export default function ScheduleMasterList() {
                             <th className="sticky top-0 bg-[#2c2c3a] border-r border-gray-700 px-2 py-2 z-10">가동률</th>
                             <th className="sticky top-0 bg-blue-900/40 border-r border-gray-700 px-2 py-2 text-blue-200 font-bold z-10" data-tutorial="calendar-day">Cal Day</th>
                             <th className="sticky top-0 bg-[#2c2c3a] border-r border-gray-700 px-2 py-2 z-10">비고</th>
-                            <th className="sticky top-0 bg-[#2c2c3a] border-r border-gray-700 px-2 py-2 z-10">병행</th>
                             <th className="sticky top-0 bg-[#2c2c3a] border-r border-gray-700 px-2 py-2 z-10"></th>
                         </tr>
                     </thead>
@@ -1151,7 +1149,7 @@ export default function ScheduleMasterList() {
                                     (
                                         <tr key="add-main-category" className={`bg-[#232332] ${forPrint ? "no-print" : ""}`}>
                                             <td
-                                                colSpan="18"
+                                                colSpan="17"
                                                 className={`px-4 py-3 ${forPrint ? "" : "sticky z-[9] bg-[#232332] border-b border-gray-700"}`}
                                                 style={forPrint ? undefined : { top: `${tableHeaderHeight + 12}px` }}
                                             >
@@ -1194,7 +1192,7 @@ export default function ScheduleMasterList() {
                                                 const categoryCalMonths = calculateTotalCalendarMonths(categoryCalDays);
                                                 return (
                                             <tr className="bg-gradient-to-r from-[#2c2c3a] to-[#242433] border-t border-gray-700">
-                                                <td colSpan="18" className="px-4 py-2.5">
+                                                <td colSpan="17" className="px-4 py-2.5">
                                                     <div className="flex items-center justify-between gap-2">
                                                         <div className="flex items-center gap-2">
                                                             <div className="w-1 h-5 bg-blue-400 rounded-full"></div>
@@ -1281,7 +1279,7 @@ export default function ScheduleMasterList() {
                                                 );
                                             })()}
                                             <TableToolbarRow
-                                                colSpan={18}
+                                                colSpan={17}
                                                 className={forPrint ? "no-print" : ""}
                                                 onImport={() => {
                                                     const lastCategoryItem = categoryItems[categoryItems.length - 1] || items[0];

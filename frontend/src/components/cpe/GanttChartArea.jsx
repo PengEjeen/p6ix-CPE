@@ -9,7 +9,6 @@ import {
     buildCriticalSegmentsFromParallel,
     deriveParallelMeta,
     getParallelSegmentsFromItem,
-    isParallelByApplicationRate,
     toAbsoluteParallelSegments
 } from "../../utils/parallelSegments";
 
@@ -87,8 +86,6 @@ const GanttChartArea = ({
     const isParallelItem = useCallback((item) => {
         const remarksText = (item?.remarks || "").trim();
         return (
-            isParallelByApplicationRate(item)
-            ||
             remarksText === "병행작업"
             || Boolean(item?._parallelGroup)
             || Boolean(item?.parallelGroup)
