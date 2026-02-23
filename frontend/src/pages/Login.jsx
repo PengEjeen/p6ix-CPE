@@ -162,7 +162,7 @@ function Login() {
           {/* 로고/타이틀 */}
           <div className="text-center mb-8 flex flex-col items-center">
             <div className="w-24 h-24 mb-4 bg-white rounded-full flex items-center justify-center shadow-xl border-4 border-white/20">
-              <img src="/duck.ico" alt="P6ix Logo" className="w-16 h-16" />
+              <img src={`${import.meta.env.BASE_URL}duck.ico`} alt="P6ix Logo" className="w-16 h-16" />
             </div>
 
             <h2 className="text-2xl font-bold text-white mb-2">

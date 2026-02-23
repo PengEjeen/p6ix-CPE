@@ -66,7 +66,9 @@ function forceLogout() {
   }
   localStorage.removeItem("access");
   localStorage.removeItem("refresh");
-  window.location.href = "/login";
+  const appBase = import.meta.env.BASE_URL || "/";
+  const loginPath = `${appBase.endsWith("/") ? appBase : `${appBase}/`}login`;
+  window.location.href = loginPath;
 }
 
 api.interceptors.response.use(

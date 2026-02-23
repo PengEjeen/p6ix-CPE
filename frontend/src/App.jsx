@@ -18,6 +18,11 @@ import ScheduleMasterList from "./pages/ScheduleMasterList";
 import { ConfirmProvider } from "./contexts/ConfirmContext";
 import { ThemeProvider } from "./contexts/ThemeContext";
 
+const routerBasename =
+  import.meta.env.BASE_URL === "/"
+    ? "/"
+    : import.meta.env.BASE_URL.replace(/\/$/, "");
+
 const router = createBrowserRouter(
   createRoutesFromElements(
     <>
@@ -38,7 +43,10 @@ const router = createBrowserRouter(
         <Route path="/projects/:id/schedule-master" element={<ScheduleMasterList />} />
       </Route>
     </>
-  )
+  ),
+  {
+    basename: routerBasename,
+  }
 );
 
 function App() {
