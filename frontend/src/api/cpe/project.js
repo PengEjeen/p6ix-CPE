@@ -3,7 +3,7 @@ import api from "../axios";
 // 프로젝트 리스트 불러오기
 export const fetchProjects = async () => {
   try {
-    const res = await api.get("cpe/project");
+    const res = await api.get("cpe/project/");
     return res.data;
   } catch (error) {
     console.error("프로젝트 불러오기 실패:", error);
