@@ -11,6 +11,7 @@ export default function EvidenceResultModal({
     cipStandards = [],
     pileStandards = [],
     boredStandards = [],
+    onAdd,
     onAddItem
 }) {
     const [drafts, setDrafts] = useState({});
@@ -40,7 +41,12 @@ export default function EvidenceResultModal({
     };
 
     const handleAdd = (type, row) => {
-        onAddItem(type, row);
+        const addHandler = typeof onAddItem === "function" ? onAddItem : onAdd;
+        if (typeof addHandler !== "function") {
+            console.error("EvidenceResultModal: add handler is not provided.");
+            return;
+        }
+        addHandler(type, row);
     };
 
     const cipDiameterOptions = useMemo(() => {

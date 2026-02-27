@@ -550,8 +550,9 @@ export default function ScheduleMasterList() {
         dataArray.forEach(std => {
             const processName = std.category || std.process_name || importTargetParent?.process || "수입 작업";
             const subProcessName = std.sub_category || std.work_type_name || importTargetParent?.sub_process || "";
-            const workTypeName = std.item_name || std.work_type_name || std.sub_category || std.category || "수입 공종";
-            const remarkLabel = std.item_name || std.sub_category || std.category || "";
+            const workTypeName = std.sub_category || std.work_type_name || std.category || "수입 공종";
+            const tocLabel = std.item_name || "";
+            const noteText = tocLabel ? (std.remark ? `${tocLabel} (${std.remark})` : tocLabel) : (std.remark || "");
             const newItem = {
                 id: `imp-${Date.now()}-${Math.random()}`,
                 main_category: importTargetParent?.main_category || "수입 공종",
@@ -567,8 +568,9 @@ export default function ScheduleMasterList() {
                 operating_rate_type: "EARTH",
                 operating_rate_value: 0,
                 standard_code: std.code || std.standard,
-                // Use the remark from selection: "항목명 (선택 기준)"
-                remarks: std.remark ? `${remarkLabel} (${std.remark})` : remarkLabel
+                // 목차(item_name)는 비고(note)로 반영
+                note: noteText,
+                remarks: noteText
             };
 
             if (importTargetParent) {
@@ -598,15 +600,17 @@ export default function ScheduleMasterList() {
         const { productivity, remark } = deriveStandardProductivity(std);
         const processName = std.category || std.process_name || item.process || '';
         const subProcessName = std.sub_category || std.work_type_name || item.sub_process || '';
-        const workTypeName = std.item_name || std.work_type_name || std.sub_category || std.category || item.work_type || '';
-        const remarkLabel = std.item_name || std.sub_category || std.category || '';
+        const workTypeName = std.sub_category || std.work_type_name || std.category || item.work_type || '';
+        const tocLabel = std.item_name || '';
+        const noteText = tocLabel ? `${tocLabel} (${remark})` : (item.note || remark);
         updateItem(item.id, 'process', processName);
         updateItem(item.id, 'sub_process', subProcessName);
         updateItem(item.id, 'work_type', workTypeName);
         updateItem(item.id, 'unit', std.unit || item.unit || '');
         updateItem(item.id, 'productivity', productivity || 0);
         updateItem(item.id, 'standard_code', std.code || std.standard || item.standard_code || '');
-        updateItem(item.id, 'remarks', remarkLabel ? `${remarkLabel} (${remark})` : (item.remarks || remark));
+        updateItem(item.id, 'note', noteText);
+        updateItem(item.id, 'remarks', noteText);
     }, [deriveStandardProductivity, updateItem]);
 
     const spanInfoMap = useMemo(() => {
