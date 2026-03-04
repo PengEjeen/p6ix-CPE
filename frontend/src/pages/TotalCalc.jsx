@@ -161,11 +161,12 @@ export default function TotalCalc() {
     };
 
     // Create New Item
-    const handleAdd = async (mainCategory, category = "새 공종") => {
+    const handleAdd = async (mainCategory, process = "새 공정", workType = "새 공종") => {
         const newRowData = {
             project: id,
             main_category: mainCategory,
-            category: category,
+            category: process,
+            sub_category: workType,
             item_name: "새 항목",
             unit: "식",
             pumsam_workload: 0,
@@ -244,7 +245,7 @@ export default function TotalCalc() {
                 return row;
             }));
 
-            toast.success("공종명이 변경되었습니다.");
+            toast.success("분류명이 변경되었습니다.");
 
         } catch (error) {
             console.error("Rename failed:", error);
@@ -289,7 +290,8 @@ export default function TotalCalc() {
 
     const columns = [
         { key: "main_category", label: "구분", editable: false, width: "w-32" },
-        { key: "category", label: "공종", editable: false, width: "w-32" },
+        { key: "category", label: "공정", editable: false, width: "w-32" },
+        { key: "sub_category", label: "공종", editable: true, width: "w-40" },
         { key: "item_name", label: "목차", editable: true, width: "w-60" },
         { key: "standard", label: "규격", editable: true, width: "w-40" },
         { key: "unit", label: "단위(표준품셈 기준)", editable: true, width: "w-28 text-center" },
@@ -331,13 +333,13 @@ export default function TotalCalc() {
                                 data-tutorial={Object.keys(groupedRows).indexOf(mainCategory) === 0 ? "add-subcategory" : undefined}
                                 onClick={(e) => {
                                     e.stopPropagation();
-                                    handleAdd(mainCategory, "새 공종");
+                                    handleAdd(mainCategory, "새 공정", "새 공종");
                                 }}
                                 className="p-1 rounded hover:bg-white/10 text-gray-300 hover:text-white transition group relative"
-                                title="이 대분류에 새 공종 추가"
+                                title="이 대분류에 새 공정 추가"
                             >
                                 <Plus size={20} />
-                                <span className="absolute hidden group-hover:block right-full mr-2 bg-black/80 text-xs px-2 py-1 rounded whitespace-nowrap">공종 추가</span>
+                                <span className="absolute hidden group-hover:block right-full mr-2 bg-black/80 text-xs px-2 py-1 rounded whitespace-nowrap">공정 추가</span>
                             </button>
                         }
                     >
@@ -356,7 +358,7 @@ export default function TotalCalc() {
                                                 handleAdd(mainCategory, category);
                                             }}
                                             className="p-1 rounded hover:bg-white/10 text-gray-300 hover:text-white transition group relative"
-                                            title="이 공종에 항목 추가"
+                                            title="이 공정에 항목 추가"
                                         >
                                             <Plus size={18} />
                                         </button>
@@ -386,7 +388,7 @@ export default function TotalCalc() {
                 {/* Main Category Add Button */}
                 <button
                     data-tutorial="add-main-category"
-                    onClick={() => handleAdd("새 대분류", "새 공종")}
+                    onClick={() => handleAdd("새 대분류", "새 공정", "새 공종")}
                     className="w-full py-4 border-2 border-dashed border-gray-700 bg-[#2c2c3a]/50 hover:bg-[#2c2c3a] hover:border-blue-500/50 hover:text-blue-400 rounded-xl text-gray-500 transition-all flex items-center justify-center gap-2 font-medium"
                 >
                     <Plus size={20} />
@@ -398,7 +400,7 @@ export default function TotalCalc() {
                 <div className="text-center text-gray-500 py-10 bg-[#2c2c3a] rounded-xl border border-gray-700">
                     <p className="mb-4">표시할 데이터가 없습니다.</p>
                     <button
-                        onClick={() => handleAdd("기본 공종")}
+                        onClick={() => handleAdd("기본 대분류", "기본 공정", "기본 공종")}
                         className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded transition"
                     >
                         첫 항목 추가하기

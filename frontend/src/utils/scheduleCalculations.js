@@ -2,6 +2,7 @@
  * Schedule Calculation Utilities
  * Extracted from ScheduleMasterList.jsx
  */
+import { deriveParallelMeta, getParallelSegmentsFromItem } from "./parallelSegments";
 
 /**
  * Calculate total calendar days for a list of schedule items
@@ -13,14 +14,20 @@ export const calculateTotalCalendarDays = (items) => {
     let maxEnd = 0;
     items.forEach((item, index) => {
         const duration = parseFloat(item.calendar_days) || 0;
-        const frontParallel = parseFloat(item.front_parallel_days) || 0;
-        const backParallel = parseFloat(item.back_parallel_days) || 0;
+        const relativeParallelSegments = getParallelSegmentsFromItem(item, duration);
+        const parallelMeta = deriveParallelMeta(duration, relativeParallelSegments);
+        const frontParallel = parallelMeta.frontParallelDays;
+        const backParallel = parallelMeta.backParallelDays;
 
         const startDay = item._startDay !== undefined && item._startDay !== null
             ? item._startDay
             : (index === 0 ? 0 : Math.max(0, cumulativeCPEnd - frontParallel));
 
-        const cpEnd = startDay + duration - backParallel;
+        const taskEnd = startDay + duration;
+        const rawRedStart = startDay + frontParallel;
+        const redStart = Math.max(startDay, Math.min(taskEnd, rawRedStart));
+        const rawCpEnd = taskEnd - backParallel;
+        const cpEnd = Math.max(redStart, Math.min(taskEnd, rawCpEnd));
         cumulativeCPEnd = Math.max(cumulativeCPEnd, cpEnd);
         maxEnd = Math.max(maxEnd, startDay + duration);
     });
@@ -47,14 +54,20 @@ export const getCriticalIds = (items) => {
     const criticalIds = [];
     items.forEach((item, index) => {
         const duration = parseFloat(item.calendar_days) || 0;
-        const frontParallel = parseFloat(item.front_parallel_days) || 0;
-        const backParallel = parseFloat(item.back_parallel_days) || 0;
+        const relativeParallelSegments = getParallelSegmentsFromItem(item, duration);
+        const parallelMeta = deriveParallelMeta(duration, relativeParallelSegments);
+        const frontParallel = parallelMeta.frontParallelDays;
+        const backParallel = parallelMeta.backParallelDays;
 
         const startDay = item._startDay !== undefined && item._startDay !== null
             ? item._startDay
             : (index === 0 ? 0 : Math.max(0, cumulativeCPEnd - frontParallel));
 
-        const cpEnd = startDay + duration - backParallel;
+        const taskEnd = startDay + duration;
+        const rawRedStart = startDay + frontParallel;
+        const redStart = Math.max(startDay, Math.min(taskEnd, rawRedStart));
+        const rawCpEnd = taskEnd - backParallel;
+        const cpEnd = Math.max(redStart, Math.min(taskEnd, rawCpEnd));
         if (cpEnd >= cumulativeCPEnd && item.remarks !== "병행작업") {
             criticalIds.push(item.id);
         }

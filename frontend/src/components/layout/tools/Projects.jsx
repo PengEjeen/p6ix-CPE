@@ -302,7 +302,7 @@ function Projects() {
 
       {/* === 새 갑지 생성 모달 === */}
       {openModal && (
-        <div className="fixed inset-0 flex items-center justify-center bg-black/60 z-50">
+        <div className="fixed inset-0 flex items-center justify-center bg-black/60 z-[13000]">
           <div className="bg-[#2c2c3a] border border-gray-700 rounded-xl p-8 w-[420px] shadow-2xl">
             <h3 className="text-2xl font-semibold text-white mb-6 text-center">
               새 갑지 생성
@@ -321,6 +321,7 @@ function Projects() {
                 onChange={(e) => setCalcType(e.target.value)}
                 className="w-full bg-[#1e1e2f] border border-gray-600 rounded-lg px-4 py-3 text-base text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
+                {/* 이거 뺐을때 왜 오류나는지 분석 */}
                 <option value="APARTMENT">공기 계산</option>
                 <option value="TOTAL">전체 공기산정</option>
               </select>
@@ -353,7 +354,7 @@ function Projects() {
 
       {/* === 설명 수정 모달 === */}
       {descModal && (
-        <div className="fixed inset-0 flex items-center justify-center bg-black/60 z-50">
+        <div className="fixed inset-0 flex items-center justify-center bg-black/60 z-[13000]">
           <div className="bg-[#2c2c3a] border border-gray-700 rounded-xl p-8 w-[500px] shadow-2xl">
             <h3 className="text-2xl font-semibold text-white mb-6 text-center">
               설명 수정

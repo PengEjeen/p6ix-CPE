@@ -2,7 +2,7 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework.response import Response
 from rest_framework import status, permissions, views, generics
 from django.contrib.auth import get_user_model
-from .serializers import RegisterSerializer, UserSerializer, CustomTokenObtainPairSerializer
+from .serializers import RegisterSerializer, UserSerializer, CustomTokenObtainPairSerializer, ChangePasswordSerializer
 from rest_framework_simplejwt.views import TokenObtainPairView
 
 User = get_user_model()
@@ -54,3 +54,33 @@ class LogoutView(views.APIView):
             return Response(status=status.HTTP_205_RESET_CONTENT)
         except Exception as e:
             return Response(status=status.HTTP_400_BAD_REQUEST)
+
+class ChangePasswordView(generics.UpdateAPIView):
+    """
+    비밀번호 변경 API
+    """
+    serializer_class = ChangePasswordSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_object(self):
+        return self.request.user
+
+    def update(self, request, *args, **kwargs):
+        self.object = self.get_object()
+        serializer = self.get_serializer(data=request.data)
+
+        if serializer.is_valid():
+            # Set new password
+            self.object.set_password(serializer.data.get("new_password"))
+            self.object.save()
+            
+            response = {
+                'status': 'success',
+                'code': status.HTTP_200_OK,
+                'message': '비밀번호가 성공적으로 변경되었습니다.'
+            }
+
+            return Response(response)
+
+        print("[Password Change Error]", serializer.errors)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)

@@ -2,6 +2,7 @@
  * Smart Gantt Editor - Solver Logic
  * 역산 로직 및 공기 산정 공통 함수
  */
+import { findOperatingRateForItem } from "./operatingRateKeys";
 
 /**
  * 기본 공기 산정 로직 (Forward Calculation)
@@ -11,12 +12,17 @@ export const calculateItem = (item, operatingRates = [], workDayType = '6d') => 
     const quantity = parseFloat(item.quantity) || 0;
     const productivity = parseFloat(item.productivity) || 0;
     const crew_size = parseFloat(item.crew_size) || 1;
+    const parsedApplicationRate = parseFloat(item.application_rate);
+    const applicationRate = Number.isFinite(parsedApplicationRate)
+        ? Math.min(100, Math.max(0, parsedApplicationRate))
+        : 100;
+    const applicationFactor = applicationRate / 100;
 
     const daily_production = productivity * crew_size;
     const working_days = daily_production > 0 ? quantity / daily_production : 0;
 
-    // 가동율 조회 (Match by main_category)
-    const rateObj = operatingRates.find(r => r.main_category === item.main_category);
+    // 가동률 조회 (main+process 우선, main_category fallback)
+    const rateObj = findOperatingRateForItem(operatingRates, item);
     let rateValue = 100;
 
     if (item.operating_rate_value) {
@@ -38,7 +44,8 @@ export const calculateItem = (item, operatingRates = [], workDayType = '6d') => 
         }
     }
 
-    const calendar_days = rateValue > 0 ? working_days / (rateValue / 100) : 0;
+    const baseCalendarDays = rateValue > 0 ? working_days / (rateValue / 100) : 0;
+    const calendar_days = baseCalendarDays * applicationFactor;
     const calendar_months = calendar_days / 30;
 
     return {

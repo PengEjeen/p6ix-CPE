@@ -124,7 +124,11 @@ function Login() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center relative overflow-hidden bg-[#1e1e2f]">
+    <div
+      data-theme="navy"
+      data-theme-lock="auth"
+      className="min-h-screen flex items-center justify-center relative overflow-hidden bg-[#1e1e2f]"
+    >
       {/* Background Gradients (Subtle Overlay) */}
       <div className="absolute inset-0 bg-gradient-to-br from-[#1e1e2f] via-[#252538] to-[#1e1e2f]" />
 
@@ -158,7 +162,7 @@ function Login() {
           {/* 로고/타이틀 */}
           <div className="text-center mb-8 flex flex-col items-center">
             <div className="w-24 h-24 mb-4 bg-white rounded-full flex items-center justify-center shadow-xl border-4 border-white/20">
-              <img src="/duck.ico" alt="P6ix Logo" className="w-16 h-16" />
+              <img src={`${import.meta.env.BASE_URL}duck.ico`} alt="P6ix Logo" className="w-16 h-16" />
             </div>
 
             <h2 className="text-2xl font-bold text-white mb-2">

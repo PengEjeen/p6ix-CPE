@@ -133,12 +133,12 @@ class Command(BaseCommand):
             )
             instances.append(productivity)
 
-        # DB 초기화 (데이터 삭제 및 ID 리셋)
-        from django.db import connection
-        with connection.cursor() as cursor:
-            # SQLite specific logic to reset auto-increment
-            cursor.execute("DELETE FROM cpe_all_module_constructionproductivity")
-            cursor.execute("DELETE FROM sqlite_sequence WHERE name='cpe_all_module_constructionproductivity'")
-            
-        ConstructionProductivity.objects.bulk_create(instances)
-        self.stdout.write(self.style.SUCCESS(f'성공적으로 {len(instances)}개의 데이터를 입력했습니다 (ID 초기화 완료).'))
+        # 템플릿 데이터(project=None)만 교체
+        deleted_count, _ = ConstructionProductivity.objects.filter(project__isnull=True).delete()
+        ConstructionProductivity.objects.bulk_create(instances, batch_size=1000)
+        self.stdout.write(
+            self.style.SUCCESS(
+                f"성공적으로 {len(instances)}개의 데이터를 입력했습니다 "
+                f"(기존 템플릿 삭제: {deleted_count}건)."
+            )
+        )

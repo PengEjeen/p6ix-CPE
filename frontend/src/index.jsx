@@ -3,6 +3,20 @@ import ReactDOM from 'react-dom/client';
 import './index.css';
 import App from './App.jsx';
 
+const normalizeInitialTheme = (value) => {
+  if (value === "light") return "white";
+  if (value === "mid") return "navy";
+  if (value === "white" || value === "navy" || value === "dark" || value === "brown") return value;
+  return "navy";
+};
+
+try {
+  const initialTheme = normalizeInitialTheme(window.localStorage.getItem("p6ix_theme_mode"));
+  document.documentElement.setAttribute("data-theme", initialTheme);
+} catch {
+  document.documentElement.setAttribute("data-theme", "navy");
+}
+
 const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(
   // <React.StrictMode>  // 배포 시에 주석 해제 - alert 두 번 발생

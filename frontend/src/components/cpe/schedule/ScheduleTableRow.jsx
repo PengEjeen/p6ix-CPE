@@ -1,12 +1,17 @@
 import React, { useMemo, useRef, useState } from "react";
-import { Trash2, Link, RefreshCw, Plus, GripVertical } from "lucide-react";
+import { Trash2, Link, GripVertical } from "lucide-react";
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import StandardSuggestList from "./StandardSuggestList";
+import { findOperatingRateForItem } from "../../../utils/operatingRateKeys";
 
 const ScheduleTableRow = ({
     item,
     isLinked,
+    isSelected = false,
+    onToggleSelect,
+    onStartSelectionDrag,
+    onDragSelectionEnter,
     handleChange,
     handleDeleteItem,
     handleAddItem,
@@ -17,17 +22,20 @@ const ScheduleTableRow = ({
     operatingRates = [],
     workDayType = "6d",
     standardItems = [],
-    onApplyStandard
+    onApplyStandard,
+    isDropTarget = false,
+    dropPosition = null,
+    isDropInvalid = false,
+    isPartOfDraggingGroup = false,
+    isDragActive = false
 }) => {
-    // Auto-match operating rate by main_category
-    const rateObj = operatingRates.find((rate) => rate.main_category === item.main_category);
+    // main+process 우선 매칭, 없으면 main_category 매칭
+    const rateObj = findOperatingRateForItem(operatingRates, item);
 
     // Use auto-calculated operating_rate directly from WorkScheduleWeight
     let rateValue = item.operating_rate_value ?? 100;
-    let runRate = null;
     if (rateObj) {
         rateValue = rateObj.operating_rate || 100;
-        runRate = rateObj.work_week_days;
     }
     const {
         attributes,
@@ -52,16 +60,24 @@ const ScheduleTableRow = ({
         style.opacity = 1;
         style.boxShadow = "0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)";
         style.backgroundColor = "white";
-        // Overlay always shows full cells
-        spanInfo = { mainRowSpan: 1, procRowSpan: 1, isMainFirst: true, isProcFirst: true };
+    }
+
+    if (!isOverlay && isDropTarget && dropPosition) {
+        const indicatorColor = isDropInvalid ? "rgba(248, 113, 113, 0.9)" : "rgba(56, 189, 248, 0.95)";
+        const dropShadow = dropPosition === "before"
+            ? `inset 0 3px 0 0 ${indicatorColor}`
+            : `inset 0 -3px 0 0 ${indicatorColor}`;
+        style.boxShadow = style.boxShadow ? `${style.boxShadow}, ${dropShadow}` : dropShadow;
     }
 
     const [activeField, setActiveField] = useState(null);
     const [processQuery, setProcessQuery] = useState("");
+    const [subProcessQuery, setSubProcessQuery] = useState("");
     const [workTypeQuery, setWorkTypeQuery] = useState("");
     const [activeIndex, setActiveIndex] = useState(0);
     const blurTimeoutRef = useRef(null);
     const processInputRef = useRef(null);
+    const subProcessInputRef = useRef(null);
     const workTypeInputRef = useRef(null);
 
     const buildSuggestions = (query) => {
@@ -70,10 +86,12 @@ const ScheduleTableRow = ({
         const scored = standardItems.map((std) => {
             const fields = [
                 std.item_name,
+                std.sub_category,
                 std.category,
                 std.standard,
                 std.main_category,
-                std.process_name
+                std.process_name,
+                std.work_type_name
             ].filter(Boolean).map((v) => String(v).toLowerCase());
             let score = 0;
             fields.forEach((f) => {
@@ -87,6 +105,7 @@ const ScheduleTableRow = ({
     };
 
     const processSuggestions = useMemo(() => buildSuggestions(processQuery), [processQuery, standardItems]);
+    const subProcessSuggestions = useMemo(() => buildSuggestions(subProcessQuery), [subProcessQuery, standardItems]);
     const workTypeSuggestions = useMemo(() => buildSuggestions(workTypeQuery), [workTypeQuery, standardItems]);
 
     const handleInputFocus = (field) => {
@@ -95,6 +114,7 @@ const ScheduleTableRow = ({
             blurTimeoutRef.current = null;
         }
         if (field === 'process') setProcessQuery(item.process || "");
+        if (field === 'sub_process') setSubProcessQuery(item.sub_process || "");
         if (field === 'work_type') setWorkTypeQuery(item.work_type || "");
         setActiveIndex(0);
         setActiveField(field);
@@ -127,16 +147,59 @@ const ScheduleTableRow = ({
     };
 
     return (
-        <tr ref={setNodeRef} style={style} className={`hover:bg-white/5 transition-colors text-base ${rowClassName} ${isDragging && !isOverlay ? "bg-blue-900/20" : ""}`}>
-            {/* Drag Handle */}
-            <td className="border-r border-gray-700 text-center text-gray-400 cursor-grab active:cursor-grabbing p-1" {...attributes} {...listeners}>
-                <GripVertical size={14} className="mx-auto" />
+        <tr
+            ref={setNodeRef}
+            style={style}
+            className={`hover:bg-white/5 transition-colors text-base ${rowClassName} ${isSelected ? "bg-blue-900/20" : ""} ${isDragging && !isOverlay ? "bg-blue-900/20" : ""} ${isPartOfDraggingGroup && !isDragging ? "bg-blue-900/25" : ""} ${isDropTarget ? (isDropInvalid ? "bg-red-900/15" : "bg-cyan-900/15") : ""}`}
+        >
+            {/* Row Select */}
+            <td
+                className="border-r border-gray-700 text-center p-1 select-none cursor-cell"
+                onMouseDown={(e) => {
+                    if (isOverlay || e.button !== 0) return;
+                    e.preventDefault();
+                    e.stopPropagation();
+                    onStartSelectionDrag?.(item.id);
+                }}
+                onMouseEnter={(e) => {
+                    if (isOverlay || e.buttons !== 1) return;
+                    onDragSelectionEnter?.(item.id);
+                }}
+            >
+                {!isOverlay ? (
+                    <input
+                        type="checkbox"
+                        checked={isSelected}
+                        readOnly
+                        onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                        }}
+                        className="h-3.5 w-3.5 accent-blue-500 cursor-pointer"
+                        aria-label="행 선택"
+                    />
+                ) : null}
             </td>
 
-            {/* Process (Used as Classification '구분') */}
-            {(spanInfo.isProcFirst || isOverlay) && (
+            {/* Drag Handle */}
+            <td className={`border-r border-gray-700 text-center p-1 ${isDragActive ? "text-blue-300" : "text-gray-400"}`}>
+                <button
+                    type="button"
+                    aria-label="행 이동"
+                    title={isPartOfDraggingGroup ? "선택 항목 일괄 이동" : "행 이동"}
+                    disabled={isOverlay}
+                    className={`mx-auto flex h-6 w-6 items-center justify-center rounded-md transition ${isOverlay ? "text-gray-500 cursor-default" : "cursor-grab active:cursor-grabbing hover:bg-blue-500/20 hover:text-blue-100 active:scale-95"} ${isDragging ? "bg-blue-500/30 text-blue-100" : ""}`}
+                    {...attributes}
+                    {...listeners}
+                >
+                    <GripVertical size={14} className="mx-auto" />
+                </button>
+            </td>
+
+            {/* Classification (구분) - keep using process data */}
+            {(isOverlay || spanInfo?.isProcessFirst !== false) && (
                 <td
-                    rowSpan={isOverlay ? 1 : spanInfo.procRowSpan}
+                    rowSpan={isOverlay ? 1 : (spanInfo?.processRowSpan || 1)}
                     className="border-r border-gray-700 bg-[#2c2c3a] p-1 align-top"
                 >
                     <div className="relative">
@@ -165,7 +228,39 @@ const ScheduleTableRow = ({
                 </td>
             )}
 
-            {/* Work Type */}
+            {/* Sub Process (공정) */}
+            {(isOverlay || spanInfo?.isSubProcessFirst !== false) && (
+                <td
+                    rowSpan={isOverlay ? 1 : (spanInfo?.subProcessRowSpan || 1)}
+                    className="border-r border-gray-700 bg-[#2c2c3a] p-1 align-top"
+                >
+                    <div className="relative">
+                        <input
+                            ref={subProcessInputRef}
+                            className="w-full bg-transparent outline-none font-medium text-gray-200 text-center text-base"
+                            value={item.sub_process || ""}
+                            onChange={(e) => {
+                                handleChange(item.id, 'sub_process', e.target.value);
+                                setSubProcessQuery(e.target.value);
+                            }}
+                            onFocus={() => handleInputFocus('sub_process')}
+                            onBlur={handleInputBlur}
+                            onKeyDown={(e) => handleSuggestionKeyDown(e, subProcessSuggestions)}
+                        />
+                        <StandardSuggestList
+                            items={subProcessSuggestions}
+                            isOpen={!isOverlay && activeField === 'sub_process'}
+                            activeIndex={activeIndex}
+                            onActiveIndexChange={setActiveIndex}
+                            onSelect={handleSuggestionSelect}
+                            position="bottom"
+                            anchorRef={subProcessInputRef}
+                        />
+                    </div>
+                </td>
+            )}
+
+            {/* Work Type (공종) */}
             <td className="border-r border-gray-700 px-2 py-1">
                 <div className="flex items-center gap-1 relative">
                     {isLinked && <Link size={12} className="text-blue-500" />}
@@ -226,12 +321,15 @@ const ScheduleTableRow = ({
 
             {/* Apply Rate */}
             <td className="border-r border-gray-700 p-1">
-                <input
-                    className="w-full text-right outline-none p-1 text-gray-200 bg-[#1f1f2b] rounded text-base font-semibold"
-                    type="number"
-                    value={item.application_rate || 100}
-                    onChange={(e) => handleChange(item.id, 'application_rate', e.target.value)}
-                />
+                <div className="relative">
+                    <input
+                        className="w-full text-right outline-none p-1 pr-5 text-gray-200 bg-[#1f1f2b] rounded text-base font-semibold"
+                        type="number"
+                        value={item.application_rate ?? 100}
+                        onChange={(e) => handleChange(item.id, 'application_rate', e.target.value)}
+                    />
+                    <span className="absolute right-1.5 top-1/2 -translate-y-1/2 text-xs text-gray-400 pointer-events-none">%</span>
+                </div>
             </td>
 
             {/* Working Days */}
@@ -257,11 +355,6 @@ const ScheduleTableRow = ({
             {/* Remarks (Note) */}
             <td className="border-r border-gray-700 p-1">
                 <input className="w-full text-sm outline-none p-1 text-gray-200 bg-[#1f1f2b] rounded font-medium" value={item.note || ""} onChange={(e) => handleChange(item.id, 'note', e.target.value)} />
-            </td>
-
-            {/* Parallel Status (Remarks) */}
-            <td className="border-r border-gray-700 p-1">
-                <input className="w-full text-sm outline-none p-1 text-gray-200 bg-[#1f1f2b] rounded font-medium" value={item.remarks || ""} onChange={(e) => handleChange(item.id, 'remarks', e.target.value)} />
             </td>
 
             {/* Action */}

@@ -13,7 +13,7 @@ export default function SubtaskNameModal({ isOpen, value, onChange, onClose, onS
     if (!isOpen) return null;
 
     return (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm">
+        <div className="fixed inset-0 z-[13000] flex items-center justify-center bg-black/60 backdrop-blur-sm">
             <div className="w-[420px] max-w-[90vw] rounded-2xl border border-gray-700 bg-[#2c2c3a] shadow-2xl overflow-hidden">
                 <div className="px-6 py-4 border-b border-gray-700 bg-[#3a3a4a]">
                     <h3 className="text-lg font-semibold text-gray-100">부공종 이름 수정</h3>

@@ -39,7 +39,7 @@ const SnapshotManager = ({ isOpen, onClose }) => {
     };
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20 backdrop-blur-sm" onClick={onClose}>
+        <div className="fixed inset-0 z-[13000] flex items-center justify-center bg-black/20 backdrop-blur-sm" onClick={onClose}>
             <div className="bg-white rounded-xl shadow-2xl w-96 max-h-[500px] flex flex-col overflow-hidden border border-gray-200" onClick={e => e.stopPropagation()}>
                 <div className="p-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
                     <h3 className="font-bold text-gray-800 flex items-center gap-2">

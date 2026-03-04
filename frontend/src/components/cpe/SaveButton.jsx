@@ -19,8 +19,8 @@ export default function SaveButton({ onSave, saving, ...props }) {
       onClick={onSave}
       disabled={saving}
       className={`px-4 py-2 text-sm rounded border transition font-medium ${saving
-          ? "bg-[#3b3b4f] border-gray-600 text-gray-400 cursor-not-allowed"
-          : "bg-[#2c2c3a] hover:bg-[#3b3b4f] border-gray-600 text-gray-100 hover:text-white hover:border-gray-500"
+          ? "bg-[var(--navy-surface-3)] border-[var(--navy-border)] text-[var(--navy-text-muted)] cursor-not-allowed"
+          : "bg-[var(--navy-surface)] hover:bg-[var(--navy-surface-3)] border-[var(--navy-border)] text-[var(--navy-text)]"
         }`}
     >
       {saving ? "저장 중..." : "저장"}

@@ -1,9 +1,9 @@
 services:
   backend:
-    image: p6ix-cpe:v1.0
-    build:
-      context: .
-      dockerfile: Dockerfile
+    image: namyeong/p6ix_cpe:latest
+    env_file:
+      - ${BACKEND_ENV_FILE:?BACKEND_ENV_FILE is required}
+    pull_policy: always
     environment:
       - PORT=8000
     volumes:

@@ -71,6 +71,13 @@ export const exportScheduleExcel = async (projectId, options = {}) => {
     });
 };
 
+export const exportScheduleReport = async (projectId) => {
+    return api.get("/cpe-all/schedule-item/export-report/", {
+        params: { project_id: projectId },
+        responseType: "blob"
+    });
+};
+
 // Legacy stubs (to avoid breaking imports immediately, but should be unused)
 export const createScheduleItem = async () => { throw new Error("Use saveScheduleData"); };
 export const updateScheduleItem = async () => { throw new Error("Use saveScheduleData"); };

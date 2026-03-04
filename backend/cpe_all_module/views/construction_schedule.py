@@ -11,13 +11,20 @@ from ..serializers.construction_schedule_serializers import ConstructionSchedule
 from cpe_module.models.operating_rate_models import WorkScheduleWeight
 from cpe_module.models.calc_models import WorkCondition
 from cpe_module.models.project_models import Project
-from cpe_all_module.services.construction_schedule_export import (
+from cpe_all_module.utils.excel.construction_schedule import (
     build_rate_summary,
     extract_schedule_payload,
     group_items_by_category,
     inject_gantt_drawing,
     write_gantt_sheet,
     write_table_sheet,
+)
+from cpe_all_module.utils.excel.construction_schedule_preview import (
+    build_gantt_preview_png,
+)
+from cpe_all_module.utils.word.construction_schedule import (
+    build_schedule_report_aux_data,
+    build_schedule_report_docx,
 )
 
 class ConstructionScheduleItemViewSet(viewsets.ModelViewSet):
@@ -67,6 +74,78 @@ class ConstructionScheduleItemViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['get'], url_path='export-excel')
     def export_excel(self, request):
         return self._export_excel_impl(request)
+
+    @action(detail=False, methods=['get'], url_path='export-report')
+    def export_report(self, request):
+        try:
+            project_id = request.query_params.get('project_id')
+            if not project_id:
+                return Response({"error": "project_id is required"}, status=status.HTTP_400_BAD_REQUEST)
+
+            container = ConstructionScheduleItem.objects.filter(project_id=project_id).first()
+            if not container or not container.data:
+                return Response({"error": "schedule data not found"}, status=status.HTTP_404_NOT_FOUND)
+
+            raw_data = container.data
+            items, _sub_tasks, _links = extract_schedule_payload(raw_data)
+            if not isinstance(items, list):
+                return Response({"error": "invalid schedule data"}, status=status.HTTP_400_BAD_REQUEST)
+
+            project = Project.objects.filter(id=project_id).first()
+            project_name = project.title if project else "프로젝트"
+            start_date = project.start_date if project and project.start_date else date_cls.today()
+
+            gantt_image_bytes = build_gantt_preview_png(
+                items=items,
+                sub_tasks=_sub_tasks,
+                links=_links,
+                project_name=project_name,
+                start_date=start_date,
+            )
+
+            rate_qs = WorkScheduleWeight.objects.filter(project_id=project_id).values("main_category", "operating_rate")
+            rate_map = {row["main_category"]: row["operating_rate"] for row in rate_qs}
+
+            grouped, ordered_categories = group_items_by_category(items)
+
+            work_condition = WorkCondition.objects.filter(project_id=project_id).first()
+            region = work_condition.region if work_condition and work_condition.region else ""
+            work_condition_years = work_condition.data_years if work_condition and work_condition.data_years else 10
+
+            rate_summary = build_rate_summary(project_id, ordered_categories, rate_map, region)
+            report_aux_data = build_schedule_report_aux_data(
+                project_id=project_id,
+                ordered_categories=ordered_categories,
+                region=region,
+                project_start_date=project.start_date if project else None,
+                work_condition_years=work_condition_years,
+            )
+
+            report_bytes = build_schedule_report_docx(
+                project_name=project_name,
+                rate_summary=rate_summary,
+                ordered_categories=ordered_categories,
+                grouped_items=grouped,
+                rate_map=rate_map,
+                region=region,
+                gantt_image_bytes=gantt_image_bytes,
+                **report_aux_data,
+            )
+
+            safe_name = "".join(ch if ch not in '\\/:*?\"<>|' else "_" for ch in project_name)
+            filename = f"공사기간_산정_보고서_{safe_name}.docx"
+            response = HttpResponse(
+                report_bytes,
+                content_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+            )
+            response["Content-Disposition"] = f'attachment; filename=\"{filename}\"'
+            return response
+        except Exception as exc:
+            traceback.print_exc()
+            return Response(
+                {"error": f"export-report failed: {exc}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
     def _export_excel_impl(self, request):
         try:
