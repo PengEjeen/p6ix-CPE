@@ -1,5 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
+import { markFtueDone } from "../utils/ftue";
+import { FTUE_STEP_IDS } from "../config/ftueSteps";
 import PageHeader from "../components/cpe/PageHeader";
 import SaveButton from "../components/cpe/SaveButton";
 
@@ -24,6 +26,11 @@ export default function Criteria() {
   const [framework, setFramework] = useState({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+
+  // FTUE: 적용기준 방문 시 step 완료
+  useEffect(() => {
+    markFtueDone("APARTMENT", "view_standards", FTUE_STEP_IDS.APARTMENT);
+  }, []);
 
   // 데이터 로드
   useEffect(() => {

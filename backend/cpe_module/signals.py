@@ -2,6 +2,11 @@ from django.db.models.signals import post_save
 from django.dispatch import receiver
 from cpe_all_module.models import ConstructionScheduleItem
 from .models import WorkScheduleWeight
+from .utils.operating_rate_defaults import (
+    PROCESS_KEY_DELIMITER,
+    build_operating_rate_defaults,
+    resolve_operating_rate_preset_code,
+)
 
 
 @receiver(post_save, sender=ConstructionScheduleItem)
@@ -14,14 +19,26 @@ def create_operating_rates_for_new_categories(sender, instance, **kwargs):
         WorkScheduleWeight.objects.filter(project=instance.project).delete()
         return
     
-    # data에서 main_category 추출 (list 또는 dict payload 모두 대응)
+    # data에서 main_category 및 process 키 추출 (list 또는 dict payload 모두 대응)
     raw_data = instance.data
     items = raw_data.get("items", []) if isinstance(raw_data, dict) else raw_data
-    data_categories = {
-        item.get("main_category")
-        for item in items
-        if isinstance(item, dict) and item.get("main_category")
-    }
+    data_categories = set()
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+
+        main_category = item.get("main_category")
+        process = item.get("process")
+        if not main_category:
+            continue
+
+        data_categories.add(main_category)
+
+        # process 별 프리셋이 정의된 경우 main|||process 키를 따로 생성
+        if process:
+            process_key = f"{main_category}{PROCESS_KEY_DELIMITER}{process}"
+            if resolve_operating_rate_preset_code(process_key):
+                data_categories.add(process_key)
 
     # 새로운 카테고리만 생성 (중복 안전)
     for category in data_categories:
@@ -30,26 +47,7 @@ def create_operating_rates_for_new_categories(sender, instance, **kwargs):
         WorkScheduleWeight.objects.get_or_create(
             project=instance.project,
             main_category=category,
-            defaults={
-                'winter_threshold': "평균 -5℃ 이하",
-                'winter_threshold_value': -5,
-                'winter_threshold_enabled': True,
-                'summer_threshold': "35℃ 이상",
-                'summer_threshold_value': 35,
-                'summer_threshold_enabled': True,
-                'rainfall_threshold': "10mm 이상",
-                'rainfall_threshold_value': 10,
-                'rainfall_threshold_enabled': True,
-                'snowfall_threshold': "1cm 이상",
-                'snowfall_threshold_value': 1,
-                'snowfall_threshold_enabled': True,
-                'wind_threshold': "15m/s 이상",
-                'visibility_threshold': "미적용",
-                'dust_alert_level': "ALERT",
-                'sector_type': "PRIVATE",
-                'work_week_days': 6,
-                'winter_criteria': "AVG",
-            }
+            defaults=build_operating_rate_defaults(category)
         )
 
     
@@ -72,4 +70,3 @@ def create_operating_rates_for_new_categories(sender, instance, **kwargs):
     }
     
     calculate_operating_rates(instance.project.id, new_weights, default_settings)
-

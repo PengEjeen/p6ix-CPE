@@ -16,8 +16,6 @@ import GanttToolbar from "./gantt/ui/GanttToolbar";
 import LinkEditorPopover from "./gantt/ui/LinkEditorPopover";
 import { buildParallelStateFromSegments, deriveParallelMeta, getParallelSegmentsFromItem } from "../../utils/parallelSegments";
 import toast from "react-hot-toast";
-import { useTutorial } from "../../hooks/useTutorial";
-import { ganttChartSteps } from "../../config/tutorialSteps";
 
 const GANTT_VIEW_MODE = {
     CATEGORY: "category",
@@ -203,9 +201,6 @@ export default function GanttChart({
     const [subtaskMode, setSubtaskMode] = useState(false);
     const [isScrolling, setIsScrolling] = useState(false);
     const canEdit = !readOnly && ganttViewMode === GANTT_VIEW_MODE.WORK_TYPE;
-
-    // Tutorial
-    useTutorial('ganttChart', ganttChartSteps);
 
     // Simulation Tooltip State
     const [simulation, setSimulation] = useState(null);
@@ -874,7 +869,7 @@ export default function GanttChart({
         >
 
             {/* --- Toolbar --- */}
-            <div data-tutorial="gantt-toolbar">
+            <div>
                 <GanttToolbar
                     dateScale={dateScale}
                     onSetScale={handleSetScale}
@@ -893,7 +888,7 @@ export default function GanttChart({
             <div className="flex flex-1 min-h-0 relative">
 
                 {/* Left Sidebar - Tree View */}
-                <div data-tutorial="gantt-sidebar" className="h-full flex-shrink-0">
+                <div className="h-full flex-shrink-0">
                     <GanttSidebar
                         containerRef={sidebarRef}
                         groupedItems={groupedItems}
@@ -909,7 +904,6 @@ export default function GanttChart({
 
                 {/* Right Timeline */}
                 <div
-                    data-tutorial="gantt-chart"
                     ref={chartRef}
                     className={`scroll-container flex-1 overflow-auto bg-white relative ${isScrolling ? 'scrolling' : ''}`}
                     onScroll={handleScroll}

@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from "react";
 import { useParams, useBlocker } from "react-router-dom";
 import toast from "react-hot-toast";
+import { markFtueDone } from "../utils/ftue";
+import { FTUE_STEP_IDS } from "../config/ftueSteps";
 import ConstructionOverviewSection from "../components/cpe/calc/ConstructionOverviewSection";
 import WorkConditionSection from "../components/cpe/calc/WorkConditionSection";
 import EarthworkInputSection from "../components/cpe/calc/EarthworkInputSection";
@@ -50,7 +52,12 @@ export default function Calc() {
       if (!projectId) return;
       try {
         const res = await detailProject(projectId);
-        setCalcType(res.calc_type || "APARTMENT");
+        const ct = res.calc_type || "APARTMENT";
+        setCalcType(ct);
+        // FTUE: APARTMENT 공기산정 입력 방문
+        if (ct === "APARTMENT") {
+          markFtueDone("APARTMENT", "adjust_input", FTUE_STEP_IDS.APARTMENT);
+        }
       } catch (error) {
         console.error("프로젝트 불러오기 실패:", error);
       } finally {

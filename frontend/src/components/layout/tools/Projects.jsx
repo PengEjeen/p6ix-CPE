@@ -8,23 +8,33 @@ import {
 } from "../../../api/cpe/project";
 import { FiFilePlus, FiSearch } from "react-icons/fi";
 import { createPortal } from "react-dom";
-import { MoreVertical } from "lucide-react";
+import { Loader2, MoreVertical, Pin, PinOff } from "lucide-react";
 import { useConfirm } from "../../../contexts/ConfirmContext";
+import { loadPinnedProjectIds, PINNED_PROJECTS_EVENT, savePinnedProjectIds } from "../../../utils/pinnedProjects";
+
+const getProjectEntryPath = (project) => {
+  if (!project?.id) return "/";
+  if (project.calc_type === "TOTAL") return `/projects/${project.id}/schedule-master`;
+  return `/projects/${project.id}`;
+};
 
 function Projects() {
   const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [openModal, setOpenModal] = useState(false);
+  const [createStep, setCreateStep] = useState(1);
+  const [createType, setCreateType] = useState(null);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [calcType, setCalcType] = useState("APARTMENT");
+  const [isCreating, setIsCreating] = useState(false);
   const [menuOpenId, setMenuOpenId] = useState(null);
   const [editingId, setEditingId] = useState(null);
   const [editingTitle, setEditingTitle] = useState("");
   const [descModal, setDescModal] = useState(null);
   const [menuPosition, setMenuPosition] = useState({ top: 0, left: 0 });
   const [isScrolling, setIsScrolling] = useState(false);
+  const [pinnedIds, setPinnedIds] = useState(() => loadPinnedProjectIds());
   const descRef = useRef(null);
 
   const handleScroll = useCallback(() => {
@@ -52,6 +62,28 @@ function Projects() {
     loadProjects();
   }, []);
 
+  useEffect(() => {
+    const handlePinnedChange = (event) => {
+      const ids = event?.detail?.ids;
+      if (Array.isArray(ids)) setPinnedIds(ids.map(String));
+      else setPinnedIds(loadPinnedProjectIds());
+    };
+    window.addEventListener(PINNED_PROJECTS_EVENT, handlePinnedChange);
+    return () => window.removeEventListener(PINNED_PROJECTS_EVENT, handlePinnedChange);
+  }, []);
+
+  const isPinned = useCallback((projectId) => pinnedIds.includes(String(projectId)), [pinnedIds]);
+
+  const togglePinned = useCallback(
+    (projectId) => {
+      if (!projectId) return;
+      const id = String(projectId);
+      const next = pinnedIds.includes(id) ? pinnedIds.filter((x) => x !== id) : [id, ...pinnedIds];
+      setPinnedIds(savePinnedProjectIds(next));
+    },
+    [pinnedIds]
+  );
+
   // === 모달 자동 포커스 ===
   useEffect(() => {
     if (descRef.current) descRef.current.focus();
@@ -66,26 +98,49 @@ function Projects() {
     return "공기 계산";
   };
 
-  // === 새 갑지 생성 ===
+  const openCreateModal = () => {
+    setOpenModal(true);
+    setCreateStep(1);
+    setCreateType(null);
+    setTitle("");
+    setDescription("");
+  };
+
+  const closeCreateModal = () => {
+    if (isCreating) return;
+    setOpenModal(false);
+    setCreateStep(1);
+    setCreateType(null);
+    setTitle("");
+    setDescription("");
+  };
+
+  // === 새 프로젝트 생성 ===
   const handleCreateProject = async () => {
+    if (isCreating) return;
+    if (!createType) {
+      await alert("프로젝트 유형을 먼저 선택해 주세요.");
+      return;
+    }
     if (!title.trim()) {
-      await alert("프로젝트명을 입력해주세요.");
+      await alert("프로젝트명을 입력해 주세요.");
       return;
     }
     try {
-      const res = await createProjects({ title, description, calc_type: calcType });
+      setIsCreating(true);
+      const res = await createProjects({
+        title: String(title).trim(),
+        description: String(description || "").trim(),
+        calc_type: createType,
+      });
       setProjects((prev) => [...prev, res]);
-      setOpenModal(false);
-      if (res.calc_type === "TOTAL") {
-        navigate(`projects/${res.id}/total-calc`);
-      } else {
-        navigate(`projects/${res.id}/calc`);
-      }
-      setTitle("");
-      setDescription("");
-      setCalcType("APARTMENT");
+      closeCreateModal();
+      navigate(getProjectEntryPath(res));
     } catch (error) {
       console.error("프로젝트 생성 실패:", error);
+      await alert("프로젝트 생성에 실패했습니다. 잠시 후 다시 시도해 주세요.");
+    } finally {
+      setIsCreating(false);
     }
   };
 
@@ -172,7 +227,7 @@ function Projects() {
 
 
         <button
-          onClick={() => setOpenModal(true)}
+          onClick={openCreateModal}
           className="w-full text-base px-3 py-2 bg-[#3b3b4f] hover:bg-[#4b4b5f] text-gray-100 rounded-lg transition font-medium flex items-center justify-center gap-2"
         >
           <FiFilePlus className="text-gray-200" size={18} />
@@ -220,11 +275,19 @@ function Projects() {
                       />
                     ) : (
                       <>
-                        <span className="text-gray-100">
-                          {project.title}
+                        <span className="inline-flex items-center gap-2 min-w-0">
+                          {isPinned(project.id) && (
+                            <Pin size={14} className="shrink-0 text-[var(--navy-success)]" aria-hidden="true" />
+                          )}
+                          <span className="text-gray-100 truncate">{project.title}</span>
                         </span>
-                        <span className="ml-2 text-xs text-gray-400 border border-gray-600 rounded-full px-2 py-0.5">
-                          {calcTypeLabel(project.calc_type)}
+                        <span className="ml-2 inline-flex items-center gap-1">
+                          <span
+                            className="text-xs text-gray-400 border border-gray-600 rounded-full px-2 py-0.5"
+                            title={calcTypeLabel(project.calc_type)}
+                          >
+                            {calcTypeLabel(project.calc_type)}
+                          </span>
                         </span>
                       </>
                     )}
@@ -253,13 +316,13 @@ function Projects() {
                       <>
                         {/* 투명 오버레이 (뒤 클릭 차단만) */}
                         <div
-                          className="fixed inset-0 z-[9998] bg-transparent"
+                          className="fixed inset-0 z-[300] bg-transparent"
                           onClick={() => setMenuOpenId(null)}
                         />
 
                         {/* 툴바 */}
                         <div
-                          className="fixed bg-[#2c2c3a] border border-gray-700 rounded-lg shadow-2xl w-44 z-[9999]"
+                          className="fixed bg-[#2c2c3a] border border-gray-700 rounded-lg shadow-2xl w-44 z-[301]"
                           style={{
                             top: `${menuPosition.top}px`,
                             left: `${menuPosition.left}px`,
@@ -276,6 +339,26 @@ function Projects() {
                             className="block w-full text-left text-base text-gray-200 px-4 py-2 hover:bg-[#3b3b4f]"
                           >
                             설명 변경
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              togglePinned(project.id);
+                              setMenuOpenId(null);
+                            }}
+                            className="block w-full text-left text-base text-gray-200 px-4 py-2 hover:bg-[#3b3b4f]"
+                          >
+                            {isPinned(project.id) ? (
+                              <span className="inline-flex items-center gap-2">
+                                <PinOff size={14} />
+                                고정 해제
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-2">
+                                <Pin size={14} />
+                                고정하기
+                              </span>
+                            )}
                           </button>
                           <button
                             onClick={() => handleDelete(project.id)}
@@ -300,61 +383,130 @@ function Projects() {
         )}
       </div>
 
-      {/* === 새 갑지 생성 모달 === */}
-      {openModal && (
-        <div className="fixed inset-0 flex items-center justify-center bg-black/60 z-[13000]">
-          <div className="bg-[#2c2c3a] border border-gray-700 rounded-xl p-8 w-[420px] shadow-2xl">
-            <h3 className="text-2xl font-semibold text-white mb-6 text-center">
-              새 갑지 생성
-            </h3>
+      {/* === 새 프로젝트 생성 모달 === */}
+      {openModal &&
+        createPortal(
+          <div className="fixed inset-0 z-[700] flex items-center justify-center bg-black/60">
+            <div className="w-[560px] max-w-[92vw] overflow-hidden rounded-2xl border border-gray-700 bg-[#2c2c3a] shadow-2xl">
+              <div className="px-6 py-4 border-b border-gray-700 bg-[#3a3a4a]">
+                <div className="text-lg font-extrabold text-white">새 프로젝트 만들기</div>
+                <div className="text-sm text-gray-300 mt-1">유형 선택 → 기본정보 입력(2단계)</div>
+              </div>
 
-            <div className="space-y-4">
-              <input
-                type="text"
-                placeholder="프로젝트명"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                className="w-full bg-[#1e1e2f] border border-gray-600 rounded-lg px-4 py-3 text-lg text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-              <select
-                value={calcType}
-                onChange={(e) => setCalcType(e.target.value)}
-                className="w-full bg-[#1e1e2f] border border-gray-600 rounded-lg px-4 py-3 text-base text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                {/* 이거 뺐을때 왜 오류나는지 분석 */}
-                <option value="APARTMENT">공기 계산</option>
-                <option value="TOTAL">전체 공기산정</option>
-              </select>
-              <textarea
-                placeholder="설명 (선택)"
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                rows={4}
-                className="w-full bg-[#1e1e2f] border border-gray-600 rounded-lg px-4 py-3 text-base text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              ></textarea>
-            </div>
+              <div className="px-6 py-6">
+                {createStep === 1 ? (
+                  <div className="space-y-3">
+                    <div className="text-sm text-gray-300">프로젝트 유형을 선택하세요.</div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      <button
+                        type="button"
+                        disabled={isCreating}
+                        onClick={() => {
+                          setCreateType("TOTAL");
+                          setCreateStep(2);
+                        }}
+                        className={`rounded-2xl border border-gray-700 bg-[#1e1e2f] p-4 text-left transition ${isCreating ? "opacity-60 cursor-not-allowed" : "hover:bg-[#3b3b4f]"}`}
+                      >
+                        <div className="text-white font-extrabold">전체 공기산정</div>
+                        <ul className="mt-2 text-sm text-gray-300 list-disc pl-5 space-y-1">
+                          <li>스케줄 편집/간트</li>
+                          <li>AI로 목표 공기 조정</li>
+                          <li>엑셀/보고서 내보내기</li>
+                        </ul>
+                      </button>
+                      <button
+                        type="button"
+                        disabled={isCreating}
+                        onClick={() => {
+                          setCreateType("APARTMENT");
+                          setCreateStep(2);
+                        }}
+                        className={`rounded-2xl border border-gray-700 bg-[#1e1e2f] p-4 text-left transition ${isCreating ? "opacity-60 cursor-not-allowed" : "hover:bg-[#3b3b4f]"}`}
+                      >
+                        <div className="text-white font-extrabold">공기 계산</div>
+                        <ul className="mt-2 text-sm text-gray-300 list-disc pl-5 space-y-1">
+                          <li>개요/조건 입력</li>
+                          <li>토공·골조 입력</li>
+                          <li>자동 계산 결과 확인</li>
+                        </ul>
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div className="text-sm text-gray-300">
+                        선택한 유형: <span className="text-white font-bold">{calcTypeLabel(createType)}</span>
+                      </div>
+                      <button
+                        type="button"
+                        disabled={isCreating}
+                        onClick={() => setCreateStep(1)}
+                        className={`text-sm underline underline-offset-2 ${isCreating ? "text-gray-500 cursor-not-allowed" : "text-gray-300 hover:text-white"}`}
+                      >
+                        유형 다시 선택
+                      </button>
+                    </div>
 
-            <div className="flex justify-end gap-3 mt-6">
-              <button
-                onClick={() => setOpenModal(false)}
-                className="px-4 py-2 text-base text-gray-300 hover:text-white border border-gray-600 rounded-lg hover:bg-[#3b3b4f] transition"
-              >
-                취소
-              </button>
-              <button
-                onClick={handleCreateProject}
-                className="px-5 py-2 text-base bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-medium transition"
-              >
-                생성
-              </button>
+                    <div className="space-y-3">
+                      <div>
+                        <label className="block text-sm text-gray-300 mb-1">프로젝트명 (필수)</label>
+                        <input
+                          value={title}
+                          disabled={isCreating}
+                          onChange={(e) => setTitle(e.target.value)}
+                          placeholder="예: ○○현장 공기 산정"
+                          className={`w-full rounded-xl border border-gray-600 bg-[#1e1e2f] px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40 ${isCreating ? "opacity-70 cursor-not-allowed" : ""}`}
+                          autoFocus
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm text-gray-300 mb-1">설명 (선택)</label>
+                        <textarea
+                          value={description}
+                          disabled={isCreating}
+                          onChange={(e) => setDescription(e.target.value)}
+                          placeholder="예: 2026년 1분기, 지하 2층/지상 20층"
+                          rows={4}
+                          className={`w-full rounded-xl border border-gray-600 bg-[#1e1e2f] px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40 ${isCreating ? "opacity-70 cursor-not-allowed" : ""}`}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="px-6 py-4 border-t border-gray-700 bg-[#2c2c3a] flex justify-end gap-2">
+                <button
+                  type="button"
+                  disabled={isCreating}
+                  onClick={closeCreateModal}
+                  className={`px-4 py-2 text-sm font-semibold rounded-xl border border-gray-600 text-gray-200 transition ${isCreating ? "opacity-60 cursor-not-allowed" : "hover:bg-[#3b3b4f]"}`}
+                >
+                  취소
+                </button>
+                <button
+                  type="button"
+                  disabled={isCreating}
+                  onClick={createStep === 1 ? closeCreateModal : handleCreateProject}
+                  className={`px-4 py-2 text-sm font-bold rounded-xl bg-blue-600 text-white transition inline-flex items-center gap-2 ${isCreating ? "opacity-70 cursor-not-allowed" : "hover:bg-blue-500"}`}
+                >
+                  {isCreating ? (
+                    <>
+                      <Loader2 size={16} className="animate-spin" />
+                      생성 중...
+                    </>
+                  ) : createStep === 1 ? "닫기" : "생성"}
+                </button>
+              </div>
             </div>
-          </div>
-        </div>
-      )}
+          </div>,
+          document.body
+        )}
 
       {/* === 설명 수정 모달 === */}
       {descModal && (
-        <div className="fixed inset-0 flex items-center justify-center bg-black/60 z-[13000]">
+        <div className="fixed inset-0 flex items-center justify-center bg-black/60 z-[500]">
           <div className="bg-[#2c2c3a] border border-gray-700 rounded-xl p-8 w-[500px] shadow-2xl">
             <h3 className="text-2xl font-semibold text-white mb-6 text-center">
               설명 수정

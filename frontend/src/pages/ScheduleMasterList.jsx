@@ -4,6 +4,8 @@ import { saveScheduleData, initializeDefaultItems, fetchScheduleItems, exportSch
 import { updateWorkCondition } from "../api/cpe/calc";
 import toast from "react-hot-toast";
 import { ArrowDown, ArrowUp, ChevronLeft, ChevronRight, Layers3, MoreVertical, Plus, RefreshCw, SlidersHorizontal, Trash2, X } from "lucide-react";
+import { markFtueDone } from "../utils/ftue";
+import { FTUE_STEP_IDS } from "../config/ftueSteps";
 
 import { DndContext, closestCenter, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
@@ -20,11 +22,9 @@ import { useConfirm } from "../contexts/ConfirmContext";
 import { useAIScheduleOptimizer } from "../hooks/useAIScheduleOptimizer";
 import { useScheduleData } from "../hooks/useScheduleData";
 import { useDragHandlers } from "../hooks/useDragHandlers";
-import { useTutorial } from "../hooks/useTutorial";
 import { calculateTotalCalendarDays, calculateTotalCalendarMonths } from "../utils/scheduleCalculations";
 import { calculateGanttItems } from "../components/cpe/ganttUtils";
 import { fetchProductivities } from "../api/cpe_all/productivity";
-import { scheduleMasterListSteps } from "../config/tutorialSteps";
 
 const HORIZONTAL_HINT_STORAGE_KEY = "scheduleMaster.horizontalHintSeen";
 
@@ -125,9 +125,6 @@ export default function ScheduleMasterList() {
         handleAiCancel,
         handleAiApply
     } = useAIScheduleOptimizer(items, operatingRates, workDayType, projectName, setStoreItems);
-
-    // Tutorial Hook - driver.js handles everything automatically
-    useTutorial('scheduleMasterList', scheduleMasterListSteps);
 
     // Calculated Values
     const totalCalendarDays = useMemo(() => calculateTotalCalendarDays(items), [items]);
@@ -331,6 +328,18 @@ export default function ScheduleMasterList() {
     useEffect(() => {
         loadData();
     }, [loadData]);
+
+    // FTUE: 공정표 진입 → edit_schedule 완료
+    useEffect(() => {
+        markFtueDone("TOTAL", "edit_schedule", FTUE_STEP_IDS.TOTAL);
+    }, []);
+
+    // FTUE: 간트뷰 전환 → adjust_gantt 완료
+    useEffect(() => {
+        if (viewMode === "gantt") {
+            markFtueDone("TOTAL", "adjust_gantt", FTUE_STEP_IDS.TOTAL);
+        }
+    }, [viewMode]);
 
     useEffect(() => {
         let isMounted = true;
@@ -1093,331 +1102,330 @@ export default function ScheduleMasterList() {
     const renderTableView = ({ forPrint = false } = {}) => (
         <div className="relative h-full w-full">
             <div
-                data-tutorial="schedule-table"
                 className={`scroll-container w-full overflow-auto rounded-xl border border-[var(--navy-border-soft)] shadow-xl bg-[var(--navy-surface)] relative ${isScrolling ? 'scrolling' : ''} ${forPrint ? 'print-table' : ''}`}
                 style={{ height: '100%' }}
                 ref={forPrint ? undefined : tableScrollRef}
                 onScroll={forPrint ? undefined : handleScroll}
             >
                 <DndContext
-                sensors={sensors}
-                collisionDetection={closestCenter}
-                onDragStart={handleDragStart}
-                onDragOver={handleDragOver}
-                onDragCancel={handleDragCancel}
-                onDragEnd={handleDragEnd}
+                    sensors={sensors}
+                    collisionDetection={closestCenter}
+                    onDragStart={handleDragStart}
+                    onDragOver={handleDragOver}
+                    onDragCancel={handleDragCancel}
+                    onDragEnd={handleDragEnd}
                 >
                     <table className="w-full text-m box-border table-fixed border-collapse bg-[var(--navy-surface)] rounded-lg text-[var(--navy-text)]">
-                    <colgroup>
-                        <col width="34" />
-                        <col width="30" />
-                        <col width="180" />
-                        <col width="220" />
-                        <col width="320" />
-                        <col width="140" />
-                        <col width="60" />
-                        <col width="90" />
-                        <col width="100" />
-                        <col width="70" />
-                        <col width="100" />
-                        <col width="80" />
-                        <col width="100" />
-                        <col width="90" />
-                        <col width="200" />
-                        <col width="500" />
-                        <col width="60" />
+                        <colgroup>
+                            <col width="34" />
+                            <col width="30" />
+                            <col width="180" />
+                            <col width="220" />
+                            <col width="320" />
+                            <col width="140" />
+                            <col width="60" />
+                            <col width="90" />
+                            <col width="100" />
+                            <col width="70" />
+                            <col width="100" />
+                            <col width="80" />
+                            <col width="100" />
+                            <col width="90" />
+                            <col width="200" />
+                            <col width="500" />
+                            <col width="60" />
 
-                    </colgroup>
-                    <thead ref={tableHeaderRef} className="bg-[var(--navy-surface-3)] text-[var(--navy-text)]">
-                        <tr className="bg-[var(--navy-surface)] text-[var(--navy-text-muted)] font-medium sticky top-0 z-[2] shadow-sm border-b border-[var(--navy-border-soft)]">
-                            <th className="sticky top-0 bg-[var(--navy-surface)] border-r border-[var(--navy-border-soft)] px-1 z-10">
-                                <input
-                                    ref={selectAllRef}
-                                    type="checkbox"
-                                    checked={allSelected}
-                                    onChange={(e) => toggleSelectAllItems(e.target.checked)}
-                                    className="h-3.5 w-3.5 accent-[var(--navy-accent)] cursor-pointer"
-                                    aria-label="전체 선택"
-                                />
-                            </th>
-                            <th className="sticky top-0 bg-[var(--navy-surface)] border-r border-[var(--navy-border-soft)] px-1 z-10"></th>
-                            <th className="sticky top-0 bg-[var(--navy-surface)] border-r border-[var(--navy-border-soft)] px-2 py-2 z-10">구분</th>
-                            <th className="sticky top-0 bg-[var(--navy-surface)] border-r border-[var(--navy-border-soft)] px-2 py-2 z-10">공정</th>
-                            <th className="sticky top-0 bg-[var(--navy-surface)] border-r border-[var(--navy-border-soft)] px-2 py-2 z-10">공종</th>
-                            <th className="sticky top-0 bg-[var(--navy-surface)] border-r border-[var(--navy-border-soft)] px-2 py-2 z-10">수량산출(개산)</th>
-                            <th className="sticky top-0 bg-[var(--navy-surface)] border-r border-[var(--navy-border-soft)] px-2 py-2 z-10">단위</th>
-                            <th className="sticky top-0 bg-[var(--navy-surface)] border-r border-[var(--navy-border-soft)] px-2 py-2 z-10">내역수량</th>
-                            <th className="sticky top-0 bg-[var(--navy-surface)] border-r border-[var(--navy-border-soft)] px-2 py-2 z-10">단위 작업량</th>
-                            <th className="sticky top-0 bg-[var(--navy-surface)] border-r border-[var(--navy-border-soft)] px-2 py-2 z-10">투입조</th>
-                            <th className="sticky top-0 bg-[var(--navy-surface)] border-r border-[var(--navy-border-soft)] px-2 py-2 z-10">생산량/일</th>
-                            <th className="sticky top-0 bg-[var(--navy-surface)] border-r border-[var(--navy-border-soft)] px-2 py-2 z-10">반영률(%)</th>
-                            <th className="sticky top-0 bg-[var(--navy-surface)] border-r border-[var(--navy-border-soft)] px-2 py-2 z-10">작업기간 W/D</th>
-                            <th className="sticky top-0 bg-[var(--navy-surface)] border-r border-[var(--navy-border-soft)] px-2 py-2 z-10">가동률</th>
-                            <th className="sticky top-0 bg-[var(--navy-surface-3)] border-r border-[var(--navy-border-soft)] px-2 py-2 text-[var(--navy-text)] font-bold z-10" data-tutorial="calendar-day">Cal Day</th>
-                            <th className="sticky top-0 bg-[var(--navy-surface)] border-r border-[var(--navy-border-soft)] px-2 py-2 z-10">비고</th>
-                            <th className="sticky top-0 bg-[var(--navy-surface)] border-r border-[var(--navy-border-soft)] px-2 py-2 z-10"></th>
-                        </tr>
-                    </thead>
-                    <SortableContext items={items} strategy={verticalListSortingStrategy}>
-                        <tbody className="divide-y divide-gray-700">
-                            {(() => {
-                                const groupedItems = items.reduce((acc, item) => {
-                                    const category = item.main_category || '기타';
-                                    if (!acc[category]) acc[category] = [];
-                                    acc[category].push(item);
-                                    return acc;
-                                }, {});
+                        </colgroup>
+                        <thead ref={tableHeaderRef} className="bg-[var(--navy-surface-3)] text-[var(--navy-text)]">
+                            <tr className="bg-[var(--navy-surface)] text-[var(--navy-text-muted)] font-medium sticky top-0 z-[2] shadow-sm border-b border-[var(--navy-border-soft)]">
+                                <th className="sticky top-0 bg-[var(--navy-surface)] border-r border-[var(--navy-border-soft)] px-1 z-10">
+                                    <input
+                                        ref={selectAllRef}
+                                        type="checkbox"
+                                        checked={allSelected}
+                                        onChange={(e) => toggleSelectAllItems(e.target.checked)}
+                                        className="h-3.5 w-3.5 accent-[var(--navy-accent)] cursor-pointer"
+                                        aria-label="전체 선택"
+                                    />
+                                </th>
+                                <th className="sticky top-0 bg-[var(--navy-surface)] border-r border-[var(--navy-border-soft)] px-1 z-10"></th>
+                                <th className="sticky top-0 bg-[var(--navy-surface)] border-r border-[var(--navy-border-soft)] px-2 py-2 z-10">구분</th>
+                                <th className="sticky top-0 bg-[var(--navy-surface)] border-r border-[var(--navy-border-soft)] px-2 py-2 z-10">공정</th>
+                                <th className="sticky top-0 bg-[var(--navy-surface)] border-r border-[var(--navy-border-soft)] px-2 py-2 z-10">공종</th>
+                                <th className="sticky top-0 bg-[var(--navy-surface)] border-r border-[var(--navy-border-soft)] px-2 py-2 z-10">수량산출(개산)</th>
+                                <th className="sticky top-0 bg-[var(--navy-surface)] border-r border-[var(--navy-border-soft)] px-2 py-2 z-10">단위</th>
+                                <th className="sticky top-0 bg-[var(--navy-surface)] border-r border-[var(--navy-border-soft)] px-2 py-2 z-10">내역수량</th>
+                                <th className="sticky top-0 bg-[var(--navy-surface)] border-r border-[var(--navy-border-soft)] px-2 py-2 z-10">단위 작업량</th>
+                                <th className="sticky top-0 bg-[var(--navy-surface)] border-r border-[var(--navy-border-soft)] px-2 py-2 z-10">투입조</th>
+                                <th className="sticky top-0 bg-[var(--navy-surface)] border-r border-[var(--navy-border-soft)] px-2 py-2 z-10">생산량/일</th>
+                                <th className="sticky top-0 bg-[var(--navy-surface)] border-r border-[var(--navy-border-soft)] px-2 py-2 z-10">반영률(%)</th>
+                                <th className="sticky top-0 bg-[var(--navy-surface)] border-r border-[var(--navy-border-soft)] px-2 py-2 z-10">작업기간 W/D</th>
+                                <th className="sticky top-0 bg-[var(--navy-surface)] border-r border-[var(--navy-border-soft)] px-2 py-2 z-10">가동률</th>
+                                <th className="sticky top-0 bg-[var(--navy-surface-3)] border-r border-[var(--navy-border-soft)] px-2 py-2 text-[var(--navy-text)] font-bold z-10">Cal Day</th>
+                                <th className="sticky top-0 bg-[var(--navy-surface)] border-r border-[var(--navy-border-soft)] px-2 py-2 z-10">비고</th>
+                                <th className="sticky top-0 bg-[var(--navy-surface)] border-r border-[var(--navy-border-soft)] px-2 py-2 z-10"></th>
+                            </tr>
+                        </thead>
+                        <SortableContext items={items} strategy={verticalListSortingStrategy}>
+                            <tbody className="divide-y divide-gray-700">
+                                {(() => {
+                                    const groupedItems = items.reduce((acc, item) => {
+                                        const category = item.main_category || '기타';
+                                        if (!acc[category]) acc[category] = [];
+                                        acc[category].push(item);
+                                        return acc;
+                                    }, {});
 
-                                return [
-                                    (
-                                        <tr key="add-main-category" className={`bg-[var(--navy-bg)] ${forPrint ? "no-print" : ""}`}>
-                                            <td
-                                                colSpan="17"
-                                                className={`px-4 py-3 ${forPrint ? "" : "sticky z-[9] bg-[var(--navy-bg)] border-b border-[var(--navy-border-soft)]"}`}
-                                                style={forPrint ? undefined : { top: `${tableHeaderHeight + 12}px` }}
-                                            >
-                                                <div className="flex flex-wrap items-center gap-3">
-                                                    <div className="text-sm font-semibold text-[var(--navy-text)]">대공종 추가</div>
-                                                    <input
-                                                        type="text"
-                                                        value={newMainCategory}
-                                                        onChange={(e) => setNewMainCategory(e.target.value)}
-                                                        placeholder="대공종명 입력"
-                                                        className="ui-input min-w-[220px]"
-                                                    />
-                                                    <button
-                                                        type="button"
-                                                        onClick={handleAddMainCategory}
-                                                        className="ui-btn-primary"
-                                                    >
-                                                        추가
-                                                    </button>
-                                                    <button
-                                                        type="button"
-                                                        onClick={handleDeleteSelectedItems}
-                                                        disabled={selectedCount === 0}
-                                                        className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition ${selectedCount > 0
-                                                            ? "border-red-500/50 text-red-200 hover:bg-red-500/10"
-                                                            : "border-gray-700 text-gray-500 cursor-not-allowed"
-                                                            }`}
-                                                    >
-                                                        <Trash2 size={14} />
-                                                        선택 삭제 {selectedCount > 0 ? `(${selectedCount})` : ""}
-                                                    </button>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    ),
-                                    ...Object.entries(groupedItems).map(([category, categoryItems], categoryIndex, categoryEntries) => (
-                                        <React.Fragment key={category}>
-                                            {(() => {
-                                                const categoryCalDays = calculateTotalCalendarDays(categoryItems);
-                                                const categoryCalMonths = calculateTotalCalendarMonths(categoryCalDays);
-                                                return (
-                                            <tr className="bg-gradient-to-r from-[var(--navy-surface)] to-[var(--navy-surface-2)] border-t border-[var(--navy-border-soft)]">
-                                                <td colSpan="17" className="px-4 py-2.5">
-                                                    <div className="flex items-center justify-between gap-2">
-                                                        <div className="flex items-center gap-2">
-                                                            <div className="ui-accent-dot w-1 h-5 rounded-full"></div>
-                                                            <h3 className="font-bold text-[var(--navy-text)] text-base tracking-tight">
-                                                                {category}
-                                                            </h3>
-                                                            <span className="text-xs text-[var(--navy-text-muted)] bg-[var(--navy-bg)] px-2 py-0.5 rounded-full border border-[var(--navy-border-soft)]">
-                                                                {categoryItems.length}개 항목
-                                                            </span>
-                                                            <span className="text-xs ui-accent-text bg-[rgb(59_59_79/0.22)] px-2 py-0.5 rounded-full border border-[rgb(75_85_99/0.45)] font-semibold">
-                                                                {categoryCalDays}일 ({categoryCalMonths}개월)
-                                                            </span>
-                                                            {/* Category-specific Run Rate */}
-                                                            {(() => {
-                                                                const categoryRate = operatingRates.find(r => r.main_category === category);
-                                                                const currentRunRate = categoryRate?.work_week_days || 6;
-                                                                return (
-                                                                    <div className="flex items-center gap-2 ml-4">
-                                                                        <label className="text-[10px] font-bold text-[var(--navy-text-muted)] uppercase tracking-widest">Run Rate</label>
-                                                                        <select
-                                                                            className="ui-input py-1 px-2"
-                                                                            value={currentRunRate}
-                                                                            onChange={(e) => handleCategoryRunRateChange(category, e.target.value)}
-                                                                            disabled={forPrint}
-                                                                        >
-                                                                            <option value="5">주5일</option>
-                                                                            <option value="6">주6일</option>
-                                                                            <option value="7">주7일</option>
-                                                                        </select>
-                                                                    </div>
-                                                                );
-                                                            })()}
-                                                        </div>
-                                                        <div
-                                                            className={`flex items-center ${forPrint
-                                                                ? "no-print"
-                                                                : "sticky right-1 z-[25] ml-auto border-l border-[var(--navy-border-soft)] bg-[rgb(44_44_58/0.96)] py-1 pl-3 pr-1 backdrop-blur-sm"
+                                    return [
+                                        (
+                                            <tr key="add-main-category" className={`bg-[var(--navy-bg)] ${forPrint ? "no-print" : ""}`}>
+                                                <td
+                                                    colSpan="17"
+                                                    className={`px-4 py-3 ${forPrint ? "" : "sticky z-[9] bg-[var(--navy-bg)] border-b border-[var(--navy-border-soft)]"}`}
+                                                    style={forPrint ? undefined : { top: `${tableHeaderHeight + 12}px` }}
+                                                >
+                                                    <div className="flex flex-wrap items-center gap-3">
+                                                        <div className="text-sm font-semibold text-[var(--navy-text)]">대공종 추가</div>
+                                                        <input
+                                                            type="text"
+                                                            value={newMainCategory}
+                                                            onChange={(e) => setNewMainCategory(e.target.value)}
+                                                            placeholder="대공종명 입력"
+                                                            className="ui-input min-w-[220px]"
+                                                        />
+                                                        <button
+                                                            type="button"
+                                                            onClick={handleAddMainCategory}
+                                                            className="ui-btn-primary"
+                                                        >
+                                                            추가
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={handleDeleteSelectedItems}
+                                                            disabled={selectedCount === 0}
+                                                            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition ${selectedCount > 0
+                                                                ? "border-red-500/50 text-red-200 hover:bg-red-500/10"
+                                                                : "border-gray-700 text-gray-500 cursor-not-allowed"
                                                                 }`}
                                                         >
-                                                            <div
-                                                                className="relative inline-flex items-center gap-1 rounded-lg border border-[var(--navy-border)] bg-[var(--navy-surface)] p-1 shadow-sm"
-                                                                ref={openCategoryMenu === category ? categoryMenuRef : undefined}
-                                                            >
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={() => {
-                                                                        handleMoveCategory(category, "up");
-                                                                        setOpenCategoryMenu(null);
-                                                                    }}
-                                                                    disabled={categoryIndex === 0}
-                                                                    className={`flex h-8 w-8 items-center justify-center rounded-md border transition ${categoryIndex === 0
-                                                                        ? "cursor-not-allowed border-gray-700 text-gray-500"
-                                                                        : "border-[var(--navy-border)] text-[var(--navy-text)] hover:bg-[var(--navy-surface-3)]"
-                                                                        }`}
-                                                                    title="대공종 위로 이동"
-                                                                    aria-label="대공종 위로 이동"
-                                                                >
-                                                                    <ArrowUp size={14} />
-                                                                </button>
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={() => {
-                                                                        handleMoveCategory(category, "down");
-                                                                        setOpenCategoryMenu(null);
-                                                                    }}
-                                                                    disabled={categoryIndex === categoryEntries.length - 1}
-                                                                    className={`flex h-8 w-8 items-center justify-center rounded-md border transition ${categoryIndex === categoryEntries.length - 1
-                                                                        ? "cursor-not-allowed border-gray-700 text-gray-500"
-                                                                        : "border-[var(--navy-border)] text-[var(--navy-text)] hover:bg-[var(--navy-surface-3)]"
-                                                                        }`}
-                                                                    title="대공종 아래로 이동"
-                                                                    aria-label="대공종 아래로 이동"
-                                                                >
-                                                                    <ArrowDown size={14} />
-                                                                </button>
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={() => {
-                                                                        const lastCategoryItem = categoryItems[categoryItems.length - 1] || items[0];
-                                                                        if (lastCategoryItem) {
-                                                                            handleAddItem({
-                                                                                ...lastCategoryItem,
-                                                                                main_category: category,
-                                                                                process: category === lastCategoryItem.main_category ? lastCategoryItem.process : "",
-                                                                                sub_process: category === lastCategoryItem.main_category ? (lastCategoryItem.sub_process || "") : ""
-                                                                            });
-                                                                        }
-                                                                        setOpenCategoryMenu(null);
-                                                                    }}
-                                                                    className="flex h-8 w-8 items-center justify-center rounded-md border border-[var(--navy-accent)] bg-[var(--navy-accent)] text-white transition hover:bg-[var(--navy-accent-hover)]"
-                                                                    title="항목 추가"
-                                                                    aria-label="항목 추가"
-                                                                >
-                                                                    <Plus size={13} />
-                                                                </button>
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={() => {
-                                                                        handleDeleteCategory(category, categoryItems);
-                                                                        setOpenCategoryMenu(null);
-                                                                    }}
-                                                                    className="flex h-8 w-8 items-center justify-center rounded-md border border-red-500/40 text-red-200 transition hover:bg-red-500/10"
-                                                                    title="대공종 삭제"
-                                                                    aria-label="대공종 삭제"
-                                                                >
-                                                                    <Trash2 size={13} />
-                                                                </button>
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={() => setOpenCategoryMenu((prev) => (prev === category ? null : category))}
-                                                                    className="flex h-8 w-8 items-center justify-center rounded-md border border-[var(--navy-border)] text-[var(--navy-text)] transition hover:bg-[var(--navy-surface-3)]"
-                                                                    title="더보기"
-                                                                    aria-label="더보기"
-                                                                >
-                                                                    <MoreVertical size={13} />
-                                                                </button>
-                                                                {openCategoryMenu === category && (
-                                                                    <div className="absolute right-0 top-[calc(100%+6px)] z-[60] min-w-[172px] rounded-lg border border-[var(--navy-border-soft)] bg-[var(--navy-surface)] p-1 shadow-2xl">
-                                                                        <button
-                                                                            type="button"
-                                                                            onClick={() => {
-                                                                                const lastCategoryItem = categoryItems[categoryItems.length - 1] || items[0];
-                                                                                if (lastCategoryItem) {
-                                                                                    handleOpenImport({
-                                                                                        ...lastCategoryItem,
-                                                                                        main_category: category
-                                                                                    });
-                                                                                }
-                                                                                setOpenCategoryMenu(null);
-                                                                            }}
-                                                                            className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-[var(--navy-text)] transition hover:bg-[var(--navy-surface-3)]"
-                                                                        >
-                                                                            <RefreshCw size={12} />
-                                                                            표준품셈 선택
-                                                                        </button>
-                                                                        <button
-                                                                            type="button"
-                                                                            onClick={() => {
-                                                                                const lastCategoryItem = categoryItems[categoryItems.length - 1] || items[0];
-                                                                                setEvidenceTargetParent(lastCategoryItem || null);
-                                                                                setEvidenceModalOpen(true);
-                                                                                setOpenCategoryMenu(null);
-                                                                            }}
-                                                                            className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-[var(--navy-text)] transition hover:bg-[var(--navy-surface-3)]"
-                                                                        >
-                                                                            <SlidersHorizontal size={12} />
-                                                                            근거 데이터 반영
-                                                                        </button>
-                                                                        {String(category).includes("골조") && (
-                                                                            <button
-                                                                                type="button"
-                                                                                onClick={() => {
-                                                                                    handleOpenFloorBatchModal(category, categoryItems);
-                                                                                    setOpenCategoryMenu(null);
-                                                                                }}
-                                                                                className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-[var(--navy-text)] transition hover:bg-[var(--navy-surface-3)]"
-                                                                            >
-                                                                                <Layers3 size={12} />
-                                                                                층별 공정 생성
-                                                                            </button>
-                                                                        )}
-                                                                    </div>
-                                                                )}
-                                                            </div>
-                                                        </div>
+                                                            <Trash2 size={14} />
+                                                            선택 삭제 {selectedCount > 0 ? `(${selectedCount})` : ""}
+                                                        </button>
                                                     </div>
                                                 </td>
                                             </tr>
-                                                );
-                                            })()}
-                                            {categoryItems.map((item, rowIndex) => (
-                                                <ScheduleTableRow
-                                                    key={item.id}
-                                                    item={item}
-                                                    isSelected={selectedItemIds.includes(item.id)}
-                                                    onToggleSelect={toggleSelectItem}
-                                                    onStartSelectionDrag={startSelectionDrag}
-                                                    onDragSelectionEnter={dragSelectItem}
-                                                    rowClassName={rowIndex % 2 === 0 ? "bg-[var(--navy-bg)]" : "bg-[var(--navy-surface)]"}
-                                                    operatingRates={operatingRates}
-                                                    workDayType={workDayType}
-                                                    isLinked={item.link_module_type && item.link_module_type !== 'NONE'}
-                                                    handleChange={handleChange}
-                                                    handleDeleteItem={handleDeleteItem}
-                                                    handleAddItem={handleAddItem}
-                                                    handleOpenImport={handleOpenImport}
-                                                    spanInfo={spanInfoMap[item.id] || { isProcessFirst: true, isSubProcessFirst: true, processRowSpan: 1, subProcessRowSpan: 1 }}
-                                                    standardItems={standardItems}
-                                                    onApplyStandard={handleApplyStandardToRow}
-                                                    isDragActive={Boolean(activeId)}
-                                                    isPartOfDraggingGroup={Boolean(activeId) && dragMovingItemSet.has(item.id)}
-                                                    isDropTarget={dropTargetId === item.id}
-                                                    dropPosition={dropTargetId === item.id ? dropPosition : null}
-                                                    isDropInvalid={isDropInvalid && dropTargetId === item.id}
-                                                />
-                                            ))}
-                                        </React.Fragment>
-                                    ))
-                                ];
-                            })()}
-                        </tbody>
-                    </SortableContext>
+                                        ),
+                                        ...Object.entries(groupedItems).map(([category, categoryItems], categoryIndex, categoryEntries) => (
+                                            <React.Fragment key={category}>
+                                                {(() => {
+                                                    const categoryCalDays = calculateTotalCalendarDays(categoryItems);
+                                                    const categoryCalMonths = calculateTotalCalendarMonths(categoryCalDays);
+                                                    return (
+                                                        <tr className="bg-gradient-to-r from-[var(--navy-surface)] to-[var(--navy-surface-2)] border-t border-[var(--navy-border-soft)]">
+                                                            <td colSpan="17" className="px-4 py-2.5">
+                                                                <div className="flex items-center justify-between gap-2">
+                                                                    <div className="flex items-center gap-2">
+                                                                        <div className="ui-accent-dot w-1 h-5 rounded-full"></div>
+                                                                        <h3 className="font-bold text-[var(--navy-text)] text-base tracking-tight">
+                                                                            {category}
+                                                                        </h3>
+                                                                        <span className="text-xs text-[var(--navy-text-muted)] bg-[var(--navy-bg)] px-2 py-0.5 rounded-full border border-[var(--navy-border-soft)]">
+                                                                            {categoryItems.length}개 항목
+                                                                        </span>
+                                                                        <span className="text-xs ui-accent-text bg-[rgb(59_59_79/0.22)] px-2 py-0.5 rounded-full border border-[rgb(75_85_99/0.45)] font-semibold">
+                                                                            {categoryCalDays}일 ({categoryCalMonths}개월)
+                                                                        </span>
+                                                                        {/* Category-specific Run Rate */}
+                                                                        {(() => {
+                                                                            const categoryRate = operatingRates.find(r => r.main_category === category);
+                                                                            const currentRunRate = categoryRate?.work_week_days || 6;
+                                                                            return (
+                                                                                <div className="flex items-center gap-2 ml-4">
+                                                                                    <label className="text-[10px] font-bold text-[var(--navy-text-muted)] uppercase tracking-widest">Run Rate</label>
+                                                                                    <select
+                                                                                        className="ui-input py-1 px-2"
+                                                                                        value={currentRunRate}
+                                                                                        onChange={(e) => handleCategoryRunRateChange(category, e.target.value)}
+                                                                                        disabled={forPrint}
+                                                                                    >
+                                                                                        <option value="5">주5일</option>
+                                                                                        <option value="6">주6일</option>
+                                                                                        <option value="7">주7일</option>
+                                                                                    </select>
+                                                                                </div>
+                                                                            );
+                                                                        })()}
+                                                                    </div>
+                                                                    <div
+                                                                        className={`flex items-center ${forPrint
+                                                                            ? "no-print"
+                                                                            : "sticky right-1 z-[25] ml-auto border-l border-[var(--navy-border-soft)] bg-[rgb(44_44_58/0.96)] py-1 pl-3 pr-1 backdrop-blur-sm"
+                                                                            }`}
+                                                                    >
+                                                                        <div
+                                                                            className="relative inline-flex items-center gap-1 rounded-lg border border-[var(--navy-border)] bg-[var(--navy-surface)] p-1 shadow-sm"
+                                                                            ref={openCategoryMenu === category ? categoryMenuRef : undefined}
+                                                                        >
+                                                                            <button
+                                                                                type="button"
+                                                                                onClick={() => {
+                                                                                    handleMoveCategory(category, "up");
+                                                                                    setOpenCategoryMenu(null);
+                                                                                }}
+                                                                                disabled={categoryIndex === 0}
+                                                                                className={`flex h-8 w-8 items-center justify-center rounded-md border transition ${categoryIndex === 0
+                                                                                    ? "cursor-not-allowed border-gray-700 text-gray-500"
+                                                                                    : "border-[var(--navy-border)] text-[var(--navy-text)] hover:bg-[var(--navy-surface-3)]"
+                                                                                    }`}
+                                                                                title="대공종 위로 이동"
+                                                                                aria-label="대공종 위로 이동"
+                                                                            >
+                                                                                <ArrowUp size={14} />
+                                                                            </button>
+                                                                            <button
+                                                                                type="button"
+                                                                                onClick={() => {
+                                                                                    handleMoveCategory(category, "down");
+                                                                                    setOpenCategoryMenu(null);
+                                                                                }}
+                                                                                disabled={categoryIndex === categoryEntries.length - 1}
+                                                                                className={`flex h-8 w-8 items-center justify-center rounded-md border transition ${categoryIndex === categoryEntries.length - 1
+                                                                                    ? "cursor-not-allowed border-gray-700 text-gray-500"
+                                                                                    : "border-[var(--navy-border)] text-[var(--navy-text)] hover:bg-[var(--navy-surface-3)]"
+                                                                                    }`}
+                                                                                title="대공종 아래로 이동"
+                                                                                aria-label="대공종 아래로 이동"
+                                                                            >
+                                                                                <ArrowDown size={14} />
+                                                                            </button>
+                                                                            <button
+                                                                                type="button"
+                                                                                onClick={() => {
+                                                                                    const lastCategoryItem = categoryItems[categoryItems.length - 1] || items[0];
+                                                                                    if (lastCategoryItem) {
+                                                                                        handleAddItem({
+                                                                                            ...lastCategoryItem,
+                                                                                            main_category: category,
+                                                                                            process: category === lastCategoryItem.main_category ? lastCategoryItem.process : "",
+                                                                                            sub_process: category === lastCategoryItem.main_category ? (lastCategoryItem.sub_process || "") : ""
+                                                                                        });
+                                                                                    }
+                                                                                    setOpenCategoryMenu(null);
+                                                                                }}
+                                                                                className="flex h-8 w-8 items-center justify-center rounded-md border border-[var(--navy-accent)] bg-[var(--navy-accent)] text-white transition hover:bg-[var(--navy-accent-hover)]"
+                                                                                title="항목 추가"
+                                                                                aria-label="항목 추가"
+                                                                            >
+                                                                                <Plus size={13} />
+                                                                            </button>
+                                                                            <button
+                                                                                type="button"
+                                                                                onClick={() => {
+                                                                                    handleDeleteCategory(category, categoryItems);
+                                                                                    setOpenCategoryMenu(null);
+                                                                                }}
+                                                                                className="flex h-8 w-8 items-center justify-center rounded-md border border-red-500/40 text-red-200 transition hover:bg-red-500/10"
+                                                                                title="대공종 삭제"
+                                                                                aria-label="대공종 삭제"
+                                                                            >
+                                                                                <Trash2 size={13} />
+                                                                            </button>
+                                                                            <button
+                                                                                type="button"
+                                                                                onClick={() => setOpenCategoryMenu((prev) => (prev === category ? null : category))}
+                                                                                className="flex h-8 w-8 items-center justify-center rounded-md border border-[var(--navy-border)] text-[var(--navy-text)] transition hover:bg-[var(--navy-surface-3)]"
+                                                                                title="더보기"
+                                                                                aria-label="더보기"
+                                                                            >
+                                                                                <MoreVertical size={13} />
+                                                                            </button>
+                                                                            {openCategoryMenu === category && (
+                                                                                <div className="absolute right-0 top-[calc(100%+6px)] z-[60] min-w-[172px] rounded-lg border border-[var(--navy-border-soft)] bg-[var(--navy-surface)] p-1 shadow-2xl">
+                                                                                    <button
+                                                                                        type="button"
+                                                                                        onClick={() => {
+                                                                                            const lastCategoryItem = categoryItems[categoryItems.length - 1] || items[0];
+                                                                                            if (lastCategoryItem) {
+                                                                                                handleOpenImport({
+                                                                                                    ...lastCategoryItem,
+                                                                                                    main_category: category
+                                                                                                });
+                                                                                            }
+                                                                                            setOpenCategoryMenu(null);
+                                                                                        }}
+                                                                                        className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-[var(--navy-text)] transition hover:bg-[var(--navy-surface-3)]"
+                                                                                    >
+                                                                                        <RefreshCw size={12} />
+                                                                                        표준품셈 선택
+                                                                                    </button>
+                                                                                    <button
+                                                                                        type="button"
+                                                                                        onClick={() => {
+                                                                                            const lastCategoryItem = categoryItems[categoryItems.length - 1] || items[0];
+                                                                                            setEvidenceTargetParent(lastCategoryItem || null);
+                                                                                            setEvidenceModalOpen(true);
+                                                                                            setOpenCategoryMenu(null);
+                                                                                        }}
+                                                                                        className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-[var(--navy-text)] transition hover:bg-[var(--navy-surface-3)]"
+                                                                                    >
+                                                                                        <SlidersHorizontal size={12} />
+                                                                                        근거 데이터 반영
+                                                                                    </button>
+                                                                                    {String(category).includes("골조") && (
+                                                                                        <button
+                                                                                            type="button"
+                                                                                            onClick={() => {
+                                                                                                handleOpenFloorBatchModal(category, categoryItems);
+                                                                                                setOpenCategoryMenu(null);
+                                                                                            }}
+                                                                                            className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-[var(--navy-text)] transition hover:bg-[var(--navy-surface-3)]"
+                                                                                        >
+                                                                                            <Layers3 size={12} />
+                                                                                            층별 공정 생성
+                                                                                        </button>
+                                                                                    )}
+                                                                                </div>
+                                                                            )}
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                            </td>
+                                                        </tr>
+                                                    );
+                                                })()}
+                                                {categoryItems.map((item, rowIndex) => (
+                                                    <ScheduleTableRow
+                                                        key={item.id}
+                                                        item={item}
+                                                        isSelected={selectedItemIds.includes(item.id)}
+                                                        onToggleSelect={toggleSelectItem}
+                                                        onStartSelectionDrag={startSelectionDrag}
+                                                        onDragSelectionEnter={dragSelectItem}
+                                                        rowClassName={rowIndex % 2 === 0 ? "bg-[var(--navy-bg)]" : "bg-[var(--navy-surface)]"}
+                                                        operatingRates={operatingRates}
+                                                        workDayType={workDayType}
+                                                        isLinked={item.link_module_type && item.link_module_type !== 'NONE'}
+                                                        handleChange={handleChange}
+                                                        handleDeleteItem={handleDeleteItem}
+                                                        handleAddItem={handleAddItem}
+                                                        handleOpenImport={handleOpenImport}
+                                                        spanInfo={spanInfoMap[item.id] || { isProcessFirst: true, isSubProcessFirst: true, processRowSpan: 1, subProcessRowSpan: 1 }}
+                                                        standardItems={standardItems}
+                                                        onApplyStandard={handleApplyStandardToRow}
+                                                        isDragActive={Boolean(activeId)}
+                                                        isPartOfDraggingGroup={Boolean(activeId) && dragMovingItemSet.has(item.id)}
+                                                        isDropTarget={dropTargetId === item.id}
+                                                        dropPosition={dropTargetId === item.id ? dropPosition : null}
+                                                        isDropInvalid={isDropInvalid && dropTargetId === item.id}
+                                                    />
+                                                ))}
+                                            </React.Fragment>
+                                        ))
+                                    ];
+                                })()}
+                            </tbody>
+                        </SortableContext>
 
                     </table>
                 </DndContext>
@@ -1574,7 +1582,7 @@ export default function ScheduleMasterList() {
             )}
 
             {floorBatchModal && (
-                <div className="fixed inset-0 z-[13000] flex items-center justify-center bg-black/60 backdrop-blur-sm">
+                <div className="fixed inset-0 z-[500] flex items-center justify-center bg-black/60 backdrop-blur-sm">
                     <div className="w-[460px] rounded-xl border border-[var(--navy-border-soft)] bg-[var(--navy-surface)] p-6 shadow-2xl">
                         <h3 className="text-lg font-bold text-gray-100">층별 공정 일괄생성</h3>
                         <p className="mt-1 text-sm text-gray-400">

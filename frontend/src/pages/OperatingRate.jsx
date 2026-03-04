@@ -11,9 +11,9 @@ import { getWeatherStations } from "../api/operatio/weather";
 import PageHeader from "../components/cpe/PageHeader";
 import SaveButton from "../components/cpe/SaveButton";
 import { useConfirm } from "../contexts/ConfirmContext";
-import { useTutorial } from "../hooks/useTutorial";
-import { operatingRateSteps } from "../config/tutorialSteps";
 import Combobox from "../components/common/Combobox";
+import { markFtueDone } from "../utils/ftue";
+import { FTUE_STEP_IDS } from "../config/ftueSteps";
 import {
   ChevronDown,
   ChevronRight,
@@ -85,7 +85,7 @@ const defaultWeightData = (rowKey) => ({
   id: null,
   main_category: rowKey,
   winter_threshold: "최저 5℃ 이하",
-  winter_threshold_value: 5,
+  winter_threshold_value: -5,
   winter_threshold_enabled: true,
   summer_threshold: "35℃ 이상",
   summer_threshold_value: 35,
@@ -238,7 +238,7 @@ export default function OperatingRate() {
   const { id: projectId } = useParams();
   const [workTypes, setWorkTypes] = useState([]);
   const [regions, setRegions] = useState([]);
-  const [columnViewMode, setColumnViewMode] = useState("mixed"); // main | mixed | split
+  const [columnViewMode, setColumnViewMode] = useState("mixed");
   const [expandedMainCategories, setExpandedMainCategories] = useState({});
   const [globalSettings, setGlobalSettings] = useState({
     region: "",
@@ -249,7 +249,10 @@ export default function OperatingRate() {
   const [saving, setSaving] = useState(false);
   const { alert } = useConfirm();
 
-  useTutorial("operatingRate", operatingRateSteps);
+  // FTUE: 가동률 페이지 방문 시 TOTAL step 완료
+  useEffect(() => {
+    markFtueDone("TOTAL", "view_operating_rate", FTUE_STEP_IDS.TOTAL);
+  }, []);
 
   useEffect(() => {
     const loadRegions = async () => {
@@ -641,7 +644,7 @@ export default function OperatingRate() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/60 z-[13000] flex items-center justify-center backdrop-blur-sm"
+            className="fixed inset-0 bg-black/60 z-[700] flex items-center justify-center backdrop-blur-sm"
           >
             <div className="bg-[#2a2a35] p-8 rounded-lg shadow-2xl flex flex-col items-center border border-gray-700">
               <div className="animate-spin rounded-full h-10 w-10 border-4 border-blue-500 border-t-transparent mb-4"></div>
@@ -692,33 +695,30 @@ export default function OperatingRate() {
               <button
                 type="button"
                 onClick={() => setColumnViewMode("main")}
-                className={`px-3 py-1.5 text-xs font-semibold ${
-                  columnViewMode === "main"
-                    ? "bg-blue-600 text-white"
-                    : "text-gray-300 hover:bg-[#2f2f3a]"
-                }`}
+                className={`px-3 py-1.5 text-xs font-semibold ${columnViewMode === "main"
+                  ? "bg-blue-600 text-white"
+                  : "text-gray-300 hover:bg-[#2f2f3a]"
+                  }`}
               >
                 통합
               </button>
               <button
                 type="button"
                 onClick={() => setColumnViewMode("mixed")}
-                className={`px-3 py-1.5 text-xs font-semibold border-x border-gray-600 ${
-                  columnViewMode === "mixed"
-                    ? "bg-blue-600 text-white"
-                    : "text-gray-300 hover:bg-[#2f2f3a]"
-                }`}
+                className={`px-3 py-1.5 text-xs font-semibold border-x border-gray-600 ${columnViewMode === "mixed"
+                  ? "bg-blue-600 text-white"
+                  : "text-gray-300 hover:bg-[#2f2f3a]"
+                  }`}
               >
                 혼합
               </button>
               <button
                 type="button"
                 onClick={() => setColumnViewMode("split")}
-                className={`px-3 py-1.5 text-xs font-semibold ${
-                  columnViewMode === "split"
-                    ? "bg-blue-600 text-white"
-                    : "text-gray-300 hover:bg-[#2f2f3a]"
-                }`}
+                className={`px-3 py-1.5 text-xs font-semibold ${columnViewMode === "split"
+                  ? "bg-blue-600 text-white"
+                  : "text-gray-300 hover:bg-[#2f2f3a]"
+                  }`}
               >
                 분리
               </button>
@@ -765,9 +765,8 @@ export default function OperatingRate() {
                   return (
                     <th
                       key={workType.row_key}
-                      className={`py-3 px-3 text-center min-w-[220px] border-r border-gray-600 font-bold ${
-                        isMain ? "bg-[#323240] text-gray-200" : "bg-[#2b3040] text-blue-100"
-                      }`}
+                      className={`py-3 px-3 text-center min-w-[220px] border-r border-gray-600 font-bold ${isMain ? "bg-[#323240] text-gray-200" : "bg-[#2b3040] text-blue-100"
+                        }`}
                     >
                       {isMain ? (
                         <div className="flex items-center justify-center gap-1">
@@ -837,9 +836,8 @@ export default function OperatingRate() {
                     return (
                       <td
                         key={workType.row_key}
-                        className={`p-3 border-r border-gray-600 text-center align-middle ${
-                          isInheritedProcess ? "bg-[#253243]/40" : ""
-                        }`}
+                        className={`p-3 border-r border-gray-600 text-center align-middle ${isInheritedProcess ? "bg-[#253243]/40" : ""
+                          }`}
                       >
                         {row.type === "threshold" ? (
                           <div className="flex items-center justify-center gap-3 h-full">
@@ -891,10 +889,10 @@ export default function OperatingRate() {
                                 row.type === "wind"
                                   ? workType.wind_threshold || "미적용"
                                   : row.type === "dust"
-                                  ? workType.dust_alert_level || "NONE"
-                                  : row.type === "sector"
-                                  ? workType.sector_type || "PRIVATE"
-                                  : workType.work_week_days || 6
+                                    ? workType.dust_alert_level || "NONE"
+                                    : row.type === "sector"
+                                      ? workType.sector_type || "PRIVATE"
+                                      : workType.work_week_days || 6
                               }
                               onChange={(val) =>
                                 handleCellChange(
@@ -902,36 +900,36 @@ export default function OperatingRate() {
                                   row.key === "work_week_days"
                                     ? "work_week_days"
                                     : row.type === "dust"
-                                    ? "dust_alert_level"
-                                    : row.type === "wind"
-                                    ? "wind_threshold"
-                                    : "sector_type",
+                                      ? "dust_alert_level"
+                                      : row.type === "wind"
+                                        ? "wind_threshold"
+                                        : "sector_type",
                                   row.type === "workWeek" ? Number(val) : val
                                 )
                               }
                               options={
                                 row.type === "wind"
                                   ? [
-                                      { value: "미적용", label: "미적용" },
-                                      { value: "12m/s 이상", label: "12m/s 이상" },
-                                      { value: "15m/s 이상", label: "15m/s 이상" },
-                                    ]
+                                    { value: "미적용", label: "미적용" },
+                                    { value: "12m/s 이상", label: "12m/s 이상" },
+                                    { value: "15m/s 이상", label: "15m/s 이상" },
+                                  ]
                                   : row.type === "dust"
-                                  ? [
+                                    ? [
                                       { value: "NONE", label: "미적용" },
                                       { value: "WARNING", label: "주의보" },
                                       { value: "ALERT", label: "경보" },
                                     ]
-                                  : row.type === "sector"
-                                  ? [
-                                      { value: "PUBLIC", label: "공공" },
-                                      { value: "PRIVATE", label: "민간" },
-                                    ]
-                                  : [
-                                      { value: 7, label: "주 7일" },
-                                      { value: 6, label: "주 6일" },
-                                      { value: 5, label: "주 5일" },
-                                    ]
+                                    : row.type === "sector"
+                                      ? [
+                                        { value: "PUBLIC", label: "공공" },
+                                        { value: "PRIVATE", label: "민간" },
+                                      ]
+                                      : [
+                                        { value: 7, label: "주 7일" },
+                                        { value: 6, label: "주 6일" },
+                                        { value: 5, label: "주 5일" },
+                                      ]
                               }
                             />
                           </div>
@@ -959,9 +957,8 @@ export default function OperatingRate() {
                   return (
                     <td
                       key={workType.row_key}
-                      className={`p-4 border-r border-gray-600 transition-colors ${
-                        isInheritedProcess ? "bg-[#213042]" : "bg-[#22222b] hover:bg-[#2a2a35]"
-                      }`}
+                      className={`p-4 border-r border-gray-600 transition-colors ${isInheritedProcess ? "bg-[#213042]" : "bg-[#22222b] hover:bg-[#2a2a35]"
+                        }`}
                     >
                       <div className="flex flex-col items-center justify-center gap-2">
                         <span className="text-2xl font-black text-green-400 tracking-tight">

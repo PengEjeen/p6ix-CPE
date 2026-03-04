@@ -1,8 +1,13 @@
 import instance from "../axios";
+import isUuid from "../../utils/isUuid";
 
 // Bored Pile Productivity Basis
 export const fetchBoredPileBasis = async (projectId) => {
-    const response = await instance.get(`/cpe-all/bored-pile-basis/?project=${projectId}`);
+    if (!isUuid(projectId)) {
+        console.error("fetchBoredPileBasis: invalid projectId", projectId);
+        return [];
+    }
+    const response = await instance.get("/cpe-all/bored-pile-basis/", { params: { project: projectId } });
     return response.data;
 };
 
@@ -23,12 +28,20 @@ export const deleteBoredPileBasis = async (id) => {
 
 // Bored Pile Result (Summary)
 export const fetchBoredPileResults = async (projectId) => {
-    const response = await instance.get(`/cpe-all/bored-pile-result/?project=${projectId}`);
+    if (!isUuid(projectId)) {
+        console.error("fetchBoredPileResults: invalid projectId", projectId);
+        return [];
+    }
+    const response = await instance.get("/cpe-all/bored-pile-result/", { params: { project: projectId } });
     return response.data;
 };
 
 export const fetchBoredPileResultSummary = async (projectId) => {
-    const response = await instance.get(`/cpe-all/bored-pile-result/?project=${projectId}`);
+    if (!isUuid(projectId)) {
+        console.error("fetchBoredPileResultSummary: invalid projectId", projectId);
+        return null;
+    }
+    const response = await instance.get("/cpe-all/bored-pile-result/", { params: { project: projectId } });
     return response.data?.[0] || null;
 };
 

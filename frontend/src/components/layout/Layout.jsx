@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef, useCallback } from "react";
-import { Outlet, useNavigate } from "react-router-dom";
+import { Navigate, Outlet, useLocation, useNavigate } from "react-router-dom";
 import Header from "./Header";
 import Projects from "./tools/Projects";
 import {
@@ -7,9 +7,14 @@ import {
   FiMail,
   FiChevronLeft, FiChevronRight, FiChevronDown, FiChevronUp
 } from "react-icons/fi";
+import isUuid from "../../utils/isUuid";
+import { useTheme } from "../../contexts/ThemeContext";
+import { getCompanyLogoSrc } from "../../utils/brandAssets";
 
 function Layout() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const { theme } = useTheme();
   const [menuOpen, setMenuOpen] = useState(true);
   const [userOpen, setUserOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
@@ -61,19 +66,29 @@ function Layout() {
     ? "ml-0 w-full"
     : (menuOpen ? "ml-60 w-[calc(100%-15rem)]" : "ml-12 w-[calc(100%-3rem)]");
 
+  const invalidProjectPath = (() => {
+    const match = /^\/projects\/([^/?#]+)/.exec(location.pathname);
+    if (!match) return false;
+    return !isUuid(match[1]);
+  })();
+
+  if (invalidProjectPath) {
+    return <Navigate to="/" replace />;
+  }
+
   return (
     <div className="h-screen w-full flex bg-[#1e1e2f] text-white overflow-hidden relative">
       {/* 모바일용 오버레이 */}
       {menuOpen && isMobile && (
         <div
-          className="fixed inset-0 bg-black/40 backdrop-blur-sm z-10 transition-opacity duration-300"
+          className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[20] transition-opacity duration-300"
           onClick={() => setMenuOpen(false)}
         ></div>
       )}
 
       {/* === 사이드바 === */}
       <aside
-        className={`fixed top-0 left-0 h-full bg-[#2c2c3a] border-r border-gray-700 flex flex-col justify-between transition-all duration-300 ease-in-out z-20 ${menuOpen ? "w-60" : "w-12"
+        className={`fixed top-0 left-0 h-full bg-[#2c2c3a] border-r border-gray-700 flex flex-col justify-between transition-all duration-300 ease-in-out z-[30] ${menuOpen ? "w-60" : "w-12"
           }`}
       >
         <div
@@ -88,8 +103,13 @@ function Layout() {
                   onClick={() => navigate("/")}
                   className="flex items-center gap-2 px-2 py-2 rounded hover:bg-[#3b3b4f] transition"
                 >
-                  <div className="w-5 h-5 bg-gray-500 rounded-full"></div>
-                  <span className="font-semibold text-lg">P6ix</span>
+                  <img
+                    src={getCompanyLogoSrc(theme)}
+                    alt="P6ix 로고"
+                    className="h-6 w-9 object-contain"
+                    loading="eager"
+                    decoding="async"
+                  />
                 </button>
 
                 <button
@@ -153,6 +173,12 @@ function Layout() {
                   onClick={() => navigate("/profile")}
                 >
                   내 정보
+                </button>
+                <button
+                  className="w-full border border-gray-600 rounded px-2 py-1 bg-[#3b3b4f] hover:bg-[#4b4b5f] transition"
+                  onClick={() => navigate("/guide")}
+                >
+                  사용자 가이드
                 </button>
                 <button
                   onClick={handleLogout}

@@ -42,7 +42,6 @@ export default function ScheduleHeader({
                             테이블 뷰
                         </button>
                         <button
-                            data-tutorial="gantt-view"
                             className={`ui-tab ${viewMode === "gantt"
                                 ? "ui-tab-active"
                                 : ""
@@ -128,13 +127,12 @@ export default function ScheduleHeader({
                     </button>
                 )}
                 <button
-                    data-tutorial="export-excel"
                     onClick={onExportExcel}
                     className="ui-btn-secondary"
                 >
                     엑셀 내보내기
                 </button>
-                <SaveButton onSave={onSave} saving={saving} data-tutorial="save-button" />
+                <SaveButton onSave={onSave} saving={saving} />
                 <div className="ml-2 px-4 py-2 rounded-xl bg-[var(--navy-bg)] border border-[var(--navy-border)] text-sm text-[var(--navy-text)]">
                     <span className="text-[var(--navy-text-muted)] mr-2">전체 기간</span>
                     <span className="ui-accent-text font-bold text-base">{totalCalendarDays}일</span>

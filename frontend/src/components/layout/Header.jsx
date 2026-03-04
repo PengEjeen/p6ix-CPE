@@ -7,6 +7,12 @@ import {
   FiChevronDown, FiChevronUp, FiDownload
 } from "react-icons/fi";
 import { useTheme } from "../../contexts/ThemeContext";
+import isUuid from "../../utils/isUuid";
+import { markFtueDone } from "../../utils/ftue";
+import { FTUE_STEP_IDS } from "../../config/ftueSteps";
+
+const REPORT_EXPORT_AT_KEY = "p6ix_last_report_export_at";
+const REPORT_EXPORTED_EVENT = "p6ix_report_exported";
 
 function Header() {
   const navigate = useNavigate();
@@ -22,6 +28,7 @@ function Header() {
   useEffect(() => {
     const loadProject = async () => {
       if (!id) return;
+      if (!isUuid(id)) return;
       try {
         const data = await detailProject(id);
         setProject(data);
@@ -117,6 +124,10 @@ function Header() {
       link.click();
       link.remove();
       window.URL.revokeObjectURL(url);
+      localStorage.setItem(REPORT_EXPORT_AT_KEY, String(Date.now()));
+      // FTUE 이중 안전장치: 이벤트 dispatch 외 직접 markDone도 호출 (다른 탭 분리 대응)
+      markFtueDone("TOTAL", "export_report", FTUE_STEP_IDS.TOTAL);
+      window.dispatchEvent(new Event(REPORT_EXPORTED_EVENT));
       toast.success("보고서 내보내기 완료");
       setShowExportGuideModal(true);
     } catch (error) {
@@ -128,11 +139,11 @@ function Header() {
   };
 
   // 여기서 렌더 제한 (Hook 이후에 return)
-  if (!id) return null;
+  if (!id || !isUuid(id)) return null;
 
   return (
     <>
-      <header className="w-full border-b border-gray-700 bg-[#1e1e2f] text-white px-6 py-3 flex items-start justify-between relative z-[10000] shadow-md shadow-black/20 gap-4">
+      <header className="w-full border-b border-gray-700 bg-[#1e1e2f] text-white px-6 py-3 flex items-start justify-between relative z-[40] shadow-md shadow-black/20 gap-4">
         <div className="relative flex flex-col items-start">
           <div className="flex items-center gap-2">
             {/* 드롭다운 버튼 */}
@@ -174,7 +185,7 @@ function Header() {
 
           {/* 드롭다운 메뉴 */}
           {open && (
-            <div className="absolute top-full left-0 mt-3 w-60 bg-[#2c2c3a] border border-gray-700 rounded-md shadow-lg z-[10001] divide-y divide-gray-700">
+            <div className="absolute top-full left-0 mt-3 w-60 bg-[#2c2c3a] border border-gray-700 rounded-md shadow-lg z-[50] divide-y divide-gray-700">
               {menus.map((menu) => (
                 <button
                   key={menu.path}
@@ -214,7 +225,7 @@ function Header() {
       </header>
 
       {showExportGuideModal && (
-        <div className="fixed inset-0 z-[10002] flex items-center justify-center bg-black/55 backdrop-blur-sm">
+        <div className="fixed inset-0 z-[500] flex items-center justify-center bg-black/55 backdrop-blur-sm">
           <div className="w-[460px] max-w-[92vw] rounded-2xl border border-gray-700 bg-[#2c2c3a] shadow-2xl overflow-hidden">
             <div className="px-6 py-4 border-b border-gray-700 bg-[#3a3a4a]">
               <h3 className="text-lg font-semibold text-gray-100">보고서 확인 안내</h3>

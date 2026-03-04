@@ -7,6 +7,7 @@ from ..models.criteria_models import *
 from ..models.estimate_models import *
 from ..models.operating_rate_models import *
 from ..models.quotation_models import Quotation
+from ..utils.operating_rate_defaults import build_operating_rate_defaults
 
 
 class ProjectSerializer(serializers.ModelSerializer):
@@ -45,123 +46,23 @@ class ProjectSerializer(serializers.ModelSerializer):
             FrameWorkInput.objects.create(project=project)
 
             # 가동률 관련 (operating_rate_models)
-            weights = WorkScheduleWeight.objects.bulk_create([
-                WorkScheduleWeight(
-                    project=project, 
-                    type="EARTH",
-                    main_category="토공사",
-                    winter_threshold="평균 -5℃ 이하",
-                    winter_threshold_value=-5,
-                    winter_threshold_enabled=True,
-                    summer_threshold="35℃ 이상",
-                    summer_threshold_value=35,
-                    summer_threshold_enabled=True,
-                    rainfall_threshold="10mm 이상",
-                    rainfall_threshold_value=10,
-                    rainfall_threshold_enabled=True,
-                    snowfall_threshold="1cm 이상",
-                    snowfall_threshold_value=1,
-                    snowfall_threshold_enabled=True,
-                    wind_threshold="15m/s 이상",
-                    visibility_threshold="미적용",
-                    dust_alert_level="ALERT",
-                    sector_type="PRIVATE",
-                    work_week_days=6,
-                    winter_criteria="AVG"
-                ),
-                WorkScheduleWeight(
-                    project=project, 
-                    type="FRAME",
-                    main_category="골조공사",
-                    winter_threshold="평균 -5℃ 이하",
-                    winter_threshold_value=-5,
-                    winter_threshold_enabled=True,
-                    summer_threshold="35℃ 이상",
-                    summer_threshold_value=35,
-                    summer_threshold_enabled=True,
-                    rainfall_threshold="10mm 이상",
-                    rainfall_threshold_value=10,
-                    rainfall_threshold_enabled=True,
-                    snowfall_threshold="1cm 이상",
-                    snowfall_threshold_value=1,
-                    snowfall_threshold_enabled=True,
-                    wind_threshold="15m/s 이상",
-                    visibility_threshold="미적용",
-                    dust_alert_level="ALERT",
-                    sector_type="PRIVATE",
-                    work_week_days=6,
-                    winter_criteria="AVG"
-                ),
-                WorkScheduleWeight(
-                    project=project, 
-                    type="EXT_FIN",
-                    main_category="외부 마감공사",
-                    winter_threshold="평균 -5℃ 이하",
-                    winter_threshold_value=-5,
-                    winter_threshold_enabled=True,
-                    summer_threshold="35℃ 이상",
-                    summer_threshold_value=35,
-                    summer_threshold_enabled=True,
-                    rainfall_threshold="10mm 이상",
-                    rainfall_threshold_value=10,
-                    rainfall_threshold_enabled=True,
-                    snowfall_threshold="1cm 이상",
-                    snowfall_threshold_value=1,
-                    snowfall_threshold_enabled=True,
-                    wind_threshold="15m/s 이상",
-                    visibility_threshold="미적용",
-                    dust_alert_level="ALERT",
-                    sector_type="PRIVATE",
-                    work_week_days=6,
-                    winter_criteria="AVG"
-                ),
-                WorkScheduleWeight(
-                    project=project, 
-                    type="INT_FIN",
-                    main_category="내부 마감공사",
-                    winter_threshold="평균 -5℃ 이하",
-                    winter_threshold_value=-5,
-                    winter_threshold_enabled=True,
-                    summer_threshold="35℃ 이상",
-                    summer_threshold_value=35,
-                    summer_threshold_enabled=True,
-                    rainfall_threshold="10mm 이상",
-                    rainfall_threshold_value=10,
-                    rainfall_threshold_enabled=True,
-                    snowfall_threshold="1cm 이상",
-                    snowfall_threshold_value=1,
-                    snowfall_threshold_enabled=True,
-                    wind_threshold="15m/s 이상",
-                    visibility_threshold="미적용",
-                    dust_alert_level="ALERT",
-                    sector_type="PRIVATE",
-                    work_week_days=6,
-                    winter_criteria="AVG"
-                ),
-                WorkScheduleWeight(
-                    project=project, 
-                    type="POUR",
-                    main_category="골조 타설",
-                    winter_threshold="평균 -5℃ 이하",
-                    winter_threshold_value=-5,
-                    winter_threshold_enabled=True,
-                    summer_threshold="35℃ 이상",
-                    summer_threshold_value=35,
-                    summer_threshold_enabled=True,
-                    rainfall_threshold="10mm 이상",
-                    rainfall_threshold_value=10,
-                    rainfall_threshold_enabled=True,
-                    snowfall_threshold="1cm 이상",
-                    snowfall_threshold_value=1,
-                    snowfall_threshold_enabled=True,
-                    wind_threshold="15m/s 이상",
-                    visibility_threshold="미적용",
-                    dust_alert_level="ALERT",
-                    sector_type="PRIVATE",
-                    work_week_days=6,
-                    winter_criteria="AVG"
-                ),
-            ])
+            apartment_categories = [
+                "토공사",
+                "골조공사",
+                "외부 마감공사",
+                "내부 마감공사",
+                "골조 타설",
+            ]
+            weights = WorkScheduleWeight.objects.bulk_create(
+                [
+                    WorkScheduleWeight(
+                        project=project,
+                        main_category=main_category,
+                        **build_operating_rate_defaults(main_category),
+                    )
+                    for main_category in apartment_categories
+                ]
+            )
             
             from ..views.operating_rate import calculate_operating_rates
             default_settings = {

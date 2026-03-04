@@ -15,6 +15,7 @@ import CIPBasisList from "./pages/CIPBasisList";
 import PileBasisList from "./pages/PileBasisList";
 import BoredPileBasisList from "./pages/BoredPileBasisList";
 import ScheduleMasterList from "./pages/ScheduleMasterList";
+import UserGuide from "./pages/UserGuide";
 import { ConfirmProvider } from "./contexts/ConfirmContext";
 import { ThemeProvider } from "./contexts/ThemeContext";
 
@@ -31,6 +32,7 @@ const router = createBrowserRouter(
       <Route element={<Layout />}>
         <Route path="/" element={<Home />} />
         <Route path="/profile" element={<UserProfile />} />
+        <Route path="/guide" element={<UserGuide />} />
         <Route path="/projects/:id" element={<Estimate />} />
         <Route path="/projects/:id/calc" element={<Calc />} />
         <Route path="/projects/:id/criteria" element={<Criteria />} />

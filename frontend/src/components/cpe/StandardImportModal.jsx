@@ -10,7 +10,6 @@ const ModalAccordion = ({ title, count, children, defaultOpen = false, isFirst =
 
     return (
         <div
-            data-tutorial={isFirst ? "import-accordion" : undefined}
             className="border border-gray-700 rounded-lg overflow-hidden mb-2 bg-[#2c2c3a] shadow-md"
         >
             <button
@@ -131,7 +130,7 @@ export default function StandardImportModal({ isOpen, onClose, onSelect, project
     if (!isOpen) return null;
 
     return (
-        <div className="fixed inset-0 z-[13000] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+        <div className="fixed inset-0 z-[500] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-in fade-in duration-200">
             <div className="bg-[#2c2c3a] w-full max-w-7xl max-h-[85vh] rounded-2xl border border-gray-700 shadow-2xl flex flex-col overflow-hidden">
                 {/* Header (Navy) */}
                 <div className="p-5 border-b border-gray-700 flex justify-between items-center bg-[#3a3a4a]">
@@ -157,7 +156,6 @@ export default function StandardImportModal({ isOpen, onClose, onSelect, project
                     <div className="relative">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" size={16} />
                         <input
-                            data-tutorial="import-search"
                             type="text"
                             placeholder="공정, 공종, 항목명, 규격 검색..."
                             className="w-full bg-[#1f1f2b] border border-gray-700 text-gray-200 pl-10 pr-4 py-2.5 rounded-xl focus:outline-none focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/50 transition text-sm font-medium placeholder-gray-600"

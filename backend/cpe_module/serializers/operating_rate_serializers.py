@@ -1,6 +1,7 @@
 from rest_framework import serializers
 from ..models.operating_rate_models import WorkScheduleWeight
 from ..models.project_models import Project
+from ..utils.operating_rate_defaults import apply_operating_rate_defaults
 
 
 class WorkScheduleWeightSerializer(serializers.ModelSerializer):
@@ -62,6 +63,9 @@ class WorkScheduleWeightSerializer(serializers.ModelSerializer):
             project = Project.objects.filter(id=project_id).first()
             if not project:
                 raise serializers.ValidationError("유효하지 않은 프로젝트입니다.")
+
+        main_category = validated_data.get("main_category")
+        validated_data = apply_operating_rate_defaults(main_category, validated_data)
 
         # WorkScheduleWeight 생성
         return WorkScheduleWeight.objects.create(project=project, **validated_data)
