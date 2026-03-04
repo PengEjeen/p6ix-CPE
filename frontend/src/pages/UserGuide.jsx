@@ -2,7 +2,7 @@ import React, { useMemo } from "react";
 import ReactMarkdown from "react-markdown";
 import PageHeader from "../components/cpe/PageHeader";
 
-import userGuideSource from "../../../docs/공기검토플랫폼_사용자_가이드.md?raw";
+import userGuideSource from "../assets/공기검토플랫폼_사용자_가이드.md?raw";
 
 const slugify = (value) =>
   String(value || "")
