@@ -10,9 +10,11 @@ class UserSerializer(serializers.ModelSerializer):
         exclude = ['password']
         read_only_fields = [
             'id',
+            'keycloak_sub',
             'username',      # 로그인 ID는 수정 불가
             'email',         # 이메일 수정 막기
             'role',          # 권한 수정 막기
+            'login_provider',
             'is_active',
             'is_staff',
             'is_superuser',

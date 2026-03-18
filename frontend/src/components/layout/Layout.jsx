@@ -10,8 +10,11 @@ import {
 import isUuid from "../../utils/isUuid";
 import { useTheme } from "../../contexts/ThemeContext";
 import { getCompanyLogoSrc } from "../../utils/brandAssets";
+import api from "../../api/axios";
 
 function Layout() {
+  const USE_SESSION_AUTH =
+    String(import.meta.env.VITE_USE_SESSION_AUTH).toLowerCase() === "true";
   const navigate = useNavigate();
   const location = useLocation();
   const { theme } = useTheme();
@@ -36,13 +39,40 @@ function Layout() {
       setIsMainScrolling(false);
     }, 1000);
   }, []);
-  const user = JSON.parse(localStorage.getItem("user") || "{}");
+  const [user, setUser] = useState(() =>
+    JSON.parse(localStorage.getItem("user") || "{}")
+  );
   const userRef = useRef(null);
 
   useEffect(() => {
-    const access = localStorage.getItem("access");
-    if (!access || !user?.id) navigate("/login");
-  }, [navigate, user]);
+    const checkAuth = async () => {
+      if (USE_SESSION_AUTH) {
+        try {
+          const res = await api.get("sso/session/");
+          if (res.data?.authenticated && res.data?.user?.id) {
+            setUser(res.data.user);
+            localStorage.setItem("user", JSON.stringify(res.data.user));
+            return;
+          }
+        } catch (err) {
+          console.error("세션 확인 실패:", err);
+        }
+        localStorage.removeItem("user");
+        navigate("/login");
+        return;
+      }
+
+      const access = localStorage.getItem("access");
+      const storedUser = JSON.parse(localStorage.getItem("user") || "{}");
+      if (!access || !storedUser?.id) {
+        navigate("/login");
+        return;
+      }
+      setUser(storedUser);
+    };
+
+    checkAuth();
+  }, [USE_SESSION_AUTH, location.pathname, navigate]);
 
   useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth < 1024);
@@ -55,7 +85,32 @@ function Layout() {
     if (isMobile) setMenuOpen(false);
   }, [isMobile]);
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    if (USE_SESSION_AUTH) {
+      localStorage.removeItem("access");
+      localStorage.removeItem("refresh");
+      localStorage.removeItem("user");
+
+      const appBase = import.meta.env.BASE_URL || "/";
+      const normalizedAppBase = appBase.endsWith("/") ? appBase : `${appBase}/`;
+      const nextUrl = `${window.location.origin}${normalizedAppBase}login`;
+
+      const apiBase = import.meta.env.DEV
+        ? "http://localhost:8000/api"
+        : (import.meta.env.VITE_API_BASE || "/api");
+      const normalizedApiBase = apiBase.endsWith("/") ? apiBase : `${apiBase}/`;
+      const logoutUrl = `${normalizedApiBase}sso/logout/?next=${encodeURIComponent(nextUrl)}`;
+      window.location.assign(logoutUrl);
+      return;
+    }
+
+    try {
+      await api.post("users/logout/", {
+        refresh: localStorage.getItem("refresh"),
+      });
+    } catch (err) {
+      console.error("로그아웃 요청 실패:", err);
+    }
     localStorage.removeItem("access");
     localStorage.removeItem("refresh");
     localStorage.removeItem("user");

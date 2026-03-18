@@ -1,64 +1,122 @@
-from rest_framework_simplejwt.tokens import RefreshToken
+from django.conf import settings
+from django.contrib.auth import logout as django_logout
+from rest_framework import generics, permissions, status, views
 from rest_framework.response import Response
-from rest_framework import status, permissions, views, generics
-from django.contrib.auth import get_user_model
-from .serializers import RegisterSerializer, UserSerializer, CustomTokenObtainPairSerializer, ChangePasswordSerializer
+from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenObtainPairView
 
-User = get_user_model()
+from sso.keycloak_auth import KeycloakAuthError, KeycloakTokenVerifier
+from sso.services import LocalUserSyncMixin
+
+from .serializers import (
+    ChangePasswordSerializer,
+    CustomTokenObtainPairSerializer,
+    RegisterSerializer,
+    UserSerializer,
+)
+
 
 class RegisterView(generics.CreateAPIView):
-    queryset = User.objects.all()
     serializer_class = RegisterSerializer
     permission_classes = [permissions.AllowAny]
 
+
 class CustomTokenObtainPairView(TokenObtainPairView):
     serializer_class = CustomTokenObtainPairSerializer
+
+    def post(self, request, *args, **kwargs):
+        if not getattr(settings, "LEGACY_LOCAL_LOGIN_ENABLED", False):
+            return Response(
+                {"error": "legacy_local_login_disabled"},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        return super().post(request, *args, **kwargs)
+
 
 class ProfileView(generics.RetrieveUpdateAPIView):
     serializer_class = UserSerializer
     permission_classes = [permissions.IsAuthenticated]
 
     def get_object(self):
-        print("[DEBUG] 요청 사용자:", self.request.user)
-        print("[DEBUG] 요청 메서드:", self.request.method)
         return self.request.user
-
-    def update(self, request, *args, **kwargs):
-        print("[DEBUG] 요청 데이터:", request.data)
-        response = super().update(request, *args, **kwargs)
-        print("[DEBUG] 응답 데이터:", response.data)
-        return response
-
-    def handle_exception(self, exc):
-        from rest_framework.response import Response
-        from rest_framework import status
-        import traceback
-
-        print("[ERROR] 예외 발생:", exc)
-        traceback.print_exc()
-
-        if hasattr(exc, "detail"):
-            print("[ERROR DETAIL]", exc.detail)
-        return super().handle_exception(exc)
 
 
 class LogoutView(views.APIView):
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.AllowAny]
 
     def post(self, request):
+        refresh_token = request.data.get("refresh")
+
+        if refresh_token:
+            try:
+                token = RefreshToken(refresh_token)
+                token.blacklist()
+            except Exception:
+                pass
+
+        django_logout(request)
+        return Response(status=status.HTTP_205_RESET_CONTENT)
+
+
+class KeycloakLoginView(views.APIView, LocalUserSyncMixin):
+    """Legacy bridge endpoint: Keycloak token -> local JWT issuance."""
+
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request):
+        if not getattr(settings, "LEGACY_BRIDGE_JWT_ENABLED", False):
+            return Response(
+                {"error": "legacy_bridge_jwt_disabled"},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        if not getattr(settings, "KEYCLOAK_ENABLED", False):
+            return Response(
+                {"error": "keycloak_disabled"},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+
+        access_token = request.data.get("access_token")
+        if not access_token:
+            return Response(
+                {"error": "access_token is required"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
         try:
-            refresh_token = request.data["refresh"]
-            token = RefreshToken(refresh_token)
-            token.blacklist()
-            return Response(status=status.HTTP_205_RESET_CONTENT)
-        except Exception as e:
-            return Response(status=status.HTTP_400_BAD_REQUEST)
+            claims = KeycloakTokenVerifier().verify_access_token(access_token)
+            user, user_status = self.sync_user_from_claims(claims)
+            if user_status == "pending" or not user.is_active:
+                return Response(
+                    {"error": "pending_approval"},
+                    status=status.HTTP_403_FORBIDDEN,
+                )
+        except KeycloakAuthError as exc:
+            return Response({"error": str(exc)}, status=status.HTTP_401_UNAUTHORIZED)
+        except PermissionError as exc:
+            return Response({"error": str(exc)}, status=status.HTTP_403_FORBIDDEN)
+        except Exception as exc:  # noqa: BLE001
+            return Response(
+                {"error": f"keycloak_authentication_failed: {exc}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+        refresh = RefreshToken.for_user(user)
+        refresh["username"] = user.username
+        refresh["role"] = user.role
+        refresh["company"] = user.company
+
+        return Response(
+            {
+                "access": str(refresh.access_token),
+                "refresh": str(refresh),
+                "user": UserSerializer(user).data,
+            },
+            status=status.HTTP_200_OK,
+        )
+
 
 class ChangePasswordView(generics.UpdateAPIView):
-    """
-    비밀번호 변경 API
-    """
     serializer_class = ChangePasswordSerializer
     permission_classes = [permissions.IsAuthenticated]
 
@@ -66,21 +124,22 @@ class ChangePasswordView(generics.UpdateAPIView):
         return self.request.user
 
     def update(self, request, *args, **kwargs):
-        self.object = self.get_object()
+        if self.request.user.login_provider != "local":
+            return Response(
+                {"detail": "SSO 사용자는 Keycloak에서 비밀번호를 변경하세요."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
         serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
 
-        if serializer.is_valid():
-            # Set new password
-            self.object.set_password(serializer.data.get("new_password"))
-            self.object.save()
-            
-            response = {
-                'status': 'success',
-                'code': status.HTTP_200_OK,
-                'message': '비밀번호가 성공적으로 변경되었습니다.'
+        self.request.user.set_password(serializer.data.get("new_password"))
+        self.request.user.save(update_fields=["password"])
+
+        return Response(
+            {
+                "status": "success",
+                "code": status.HTTP_200_OK,
+                "message": "비밀번호가 성공적으로 변경되었습니다.",
             }
-
-            return Response(response)
-
-        print("[Password Change Error]", serializer.errors)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        )

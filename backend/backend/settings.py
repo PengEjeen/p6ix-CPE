@@ -54,6 +54,7 @@ INSTALLED_APPS = [
     "django.contrib.staticfiles",
     "django_json_widget",
 
+    "sso",
     "user",
     "operatio",
     "cpe_module",
@@ -164,10 +165,13 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 AUTH_USER_MODEL = 'user.User'
 
+LEGACY_JWT_AUTH_ENABLED = env.bool("LEGACY_JWT_AUTH_ENABLED", default=True)
+DEFAULT_AUTH_CLASSES = ['rest_framework.authentication.SessionAuthentication']
+if LEGACY_JWT_AUTH_ENABLED:
+    DEFAULT_AUTH_CLASSES.append('rest_framework_simplejwt.authentication.JWTAuthentication')
+
 REST_FRAMEWORK = {
-    'DEFAULT_AUTHENTICATION_CLASSES': (
-        'rest_framework_simplejwt.authentication.JWTAuthentication',
-    ),
+    'DEFAULT_AUTHENTICATION_CLASSES': tuple(DEFAULT_AUTH_CLASSES),
     'DEFAULT_PERMISSION_CLASSES': (
         'rest_framework.permissions.IsAuthenticated',  # 기본 권한
     ),
@@ -182,3 +186,27 @@ SIMPLE_JWT = {
     'SIGNING_KEY': SECRET_KEY,  # Django 기본 SECRET_KEY 사용
     'AUTH_HEADER_TYPES': ('Bearer',),
 }
+
+# Keycloak bridge login (phase-1 migration)
+KEYCLOAK_ENABLED = env.bool("KEYCLOAK_ENABLED", default=False)
+KEYCLOAK_SERVER_URL = env("KEYCLOAK_SERVER_URL", default="")
+KEYCLOAK_REALM = env("KEYCLOAK_REALM", default="")
+KEYCLOAK_CLIENT_ID = env("KEYCLOAK_CLIENT_ID", default="")
+KEYCLOAK_CLIENT_SECRET = env("KEYCLOAK_CLIENT_SECRET", default="")
+KEYCLOAK_REDIRECT_URI = env("KEYCLOAK_REDIRECT_URI", default="")
+KEYCLOAK_SCOPE = env("KEYCLOAK_SCOPE", default="openid profile email")
+KEYCLOAK_VERIFY_AUDIENCE = env.bool("KEYCLOAK_VERIFY_AUDIENCE", default=True)
+
+LEGACY_LOCAL_LOGIN_ENABLED = env.bool("LEGACY_LOCAL_LOGIN_ENABLED", default=False)
+LEGACY_BRIDGE_JWT_ENABLED = env.bool("LEGACY_BRIDGE_JWT_ENABLED", default=False)
+
+SSO_DEFAULT_NEXT_URL = env("SSO_DEFAULT_NEXT_URL", default="/")
+SSO_FAILED_REDIRECT_URL = env("SSO_FAILED_REDIRECT_URL", default="/login")
+SSO_NEW_USER_POLICY = env("SSO_NEW_USER_POLICY", default="auto")
+SSO_ALLOWED_NEXT_ORIGINS = env.list("SSO_ALLOWED_NEXT_ORIGINS", default=[])
+
+SESSION_COOKIE_SAMESITE = env("SESSION_COOKIE_SAMESITE", default="Lax")
+SESSION_COOKIE_SECURE = env.bool("SESSION_COOKIE_SECURE", default=False)
+CSRF_COOKIE_SAMESITE = env("CSRF_COOKIE_SAMESITE", default="Lax")
+CSRF_COOKIE_SECURE = env.bool("CSRF_COOKIE_SECURE", default=False)
+CSRF_TRUSTED_ORIGINS = env.list("CSRF_TRUSTED_ORIGINS", default=[])

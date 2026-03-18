@@ -4,6 +4,7 @@ import uuid
 
 class User(AbstractUser):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    keycloak_sub = models.CharField(max_length=255, blank=True, null=True, unique=True)
     company = models.CharField(max_length=150, blank=True, null=True)
     department = models.CharField(max_length=150, blank=True, null=True)
     position = models.CharField(max_length=100, blank=True, null=True)
