@@ -38,6 +38,7 @@ const router = createBrowserRouter(
         <Route path="/projects/:id/criteria" element={<Criteria />} />
         <Route path="/projects/:id/operating_rate" element={<Operatingrate />} />
         <Route path="/projects/:id/" element={<Quotation />} />
+        <Route path="/projects/:id/summary" element={<Quotation />} />
         <Route path="/projects/:id/total-calc" element={<TotalCalc />} />
         <Route path="/projects/:id/cip-basis" element={<CIPBasisList />} />
         <Route path="/projects/:id/pile-basis" element={<PileBasisList />} />

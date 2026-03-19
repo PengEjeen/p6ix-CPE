@@ -18,7 +18,7 @@ function Header() {
   const navigate = useNavigate();
   const location = useLocation();
   const { id } = useParams();
-  const [open, setOpen] = useState(false);
+  const [openGroupKey, setOpenGroupKey] = useState(null);
   const [project, setProject] = useState(null);
   const [isExporting, setIsExporting] = useState(false);
   const [showExportGuideModal, setShowExportGuideModal] = useState(false);
@@ -39,66 +39,107 @@ function Header() {
     loadProject();
   }, [id]);
 
-  const apartmentMenus = [
+  const apartmentMenuGroups = [
     {
-      name: "프로젝트",
-      desc: "프로젝트 개요 및 기본정보 관리",
-      path: `/projects/${id}`,
-    },
-    {
+      key: "calc",
       name: "공기산정",
-      desc: "전체 공사 기간 산정 및 분석",
-      path: `/projects/${id}/calc`,
+      items: [
+        {
+          name: "프로젝트",
+          desc: "프로젝트 개요 및 기본정보 관리",
+          path: `/projects/${id}`,
+        },
+        {
+          name: "공기산정",
+          desc: "전체 공사 기간 산정 및 분석",
+          path: `/projects/${id}/calc`,
+        },
+        {
+          name: "적용기준",
+          desc: "산정 기준값 및 조건 설정",
+          path: `/projects/${id}/criteria`,
+        },
+      ],
     },
     {
-      name: "적용기준",
-      desc: "산정 기준값 및 조건 설정",
-      path: `/projects/${id}/criteria`,
-    },
-    {
+      key: "operating",
       name: "가동률",
-      desc: "작업 가동률 입력 및 자동 계산",
-      path: `/projects/${id}/operating_rate`,
+      items: [
+        {
+          name: "가동률",
+          desc: "작업 가동률 입력 및 자동 계산",
+          path: `/projects/${id}/operating_rate`,
+        },
+      ],
     },
   ];
 
-  const totalMenus = [
+  const totalMenuGroups = [
     {
-      name: "공사기간 산정 기준",
-      desc: "공정별 생산성 데이터 및 공기 산정 기준",
-      path: `/projects/${id}/schedule-master`,
+      key: "calc",
+      name: "공기산정",
+      items: [
+        {
+          name: "공기산정기준",
+          desc: "공정별 생산성 데이터 및 공기 산정 기준",
+          path: `/projects/${id}/schedule-master`,
+        },
+        {
+          name: "요약장표",
+          desc: "공기산정 결과 요약 및 비고 정리",
+          path: `/projects/${id}/summary`,
+        },
+      ],
     },
     {
-      name: "표준품셈",
-      desc: "세부공종별 표준품셈 및 생산성 데이터",
-      path: `/projects/${id}/total-calc`,
+      key: "productivity",
+      name: "생산성 데이터",
+      items: [
+        {
+          name: "표준품셈",
+          desc: "세부공종별 표준품셈 및 생산성 데이터",
+          path: `/projects/${id}/total-calc`,
+        },
+        {
+          name: "CIP 생산성 근거",
+          desc: "CIP 공법 생산성 산출 근거",
+          path: `/projects/${id}/cip-basis`,
+        },
+        {
+          name: "기성말뚝 생산성 근거",
+          desc: "기성말뚝 기초 생산성 산출 근거",
+          path: `/projects/${id}/pile-basis`,
+        },
+        {
+          name: "현장타설말뚝 생산성 근거",
+          desc: "현장타설말뚝 생산성 산출 근거",
+          path: `/projects/${id}/bored-pile-basis`,
+        },
+      ],
     },
     {
-      name: "CIP 생산성 근거",
-      desc: "CIP 공법 생산성 산출 근거",
-      path: `/projects/${id}/cip-basis`,
-    },
-    {
-      name: "기성말뚝 생산성 근거",
-      desc: "기성말뚝 기초 생산성 산출 근거",
-      path: `/projects/${id}/pile-basis`,
-    },
-    {
-      name: "현장타설말뚝 생산성 근거",
-      desc: "현장타설말뚝 생산성 산출 근거",
-      path: `/projects/${id}/bored-pile-basis`,
-    },
-    {
+      key: "operating",
       name: "가동률",
-      desc: "작업 가동률 입력 및 자동 계산",
-      path: `/projects/${id}/operating_rate`,
+      items: [
+        {
+          name: "가동률",
+          desc: "작업 가동률 입력 및 자동 계산",
+          path: `/projects/${id}/operating_rate`,
+        },
+      ],
     },
   ];
 
-  const menus = project?.calc_type === "TOTAL" ? totalMenus : apartmentMenus;
+  const menuGroups = project?.calc_type === "TOTAL" ? totalMenuGroups : apartmentMenuGroups;
+  const menus = menuGroups.flatMap((group) => group.items);
 
   const activeMenu =
     menus.find((m) => location.pathname === m.path) || menus[0];
+  const activeGroup =
+    menuGroups.find((group) => group.items.some((item) => item.path === activeMenu?.path)) || menuGroups[0];
+  useEffect(() => {
+    setOpenGroupKey(null);
+  }, [location.pathname, id]);
 
   const themeOptions = [
     { key: "white", label: "화이트" },
@@ -143,31 +184,73 @@ function Header() {
 
   return (
     <>
-      <header className="w-full border-b border-gray-700 bg-[#1e1e2f] text-white px-6 py-3 flex items-start justify-between relative z-[40] shadow-md shadow-black/20 gap-4">
+      <header className="w-full border-b border-gray-700 bg-[#1e1e2f] text-white px-6 py-3.5 flex items-start justify-between relative z-[40] shadow-md shadow-black/20 gap-4">
         <div className="relative flex flex-col items-start">
-          <div className="flex items-center gap-2">
-            {/* 드롭다운 버튼 */}
-            <button
-              onClick={() => setOpen(!open)}
-              className="flex items-center gap-3 px-5 py-2.5 rounded-md hover:bg-[#3b3b4f] transition"
-            >
-              <span className="font-bold text-xl text-white">
-                {project?.title || "로딩 중..."}
-              </span>
-              <span className="font-medium text-lg">{activeMenu.name}</span>
-              {open ? (
-                <FiChevronUp className="transition-transform duration-300" size={25} />
-              ) : (
-                <FiChevronDown className="transition-transform duration-300" size={25} />
-              )}
-            </button>
+          <div className="flex items-center gap-3">
+            <span className="font-bold text-2xl text-white px-2">
+              {project?.title || "로딩 중..."}
+            </span>
+
+            <div className="inline-flex items-center gap-1 rounded-lg border border-gray-700 bg-[#2a2a3a] p-1">
+              {menuGroups.map((group) => {
+                const isActive = group.key === activeGroup?.key;
+                const isOpen = group.key === openGroupKey;
+                const hasDropdown = group.items.length > 1;
+                return (
+                  <div key={group.key} className="relative">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (!hasDropdown) {
+                          navigate(group.items[0].path);
+                          setOpenGroupKey(null);
+                          return;
+                        }
+                        setOpenGroupKey((prev) => (prev === group.key ? null : group.key));
+                      }}
+                      className={`inline-flex items-center gap-1.5 rounded-md px-4 py-2 text-base font-semibold transition ${isActive
+                        ? "bg-[#3b3b4f] text-white"
+                        : "text-gray-300 hover:bg-[#3b3b4f] hover:text-white"
+                        }`}
+                    >
+                      <span>{group.name}</span>
+                      {hasDropdown && (
+                        isOpen
+                          ? <FiChevronUp size={14} />
+                          : <FiChevronDown size={14} />
+                      )}
+                    </button>
+                    {hasDropdown && isOpen && (
+                      <div className="absolute left-0 top-[calc(100%+8px)] w-72 bg-[#2c2c3a] border border-gray-700 rounded-md shadow-lg z-[60] divide-y divide-gray-700">
+                        {group.items.map((menu) => (
+                          <button
+                            key={menu.path}
+                            onClick={() => {
+                              navigate(menu.path);
+                              setOpenGroupKey(null);
+                            }}
+                            className={`block w-full text-left px-4 py-3 transition ${location.pathname === menu.path
+                              ? "bg-[#3b3b4f] text-white"
+                              : "hover:bg-[#3b3b4f] text-gray-300"
+                              }`}
+                          >
+                            <div className="font-semibold text-lg">{menu.name}</div>
+                            <div className="text-sm text-gray-400 mt-0.5">{menu.desc}</div>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
 
             {project?.calc_type === "TOTAL" && (
               <button
                 type="button"
                 onClick={handleExportReport}
                 disabled={isExporting}
-                className={`inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-semibold transition ${isExporting
+                className={`inline-flex items-center gap-2 rounded-lg border px-3.5 py-2 text-base font-semibold transition ${isExporting
                   ? "cursor-not-allowed border-gray-700 bg-[#2a2a3a] text-gray-500"
                   : "border-gray-600 bg-[#3b3b4f] text-gray-100 hover:bg-[#4b4b5f]"
                   }`}
@@ -179,31 +262,12 @@ function Header() {
           </div>
 
           {/* 프로젝트 설명 */}
-          <span className="ml-5 mt-1 text-sm text-gray-400">
-            {project?.description || "프로젝트 설명이 없습니다."}
-          </span>
+          <div className="ml-2 mt-1 flex items-center gap-3 text-base">
+            <span className="text-gray-300 font-semibold">{activeMenu?.name}</span>
+            <span className="text-gray-500">|</span>
+            <span className="text-gray-400">{project?.description || "프로젝트 설명이 없습니다."}</span>
+          </div>
 
-          {/* 드롭다운 메뉴 */}
-          {open && (
-            <div className="absolute top-full left-0 mt-3 w-60 bg-[#2c2c3a] border border-gray-700 rounded-md shadow-lg z-[50] divide-y divide-gray-700">
-              {menus.map((menu) => (
-                <button
-                  key={menu.path}
-                  onClick={() => {
-                    navigate(menu.path);
-                    setOpen(false);
-                  }}
-                  className={`block w-full text-left px-4 py-3 transition ${location.pathname === menu.path
-                    ? "bg-[#3b3b4f] text-white"
-                    : "hover:bg-[#3b3b4f] text-gray-300"
-                    }`}
-                >
-                  <div className="font-medium text-base">{menu.name}</div>
-                  <div className="text-xs text-gray-400 mt-0.5">{menu.desc}</div>
-                </button>
-              ))}
-            </div>
-          )}
         </div>
 
         <div className="flex items-center gap-1 rounded-lg border border-gray-600 bg-[#2a2a3a] p-1">
@@ -212,7 +276,7 @@ function Header() {
               key={opt.key}
               type="button"
               onClick={() => setTheme(opt.key)}
-              className={`px-3 py-1.5 text-xs font-semibold rounded-md transition ${theme === opt.key
+              className={`px-3 py-1.5 text-sm font-semibold rounded-md transition ${theme === opt.key
                 ? "bg-[#3b3b4f] text-white"
                 : "text-gray-300 hover:bg-[#3b3b4f]"
                 }`}

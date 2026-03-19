@@ -31,6 +31,10 @@ jobs:
         env:
           VITE_API_BASE: ${{ vars.VITE_API_BASE }}
           VITE_PERSIST_LOGIN: ${{ vars.VITE_PERSIST_LOGIN }}
+          VITE_USE_SESSION_AUTH: ${{ vars.VITE_USE_SESSION_AUTH }}
+          VITE_KEYCLOAK_ENABLED: ${{ vars.VITE_KEYCLOAK_ENABLED }}
+          VITE_SSO_NEXT_PATH: ${{ vars.VITE_SSO_NEXT_PATH }}
+          VITE_APP_BASE: ${{ vars.VITE_APP_BASE }}
         run: npm run build
 
       - name: Set up Python
@@ -68,6 +72,10 @@ jobs:
           docker build \
             --build-arg VITE_API_BASE="${{ vars.VITE_API_BASE }}" \
             --build-arg VITE_PERSIST_LOGIN="${{ vars.VITE_PERSIST_LOGIN }}" \
+            --build-arg VITE_USE_SESSION_AUTH="${{ vars.VITE_USE_SESSION_AUTH }}" \
+            --build-arg VITE_KEYCLOAK_ENABLED="${{ vars.VITE_KEYCLOAK_ENABLED }}" \
+            --build-arg VITE_SSO_NEXT_PATH="${{ vars.VITE_SSO_NEXT_PATH }}" \
+            --build-arg VITE_APP_BASE="${{ vars.VITE_APP_BASE }}" \
             -t p6ix_cpe:ci .
 
   cd:
@@ -110,5 +118,9 @@ jobs:
           build-args: |
             VITE_API_BASE=${{ vars.VITE_API_BASE }}
             VITE_PERSIST_LOGIN=${{ vars.VITE_PERSIST_LOGIN }}
+            VITE_USE_SESSION_AUTH=${{ vars.VITE_USE_SESSION_AUTH }}
+            VITE_KEYCLOAK_ENABLED=${{ vars.VITE_KEYCLOAK_ENABLED }}
+            VITE_SSO_NEXT_PATH=${{ vars.VITE_SSO_NEXT_PATH }}
+            VITE_APP_BASE=${{ vars.VITE_APP_BASE }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
