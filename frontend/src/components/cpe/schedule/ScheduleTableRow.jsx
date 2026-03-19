@@ -13,7 +13,9 @@ const ScheduleTableRow = ({
     onStartSelectionDrag,
     onDragSelectionEnter,
     handleChange,
+    handleGroupFieldChange,
     handleDeleteItem,
+    onOpenRowClassEdit,
     handleAddItem,
     handleOpenImport,
     spanInfo,
@@ -76,9 +78,46 @@ const ScheduleTableRow = ({
     const [workTypeQuery, setWorkTypeQuery] = useState("");
     const [activeIndex, setActiveIndex] = useState(0);
     const blurTimeoutRef = useRef(null);
+    const editOriginRef = useRef({});
     const processInputRef = useRef(null);
     const subProcessInputRef = useRef(null);
     const workTypeInputRef = useRef(null);
+    const editableInputBaseClass = "ui-table-editable-input text-gray-100";
+
+    const rememberFieldOrigin = (field, value) => {
+        if (!(field in editOriginRef.current)) {
+            editOriginRef.current[field] = value;
+        }
+    };
+
+    const clearFieldOrigin = (field) => {
+        delete editOriginRef.current[field];
+    };
+
+    const revertField = (field) => {
+        if (!(field in editOriginRef.current)) return undefined;
+        const original = editOriginRef.current[field];
+        if (field === "process" && handleGroupFieldChange && spanInfo?.processGroupIds?.length > 1) {
+            handleGroupFieldChange(item.id, field, original, spanInfo.processGroupIds);
+        } else if (field === "sub_process" && handleGroupFieldChange && spanInfo?.subProcessGroupIds?.length > 1) {
+            handleGroupFieldChange(item.id, field, original, spanInfo.subProcessGroupIds);
+        } else {
+            handleChange(item.id, field, original);
+        }
+        clearFieldOrigin(field);
+        return original;
+    };
+
+    const handleEscRevert = (e, field, afterRevert) => {
+        if (e.key !== "Escape") return false;
+        const reverted = revertField(field);
+        if (afterRevert) afterRevert(reverted);
+        setActiveField(null);
+        e.preventDefault();
+        e.stopPropagation();
+        e.currentTarget.blur();
+        return true;
+    };
 
     const buildSuggestions = (query) => {
         const term = query.trim().toLowerCase();
@@ -101,18 +140,19 @@ const ScheduleTableRow = ({
             });
             return { std, score };
         }).filter((entry) => entry.score > 0);
-        return scored.sort((a, b) => b.score - a.score).slice(0, 6).map((entry) => entry.std);
+        return scored.sort((a, b) => b.score - a.score).slice(0, 40).map((entry) => entry.std);
     };
 
     const processSuggestions = useMemo(() => buildSuggestions(processQuery), [processQuery, standardItems]);
     const subProcessSuggestions = useMemo(() => buildSuggestions(subProcessQuery), [subProcessQuery, standardItems]);
     const workTypeSuggestions = useMemo(() => buildSuggestions(workTypeQuery), [workTypeQuery, standardItems]);
 
-    const handleInputFocus = (field) => {
+    const handleInputFocus = (field, currentValue) => {
         if (blurTimeoutRef.current) {
             clearTimeout(blurTimeoutRef.current);
             blurTimeoutRef.current = null;
         }
+        rememberFieldOrigin(field, currentValue);
         if (field === 'process') setProcessQuery(item.process || "");
         if (field === 'sub_process') setSubProcessQuery(item.sub_process || "");
         if (field === 'work_type') setWorkTypeQuery(item.work_type || "");
@@ -120,7 +160,8 @@ const ScheduleTableRow = ({
         setActiveField(field);
     };
 
-    const handleInputBlur = () => {
+    const handleInputBlur = (field) => {
+        clearFieldOrigin(field);
         blurTimeoutRef.current = setTimeout(() => {
             setActiveField(null);
         }, 150);
@@ -196,7 +237,7 @@ const ScheduleTableRow = ({
                 </button>
             </td>
 
-            {/* Classification (구분) - keep using process data */}
+            {/* Classification (중공종) - keep using process data */}
             {(isOverlay || spanInfo?.isProcessFirst !== false) && (
                 <td
                     rowSpan={isOverlay ? 1 : (spanInfo?.processRowSpan || 1)}
@@ -205,15 +246,22 @@ const ScheduleTableRow = ({
                     <div className="relative">
                         <input
                             ref={processInputRef}
-                            className="w-full bg-transparent outline-none font-medium text-gray-200 text-center text-base"
+                            className={`${editableInputBaseClass} px-1 py-1 font-medium text-center text-base`}
                             value={item.process}
                             onChange={(e) => {
-                                handleChange(item.id, 'process', e.target.value);
+                                if (handleGroupFieldChange && spanInfo?.processGroupIds?.length > 1) {
+                                    handleGroupFieldChange(item.id, 'process', e.target.value, spanInfo.processGroupIds);
+                                } else {
+                                    handleChange(item.id, 'process', e.target.value);
+                                }
                                 setProcessQuery(e.target.value);
                             }}
-                            onFocus={() => handleInputFocus('process')}
-                            onBlur={handleInputBlur}
-                            onKeyDown={(e) => handleSuggestionKeyDown(e, processSuggestions)}
+                            onFocus={() => handleInputFocus('process', item.process || "")}
+                            onBlur={() => handleInputBlur('process')}
+                            onKeyDown={(e) => {
+                                if (handleEscRevert(e, 'process', (value) => setProcessQuery(value ?? ""))) return;
+                                handleSuggestionKeyDown(e, processSuggestions);
+                            }}
                         />
                         <StandardSuggestList
                             items={processSuggestions}
@@ -237,15 +285,22 @@ const ScheduleTableRow = ({
                     <div className="relative">
                         <input
                             ref={subProcessInputRef}
-                            className="w-full bg-transparent outline-none font-medium text-gray-200 text-center text-base"
+                            className={`${editableInputBaseClass} px-1 py-1 font-medium text-center text-base`}
                             value={item.sub_process || ""}
                             onChange={(e) => {
-                                handleChange(item.id, 'sub_process', e.target.value);
+                                if (handleGroupFieldChange && spanInfo?.subProcessGroupIds?.length > 1) {
+                                    handleGroupFieldChange(item.id, 'sub_process', e.target.value, spanInfo.subProcessGroupIds);
+                                } else {
+                                    handleChange(item.id, 'sub_process', e.target.value);
+                                }
                                 setSubProcessQuery(e.target.value);
                             }}
-                            onFocus={() => handleInputFocus('sub_process')}
-                            onBlur={handleInputBlur}
-                            onKeyDown={(e) => handleSuggestionKeyDown(e, subProcessSuggestions)}
+                            onFocus={() => handleInputFocus('sub_process', item.sub_process || "")}
+                            onBlur={() => handleInputBlur('sub_process')}
+                            onKeyDown={(e) => {
+                                if (handleEscRevert(e, 'sub_process', (value) => setSubProcessQuery(value ?? ""))) return;
+                                handleSuggestionKeyDown(e, subProcessSuggestions);
+                            }}
                         />
                         <StandardSuggestList
                             items={subProcessSuggestions}
@@ -260,22 +315,25 @@ const ScheduleTableRow = ({
                 </td>
             )}
 
-            {/* Work Type (공종) */}
+            {/* Work Type (세부공종) */}
             <td className="border-r border-gray-700 px-2 py-1">
                 <div className="flex items-center gap-1 relative">
                     {isLinked && <Link size={12} className="text-blue-500" />}
                     <input
                         type="text"
                         ref={workTypeInputRef}
-                        className="w-full bg-transparent outline-none text-gray-200 p-1 rounded hover:bg-white/10 focus:bg-[#1f1f2b] focus:ring-1 focus:ring-blue-500/50 transition text-base font-medium"
+                        className={`${editableInputBaseClass} p-1 text-base font-medium`}
                         value={item.work_type}
                         onChange={(e) => {
                             handleChange(item.id, 'work_type', e.target.value);
                             setWorkTypeQuery(e.target.value);
                         }}
-                        onFocus={() => handleInputFocus('work_type')}
-                        onBlur={handleInputBlur}
-                        onKeyDown={(e) => handleSuggestionKeyDown(e, workTypeSuggestions)}
+                        onFocus={() => handleInputFocus('work_type', item.work_type || "")}
+                        onBlur={() => handleInputBlur('work_type')}
+                        onKeyDown={(e) => {
+                            if (handleEscRevert(e, 'work_type', (value) => setWorkTypeQuery(value ?? ""))) return;
+                            handleSuggestionKeyDown(e, workTypeSuggestions);
+                        }}
                     />
                     <StandardSuggestList
                         items={workTypeSuggestions}
@@ -291,27 +349,66 @@ const ScheduleTableRow = ({
 
             {/* Formula */}
             <td className="border-r border-gray-700 p-1">
-                <input className="w-full text-right outline-none p-1 text-sm text-gray-400 bg-[#1f1f2b] rounded font-medium" value={item.quantity_formula || ''} placeholder="-" onChange={(e) => handleChange(item.id, 'quantity_formula', e.target.value)} />
+                <input
+                    className={`${editableInputBaseClass} p-1 text-right text-sm font-medium`}
+                    value={item.quantity_formula || ''}
+                    placeholder="-"
+                    onChange={(e) => handleChange(item.id, 'quantity_formula', e.target.value)}
+                    onFocus={() => rememberFieldOrigin('quantity_formula', item.quantity_formula || "")}
+                    onBlur={() => clearFieldOrigin('quantity_formula')}
+                    onKeyDown={(e) => handleEscRevert(e, 'quantity_formula')}
+                />
             </td>
 
             {/* Unit */}
             <td className="border-r border-gray-700 p-1">
-                <input className="w-full text-center outline-none p-1 text-gray-300 bg-[#1f1f2b] rounded text-base font-medium" value={item.unit} onChange={(e) => handleChange(item.id, 'unit', e.target.value)} />
+                <input
+                    className={`${editableInputBaseClass} p-1 text-center text-base font-medium`}
+                    value={item.unit}
+                    onChange={(e) => handleChange(item.id, 'unit', e.target.value)}
+                    onFocus={() => rememberFieldOrigin('unit', item.unit || "")}
+                    onBlur={() => clearFieldOrigin('unit')}
+                    onKeyDown={(e) => handleEscRevert(e, 'unit')}
+                />
             </td>
 
             {/* Quantity */}
             <td className="border-r border-gray-700 p-1">
-                <input className="w-full text-right outline-none p-1 font-bold text-gray-100 bg-[#1f1f2b] rounded text-base tracking-tight" value={item.quantity} onChange={(e) => handleChange(item.id, 'quantity', e.target.value)} />
+                <input
+                    className={`${editableInputBaseClass} p-1 text-right font-bold text-base tracking-tight`}
+                    value={item.quantity}
+                    onChange={(e) => handleChange(item.id, 'quantity', e.target.value)}
+                    onFocus={() => rememberFieldOrigin('quantity', item.quantity ?? "")}
+                    onBlur={() => clearFieldOrigin('quantity')}
+                    onKeyDown={(e) => handleEscRevert(e, 'quantity')}
+                />
             </td>
 
             {/* Productivity */}
             <td className={`border-r border-gray-700 p-1 ${isLinked ? 'bg-blue-900/20' : ''}`}>
-                <input className={`w-full text-right outline-none p-1 text-base bg-[#1f1f2b] rounded ${isLinked ? 'text-blue-300 font-bold' : 'text-gray-200 font-semibold'}`} value={item.productivity} disabled={isLinked} onChange={(e) => handleChange(item.id, 'productivity', e.target.value)} />
+                <input
+                    className={`w-full text-right outline-none p-1 text-base rounded ${isLinked
+                        ? 'ui-table-editable-input-disabled text-blue-300 font-bold cursor-not-allowed'
+                        : 'ui-table-editable-input text-gray-200 font-semibold'}`}
+                    value={item.productivity}
+                    disabled={isLinked}
+                    onChange={(e) => handleChange(item.id, 'productivity', e.target.value)}
+                    onFocus={() => rememberFieldOrigin('productivity', item.productivity ?? "")}
+                    onBlur={() => clearFieldOrigin('productivity')}
+                    onKeyDown={(e) => handleEscRevert(e, 'productivity')}
+                />
             </td>
 
             {/* Crew */}
             <td className="border-r border-gray-700 p-1">
-                <input className="w-full text-center outline-none p-1 text-gray-200 bg-[#1f1f2b] rounded text-base font-semibold" value={item.crew_size} onChange={(e) => handleChange(item.id, 'crew_size', e.target.value)} />
+                <input
+                    className={`${editableInputBaseClass} p-1 text-center text-base font-semibold`}
+                    value={item.crew_size}
+                    onChange={(e) => handleChange(item.id, 'crew_size', e.target.value)}
+                    onFocus={() => rememberFieldOrigin('crew_size', item.crew_size ?? "")}
+                    onBlur={() => clearFieldOrigin('crew_size')}
+                    onKeyDown={(e) => handleEscRevert(e, 'crew_size')}
+                />
             </td>
 
             {/* Daily Prod */}
@@ -323,10 +420,13 @@ const ScheduleTableRow = ({
             <td className="border-r border-gray-700 p-1">
                 <div className="relative">
                     <input
-                        className="w-full text-right outline-none p-1 pr-5 text-gray-200 bg-[#1f1f2b] rounded text-base font-semibold"
+                        className={`${editableInputBaseClass} p-1 pr-5 text-right text-base font-semibold`}
                         type="number"
                         value={item.application_rate ?? 100}
                         onChange={(e) => handleChange(item.id, 'application_rate', e.target.value)}
+                        onFocus={() => rememberFieldOrigin('application_rate', item.application_rate ?? 100)}
+                        onBlur={() => clearFieldOrigin('application_rate')}
+                        onKeyDown={(e) => handleEscRevert(e, 'application_rate')}
                     />
                     <span className="absolute right-1.5 top-1/2 -translate-y-1/2 text-xs text-gray-400 pointer-events-none">%</span>
                 </div>
@@ -354,14 +454,23 @@ const ScheduleTableRow = ({
 
             {/* Remarks (Note) */}
             <td className="border-r border-gray-700 p-1">
-                <input className="w-full text-sm outline-none p-1 text-gray-200 bg-[#1f1f2b] rounded font-medium" value={item.note || ""} onChange={(e) => handleChange(item.id, 'note', e.target.value)} />
+                <input
+                    className={`${editableInputBaseClass} p-1 text-sm font-medium`}
+                    value={item.note || ""}
+                    onChange={(e) => handleChange(item.id, 'note', e.target.value)}
+                    onFocus={() => rememberFieldOrigin('note', item.note || "")}
+                    onBlur={() => clearFieldOrigin('note')}
+                    onKeyDown={(e) => handleEscRevert(e, 'note')}
+                />
             </td>
 
             {/* Action */}
             <td className="p-1 text-center">
-                <button className="text-gray-400 hover:text-red-500 transition-colors" onClick={() => handleDeleteItem(item.id)}>
-                    <Trash2 size={16} />
-                </button>
+                <div className="flex items-center justify-center gap-1">
+                    <button className="text-gray-400 hover:text-red-500 transition-colors" onClick={() => handleDeleteItem(item.id)}>
+                        <Trash2 size={16} />
+                    </button>
+                </div>
             </td>
         </tr>
     );

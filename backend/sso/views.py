@@ -9,6 +9,8 @@ from django.conf import settings
 from django.contrib.auth import login as django_login
 from django.contrib.auth import logout as django_logout
 from django.http import HttpResponseRedirect
+from django.utils.decorators import method_decorator
+from django.views.decorators.csrf import ensure_csrf_cookie
 from rest_framework import permissions, status, views
 from rest_framework.response import Response
 
@@ -27,6 +29,7 @@ def append_query_param(url: str, key: str, value: str) -> str:
     return urlunparse(parsed._replace(query=urlencode(query)))
 
 
+@method_decorator(ensure_csrf_cookie, name="dispatch")
 class SessionUserView(views.APIView):
     permission_classes = [permissions.AllowAny]
 

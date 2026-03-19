@@ -202,7 +202,7 @@ export default function Quotation() {
 
   // 공통 컬럼
   const columns = [
-    { key: "label", label: "공종" },
+    { key: "label", label: "세부공종" },
     { key: "calendar", label: "공사기간 (일)" },
     { key: "remark", label: "비고", editable: true, type: "text" },
   ];
@@ -288,7 +288,7 @@ export default function Quotation() {
     <div className="p-6 text-gray-200">
       <PageHeader
         title="공사기간 견적서"
-        description="공종별 공사기간 요약 및 AI 분석 결과"
+        description="세부공종별 공사기간 요약 및 AI 분석 결과"
       />
 
       {/* 전체 그리드: 왼쪽(본문) + 오른쪽(AI 결과) */}
@@ -329,7 +329,7 @@ export default function Quotation() {
             </div>
           </section>
 
-          {/* 세 공사 구분 */}
+          {/* 세 공사 중공종 */}
           <div className="flex flex-col xl:flex-row gap-4">
             {/* 토공사 */}
             <section className="flex-1 rounded-xl overflow-hidden shadow-lg bg-[#2c2c3a] border border-gray-700">

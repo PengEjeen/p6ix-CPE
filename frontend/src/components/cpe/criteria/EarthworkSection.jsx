@@ -114,7 +114,7 @@ export default function EarthworkSection({ data, setData, onAutoSave }) {
         "surcharge_development",
       ])}
 
-      {renderTable("터파기", ["구분", "생산량(㎥/일)"], [
+      {renderTable("터파기", ["중공종", "생산량(㎥/일)"], [
         { label: "토사", value: data.excavation_soil },
         { label: "풍화암", value: data.excavation_weathered },
       ], ["excavation_soil", "excavation_weathered"])}

@@ -103,7 +103,7 @@ const GanttSidebar = ({ groupedItems, expandedCategories, setExpandedCategories,
                                                 {/* Vertical Line for Tree Structure */}
                                                 <div className="absolute left-6 top-0 bottom-0 w-px bg-gray-200" />
 
-                                                {processGroup.items.map((item, itemIdx) => {
+                                                {(Array.isArray(processGroup?.items) ? processGroup.items : []).map((item, itemIdx) => {
                                                     const calendarDays = item.calendar_days || item.durationDays || 0;
                                                     const isSelected = Array.isArray(selectedItemIds) && selectedItemIds.includes(item.id);
                                                     const aiPreview = aiPreviewMap.get(item.id);

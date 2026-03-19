@@ -438,7 +438,7 @@ export default function EarthworkInputSection({ projectId, utilization, nearby_e
         desighnatedWorkingDay,
     ]);
 
-    // 갑지 모델에 날짜 update (병행률/할증률 적용 값)
+    // 프로젝트 모델에 날짜 update (병행률/할증률 적용 값)
     useEffect(() => {
         if (loading || !projectId) return;
         if (!data) return;

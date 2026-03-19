@@ -41,7 +41,7 @@ function Header() {
 
   const apartmentMenus = [
     {
-      name: "갑지",
+      name: "프로젝트",
       desc: "프로젝트 개요 및 기본정보 관리",
       path: `/projects/${id}`,
     },
@@ -70,7 +70,7 @@ function Header() {
     },
     {
       name: "표준품셈",
-      desc: "공종별 표준품셈 및 생산성 데이터",
+      desc: "세부공종별 표준품셈 및 생산성 데이터",
       path: `/projects/${id}/total-calc`,
     },
     {

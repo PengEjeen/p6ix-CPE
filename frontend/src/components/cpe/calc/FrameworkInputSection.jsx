@@ -541,7 +541,7 @@ export default function FrameworkInputSection({
           <div className="p-4">
             <DataTable
               columns={[
-                { key: "label", label: "구분" },
+                { key: "label", label: "중공종" },
                 { key: "value", label: "입력 사항", editable: true },
               ]}
               rows={section.rows}

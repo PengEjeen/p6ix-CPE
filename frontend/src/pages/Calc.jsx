@@ -127,7 +127,7 @@ export default function Calc() {
       {(savingStates.earthwork || savingStates.framework || savingStates.preparation) && (
         <div className="mb-4 px-4 py-2 bg-blue-900/30 border border-blue-500/50 rounded-lg flex items-center gap-2">
           <div className="animate-spin h-4 w-4 border-2 border-blue-400 border-t-transparent rounded-full"></div>
-          <span className="text-sm text-blue-300">갑지 업데이트 중...</span>
+          <span className="text-sm text-blue-300">프로젝트 업데이트 중...</span>
         </div>
       )}
 

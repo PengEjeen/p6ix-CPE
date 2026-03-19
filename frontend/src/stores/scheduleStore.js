@@ -107,6 +107,33 @@ export const useScheduleStore = create(
                 }
             }),
 
+            updateItemsField: (ids, field, value) => set((state) => {
+                if (!Array.isArray(ids) || ids.length === 0) return;
+                const idSet = new Set(ids.map((id) => String(id)));
+
+                state.items.forEach((item, index) => {
+                    if (!idSet.has(String(item.id))) return;
+
+                    state.items[index][field] = value;
+                    state.items[index] = calculateItem(
+                        state.items[index],
+                        state.operatingRates,
+                        state.workDayType
+                    );
+
+                    if (field === 'application_rate') {
+                        const duration = parseFloat(state.items[index]?.calendar_days) || 0;
+                        const inputRate = parseFloat(value);
+                        const rightAlignedSegments = buildRightAlignedParallelSegments(duration, inputRate);
+                        const parallelState = buildParallelStateFromSegments(duration, rightAlignedSegments);
+                        state.items[index].parallel_segments = parallelState.parallel_segments;
+                        state.items[index].front_parallel_days = parallelState.front_parallel_days;
+                        state.items[index].back_parallel_days = parallelState.back_parallel_days;
+                        state.items[index].application_rate = parallelState.application_rate;
+                    }
+                });
+            }),
+
             // Add New Item
             addItem: (newItem) => set((state) => {
                 // Initial calculation
@@ -252,7 +279,7 @@ export const useScheduleStore = create(
 
                 set((state) => {
                     const index = state.items.findIndex(i => i.id === id);
-                    if (index === -1) return state;
+                    if (index === -1) return;
 
                     const item = state.items[index];
 
@@ -270,7 +297,8 @@ export const useScheduleStore = create(
                                 }
                                 : item
                         );
-                        return { ...state, items: newItems };
+                        state.items = newItems;
+                        return;
                     }
 
                     // Otherwise, set the parallel days
@@ -294,7 +322,7 @@ export const useScheduleStore = create(
                             : item
                     );
 
-                    return { ...state, items: newItems };
+                    state.items = newItems;
                 });
             },
 

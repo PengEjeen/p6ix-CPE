@@ -91,7 +91,7 @@ export default function WorkConditionSection({ projectId, onUtilizationChange })
 
   // 테이블 구조
   const columns = [
-    { key: "label", label: "구분" },
+    { key: "label", label: "중공종" },
     { key: "earthwork", label: "토공사", editable: true },
     { key: "framework", label: "골조공사", editable: true },
   ];

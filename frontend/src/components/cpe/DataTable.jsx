@@ -25,7 +25,7 @@ export default function DataTable({ columns, rows, onChange, onAutoSave, onDelet
   };
 
   return (
-    <div className="relative bg-[#20202a] border border-white/10 rounded-xl p-5 shadow-2xl backdrop-blur-sm">
+    <div className="relative bg-[#20202a] border border-white/10 rounded-xl p-2 shadow-2xl backdrop-blur-sm">
       {/* 바꿈 생략 */}
       <div className={`absolute -top-3 right-4 transition-all duration-300 transform ${saveState !== "idle" ? "translate-y-0 opacity-100" : "translate-y-2 opacity-0"}`}>
         <div className={`flex items-center gap-2 px-3 py-1 rounded-full text-xs font-medium shadow-lg border ${saveState === "saving"
@@ -46,16 +46,16 @@ export default function DataTable({ columns, rows, onChange, onAutoSave, onDelet
         </div>
       </div>
 
-      <div className="overflow-hidden rounded-lg border border-white/5">
-        <table className="w-full text-sm border-collapse">
+      <div className="overflow-x-auto overflow-y-hidden rounded-lg border border-white/5">
+        <table className="min-w-full w-max text-sm border-collapse">
           <thead>
             <tr className="bg-[#2a2a35] text-gray-400 border-b border-white/5">
               {columns.map((col) => (
-                <th key={col.key} className="py-2 px-3 text-center">
+                <th key={col.key} className="py-1 px-1.5 text-center whitespace-nowrap">
                   {col.label}
                 </th>
               ))}
-              {onDelete && <th className="py-2 px-3 w-10"></th>}
+              {onDelete && <th className="py-1 px-1.5 w-10"></th>}
             </tr>
           </thead>
 
@@ -83,7 +83,7 @@ export default function DataTable({ columns, rows, onChange, onAutoSave, onDelet
                   const isManualActive = manualKey ? manualFlags[manualKey] : false;
 
                   return (
-                    <td key={col.key} className="py-2 px-3 text-center text-gray-300">
+                    <td key={col.key} className="py-1 px-1.5 text-center text-gray-300">
                       {col.editable ? (
                         cellType === "radio" ? (
                           // ... radio ...
@@ -161,7 +161,7 @@ export default function DataTable({ columns, rows, onChange, onAutoSave, onDelet
                               onChange={(e) =>
                                 handleInputChange(rowIdx, col.key, e.target.value)
                               }
-                              className={`no-spin w-24 bg-[#181825] border rounded-md px-2 py-1 text-right transition-all focus:outline-none focus:ring-2 ${isManualActive
+                              className={`no-spin w-24 bg-[#181825] border rounded-md px-1.5 py-1 text-right transition-all focus:outline-none focus:ring-2 ${isManualActive
                                 ? "border-blue-500/50 text-white focus:ring-blue-500/50"
                                 : "border-gray-700 text-gray-500 bg-gray-900/50 cursor-not-allowed"
                                 }`}
@@ -170,17 +170,29 @@ export default function DataTable({ columns, rows, onChange, onAutoSave, onDelet
                           </div>
                         ) : (
                           // ... text/number ...
-                          <div className="flex items-center justify-center gap-2 relative group/input">
-                            <input
-                              type={cellType || "text"}
-                              value={row[col.key] ?? ""}
-                              onChange={(e) => {
-                                const val = cellType === "number" ? Number(e.target.value) : e.target.value;
-                                handleInputChange(rowIdx, col.key, val);
-                              }}
-                              className={`no-spin ${col.width || "w-24"} bg-[#181825] border border-gray-700 hover:border-gray-600 rounded-md px-2 py-1 text-gray-200 text-right focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 transition-all placeholder-gray-600`}
-                              placeholder="-"
-                            />
+                          <div className="flex items-center justify-center gap-1 relative group/input">
+                            {col.multiline && cellType !== "number" ? (
+                              <textarea
+                                rows={Math.min(6, Math.max(2, Math.ceil(String(row[col.key] ?? "").length / 16)))}
+                                value={row[col.key] ?? ""}
+                                onChange={(e) => handleInputChange(rowIdx, col.key, e.target.value)}
+                                title={String(row[col.key] ?? "")}
+                                className={`no-spin ${col.width || "w-40"} min-h-[56px] resize-none bg-[#181825] border border-gray-700 hover:border-gray-600 rounded-md px-1.5 py-1 text-gray-200 text-left leading-snug focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 transition-all placeholder-gray-600 ${col.expandOnFocus ? "focus:w-[30rem]" : ""}`}
+                                placeholder="-"
+                              />
+                            ) : (
+                              <input
+                                type={cellType || "text"}
+                                value={row[col.key] ?? ""}
+                                onChange={(e) => {
+                                  const val = cellType === "number" ? Number(e.target.value) : e.target.value;
+                                  handleInputChange(rowIdx, col.key, val);
+                                }}
+                                title={String(row[col.key] ?? "")}
+                                className={`no-spin ${col.width || "w-24"} bg-[#181825] border border-gray-700 hover:border-gray-600 rounded-md px-1.5 py-1 text-gray-200 ${cellType === "number" ? "text-right" : "text-left"} focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 transition-all placeholder-gray-600 ${col.expandOnFocus && cellType !== "number" ? "focus:w-[24rem]" : ""}`}
+                                placeholder="-"
+                              />
+                            )}
                           </div>
                         )
                       ) : (
@@ -192,7 +204,7 @@ export default function DataTable({ columns, rows, onChange, onAutoSave, onDelet
 
                 {/* Delete Button Column */}
                 {onDelete && (
-                  <td className="py-2 px-3 text-center">
+                  <td className="py-1 px-1.5 text-center">
                     <button
                       onClick={() => onDelete(rowIdx)}
                       className="text-gray-500 hover:text-red-400 transition-colors p-1 rounded hover:bg-white/5"

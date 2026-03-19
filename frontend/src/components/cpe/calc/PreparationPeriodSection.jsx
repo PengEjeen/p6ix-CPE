@@ -181,9 +181,9 @@ export default function PreparationPeriodSection({ projectId, ground_floor, eart
 
 
 
-  // 공종별 공사기간 산정
+  // 세부공종별 공사기간 산정
   const columnsByType = [
-    { key: "label", label: "공종" },
+    { key: "label", label: "세부공종" },
     { key: "working", label: "작업일" },
     { key: "nonworking", label: "비작업일" },
   ];
@@ -277,8 +277,8 @@ export default function PreparationPeriodSection({ projectId, ground_floor, eart
         </div>
       </AccordionSection>
 
-      {/* 공종별 공사기간 산정 */}
-      <AccordionSection title="공종별 공사기간 산정">
+      {/* 세부공종별 공사기간 산정 */}
+      <AccordionSection title="세부공종별 공사기간 산정">
         <div className="p-3">
           <DataTable
             columns={columnsByType}

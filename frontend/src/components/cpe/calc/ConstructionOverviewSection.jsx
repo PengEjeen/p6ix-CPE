@@ -92,7 +92,7 @@ export default function ConstructionOverviewSection({ projectId, onOverviewChang
   const sections = [
     {
       title: "유형",
-      headers: ["구분", "선택 / 입력 사항"],
+      headers: ["중공종", "선택 / 입력 사항"],
       rows: [
         { label: "발주처", value: data.client_type, type: "select", options: ["민간공사", "공공공사"] },
         { label: "건물 용도", value: data.building_use, type: "select", options: ["공동주택", "오피스텔", "상업시설", "기타"] },
@@ -102,7 +102,7 @@ export default function ConstructionOverviewSection({ projectId, onOverviewChang
     },
     {
       title: "Site",
-      headers: ["구분", "입력 사항"],
+      headers: ["중공종", "입력 사항"],
       rows: [
         { label: "위치", value: data.location },
         { label: "대지면적", value: data.site_area, type: "number", unit: "㎡" },
@@ -129,7 +129,7 @@ export default function ConstructionOverviewSection({ projectId, onOverviewChang
     },
     {
       title: "건물",
-      headers: ["구분", "입력 사항"],
+      headers: ["중공종", "입력 사항"],
       rows: [
         { label: "지하층수", value: data.basement_floors, type: "number", unit: "층" },
         { label: "지상층수", value: data.ground_floors, type: "number", unit: "층" },

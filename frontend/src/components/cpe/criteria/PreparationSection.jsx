@@ -64,7 +64,7 @@ export default function PreparationSection({ data, setData, onAutoSave }) {
     >
       {renderTable(
         "정리기간",
-        ["구분", "소요일(일)"],
+        ["중공종", "소요일(일)"],
         [
           { label: "주거시설", value: data.residential_days },
           { label: "비주거시설", value: data.non_residential_days },

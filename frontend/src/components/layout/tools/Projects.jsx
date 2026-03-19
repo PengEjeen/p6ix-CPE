@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   fetchProjects,
@@ -6,7 +6,7 @@ import {
   deleteProject,
   updateProject,
 } from "../../../api/cpe/project";
-import { FiFilePlus, FiSearch } from "react-icons/fi";
+import { FiFilePlus, FiHome, FiSearch } from "react-icons/fi";
 import { createPortal } from "react-dom";
 import { Loader2, MoreVertical, Pin, PinOff } from "lucide-react";
 import { useConfirm } from "../../../contexts/ConfirmContext";
@@ -89,9 +89,27 @@ function Projects() {
     if (descRef.current) descRef.current.focus();
   }, [descModal]);
 
-  const filteredProjects = projects.filter((p) =>
-    p.title?.toLowerCase().includes(search.toLowerCase())
-  );
+  const filteredProjects = useMemo(() => {
+    const keyword = search.toLowerCase();
+    const source = Array.isArray(projects) ? projects : [];
+    const filtered = source.filter((p) =>
+      p.title?.toLowerCase().includes(keyword)
+    );
+
+    const pinnedOrder = new Map(pinnedIds.map((id, idx) => [String(id), idx]));
+    return [...filtered].sort((a, b) => {
+      const aId = String(a?.id ?? "");
+      const bId = String(b?.id ?? "");
+      const aPinned = pinnedOrder.has(aId);
+      const bPinned = pinnedOrder.has(bId);
+
+      if (aPinned !== bPinned) return aPinned ? -1 : 1;
+      if (aPinned && bPinned) {
+        return (pinnedOrder.get(aId) ?? Number.MAX_SAFE_INTEGER) - (pinnedOrder.get(bId) ?? Number.MAX_SAFE_INTEGER);
+      }
+      return 0;
+    });
+  }, [projects, search, pinnedIds]);
 
   const calcTypeLabel = (type) => {
     if (type === "TOTAL") return "전체 공기산정";
@@ -212,15 +230,23 @@ function Projects() {
 
   return (
     <section className="mt-8 flex flex-col h-full relative text-[15px]">
-      {/* === 검색창 + 새 갑지 버튼 === */}
+      {/* === 검색창 + 새 프로젝트 버튼 === */}
       <div className="mb-4 space-y-3">
+        <button
+          onClick={() => navigate("/")}
+          className="w-full text-base px-3 py-2 bg-[#334155] hover:bg-[#3f5570] text-gray-100 rounded-lg transition font-medium flex items-center justify-center gap-2"
+        >
+          <FiHome className="text-gray-100" size={18} />
+          홈
+        </button>
+
         <div className="relative">
           <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
           <input
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="갑지 검색..."
+            placeholder="프로젝트 검색..."
             className="w-full text-base pl-10 pr-4 py-2 rounded-lg bg-[#2a2a3a] border border-gray-700 text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 transition"
           />
         </div>
@@ -231,13 +257,13 @@ function Projects() {
           className="w-full text-base px-3 py-2 bg-[#3b3b4f] hover:bg-[#4b4b5f] text-gray-100 rounded-lg transition font-medium flex items-center justify-center gap-2"
         >
           <FiFilePlus className="text-gray-200" size={18} />
-          새 갑지
+          새 프로젝트
         </button>
       </div>
 
       {/* === 목록 === */}
       <h2 className="text-sm uppercase text-gray-400 tracking-widest mb-1">
-        갑지목록
+        프로젝트목록
       </h2>
 
       <div
@@ -378,7 +404,7 @@ function Projects() {
           </ul>
         ) : (
           <p className="text-base text-gray-500 italic px-4">
-            {search ? "검색 결과가 없습니다." : "아직 계산한 갑지가 없어요"}
+            {search ? "검색 결과가 없습니다." : "아직 계산한 프로젝트가 없어요"}
           </p>
         )}
       </div>

@@ -69,6 +69,8 @@ export default function TotalCalc() {
     const [saving, setSaving] = useState(false);
     const [rows, setRows] = useState([]);
     const [originalRows, setOriginalRows] = useState([]);
+    const [searchTerm, setSearchTerm] = useState("");
+    const [tableViewMode, setTableViewMode] = useState("compact");
     const { confirm } = useConfirm();
 
     // Trigger for auto-save (used for potential future features, currently Rename uses explicit save)
@@ -156,7 +158,7 @@ export default function TotalCalc() {
     };
 
     // Create New Item
-    const handleAdd = async (mainCategory, process = "새 공정", workType = "새 공종") => {
+    const handleAdd = async (mainCategory, process = "새 공정", workType = "새 세부공종") => {
         const newRowData = {
             project: id,
             main_category: mainCategory,
@@ -270,27 +272,67 @@ export default function TotalCalc() {
         });
     }, [rows]);
 
+    const filteredRows = useMemo(() => {
+        const term = searchTerm.trim().toLowerCase();
+        if (!term) return rowsWithDerived;
+
+        return rowsWithDerived.filter((row) =>
+            [
+                row.main_category,
+                row.category,
+                row.sub_category,
+                row.item_name,
+                row.standard,
+                row.unit,
+                row.crew_composition_text,
+            ]
+                .map((value) => String(value || "").toLowerCase())
+                .some((value) => value.includes(term))
+        );
+    }, [rowsWithDerived, searchTerm]);
+
     // Group rows by main_category then category
     const groupedRows = useMemo(() => {
         const groups = {};
-        rowsWithDerived.forEach(row => {
+        filteredRows.forEach((row) => {
             const main = row.main_category || "기타";
             const sub = row.category || "기타";
             if (!groups[main]) groups[main] = {};
             if (!groups[main][sub]) groups[main][sub] = [];
             groups[main][sub].push(row);
         });
-        return groups;
-    }, [rowsWithDerived]);
 
-    const columns = [
-        { key: "main_category", label: "구분", editable: false, width: "w-32" },
-        { key: "category", label: "공정", editable: false, width: "w-32" },
-        { key: "sub_category", label: "공종", editable: true, width: "w-40" },
-        { key: "item_name", label: "목차", editable: true, width: "w-60" },
-        { key: "standard", label: "규격", editable: true, width: "w-40" },
-        { key: "unit", label: "단위(표준품셈 기준)", editable: true, width: "w-28 text-center" },
-        { key: "crew_composition_text", label: "산출근거(작업조 1팀당 인원 및 장비구성)", editable: true, width: "w-72" },
+        const sortedMain = Object.keys(groups).sort((a, b) => a.localeCompare(b, "ko"));
+        const sortedGroups = {};
+
+        sortedMain.forEach((main) => {
+            const subMap = groups[main];
+            const sortedSub = {};
+            Object.keys(subMap)
+                .sort((a, b) => a.localeCompare(b, "ko"))
+                .forEach((sub) => {
+                    sortedSub[sub] = [...subMap[sub]].sort((left, right) => {
+                        const leftKey = `${left.sub_category || ""}|${left.item_name || ""}|${left.standard || ""}`;
+                        const rightKey = `${right.sub_category || ""}|${right.item_name || ""}|${right.standard || ""}`;
+                        return leftKey.localeCompare(rightKey, "ko");
+                    });
+                });
+            sortedGroups[main] = sortedSub;
+        });
+
+        return sortedGroups;
+    }, [filteredRows]);
+
+    const groupedEntries = useMemo(() => Object.entries(groupedRows), [groupedRows]);
+
+    const fullColumns = [
+        { key: "main_category", label: "중공종", editable: false, width: "w-20" },
+        { key: "category", label: "공정", editable: false, width: "w-20" },
+        { key: "sub_category", label: "세부공종", editable: true, width: "w-28", expandOnFocus: true },
+        { key: "item_name", label: "표준품셈 목차", editable: true, width: "w-[15rem]", multiline: true, expandOnFocus: true },
+        { key: "standard", label: "규격", editable: true, width: "w-[12rem]", multiline: true, expandOnFocus: true },
+        { key: "unit", label: "단위(표준품셈 기준)", editable: true, width: "w-14 text-center" },
+        { key: "crew_composition_text", label: "산출근거(작업조 1팀당 인원 및 장비구성)", editable: true, width: "w-[18rem]", multiline: true, expandOnFocus: true },
         { key: "skill_worker_1_count", label: "기능공1", editable: true, type: "number", width: "w-20" },
         { key: "skill_worker_2_count", label: "기능공2", editable: true, type: "number", width: "w-20" },
         { key: "special_worker_count", label: "특별인부", editable: true, type: "number", width: "w-20" },
@@ -301,6 +343,18 @@ export default function TotalCalc() {
         { key: "molit_workload", label: "국토부 가이드라인", editable: true, type: "number", width: "w-32" },
         { key: "average_workload", label: "평균", editable: false, width: "w-20" }
     ];
+    const compactColumns = [
+        { key: "main_category", label: "중공종", editable: false, width: "w-16" },
+        { key: "category", label: "공정", editable: false, width: "w-16" },
+        { key: "sub_category", label: "세부공종", editable: true, width: "w-24", expandOnFocus: true },
+        { key: "item_name", label: "표준품셈 목차", editable: true, width: "w-[13rem]", multiline: true, expandOnFocus: true },
+        { key: "standard", label: "규격", editable: true, width: "w-[11rem]", multiline: true, expandOnFocus: true },
+        { key: "unit", label: "단위", editable: true, width: "w-16 text-center" },
+        { key: "pumsam_workload", label: "표준품셈", editable: true, type: "number", width: "w-20" },
+        { key: "molit_workload", label: "국토부", editable: true, type: "number", width: "w-20" },
+        { key: "average_workload", label: "평균", editable: false, width: "w-20" }
+    ];
+    const columns = tableViewMode === "compact" ? compactColumns : fullColumns;
 
     if (loading) return <div className="p-6 text-gray-400">데이터를 불러오는 중...</div>;
 
@@ -314,19 +368,61 @@ export default function TotalCalc() {
                 <SaveButton onSave={handleSaveAll} saving={saving} />
             </div>
 
+            <div className="bg-[#22222d] border border-gray-700 rounded-xl p-4">
+                <div className="flex flex-wrap items-center gap-3">
+                    <input
+                        type="text"
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        placeholder="대분류, 공정, 세부공종, 표준품셈 목차, 규격 검색"
+                        className="min-w-[280px] flex-1 bg-[#181825] border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-100 focus:outline-none focus:ring-1 focus:ring-blue-500/50 focus:border-blue-500/50"
+                    />
+                    <span className="text-xs text-gray-400">
+                        전체 {rowsWithDerived.length}건 · 현재 {filteredRows.length}건
+                    </span>
+                    <div className="inline-flex rounded-lg border border-gray-700 overflow-hidden">
+                        <button
+                            type="button"
+                            onClick={() => setTableViewMode("compact")}
+                            className={`px-3 py-1.5 text-xs font-semibold ${
+                                tableViewMode === "compact"
+                                    ? "bg-blue-600 text-white"
+                                    : "bg-[#181825] text-gray-300 hover:bg-[#222233]"
+                            }`}
+                        >
+                            간단 보기
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setTableViewMode("full")}
+                            className={`px-3 py-1.5 text-xs font-semibold border-l border-gray-700 ${
+                                tableViewMode === "full"
+                                    ? "bg-blue-600 text-white"
+                                    : "bg-[#181825] text-gray-300 hover:bg-[#222233]"
+                            }`}
+                        >
+                            전체 보기
+                        </button>
+                    </div>
+                </div>
+                <p className="mt-2 text-[11px] text-gray-500">
+                    간단 보기에서는 핵심 컬럼만 표시되어 가로 스크롤을 줄일 수 있습니다.
+                </p>
+            </div>
+
             <div className="space-y-6">
-                {Object.keys(groupedRows).map((mainCategory) => (
+                {groupedEntries.map(([mainCategory, categoryMap]) => (
                     <AccordionSection
                         key={mainCategory}
                         title={<EditableTitle value={mainCategory} level="main" onRename={handleRename} />}
                         defaultOpen={true}
-                        meta={`(Total: ${Object.values(groupedRows[mainCategory]).flat().length})`}
+                        meta={`(Total: ${Object.values(categoryMap).flat().length})`}
                         className="bg-[#2a2a35] border-blue-500/30"
                         action={
                             <button
                                 onClick={(e) => {
                                     e.stopPropagation();
-                                    handleAdd(mainCategory, "새 공정", "새 공종");
+                                    handleAdd(mainCategory, "새 공정", "새 세부공종");
                                 }}
                                 className="p-1 rounded hover:bg-white/10 text-gray-300 hover:text-white transition group relative"
                                 title="이 대분류에 새 공정 추가"
@@ -337,12 +433,12 @@ export default function TotalCalc() {
                         }
                     >
                         <div className="p-4 space-y-3 bg-[#20202a]">
-                            {Object.keys(groupedRows[mainCategory]).map((category) => (
+                            {Object.keys(categoryMap).map((category) => (
                                 <AccordionSection
-                                    key={`${mainCategory}-${category}`}
+                                    key={`${mainCategory}-${category}-${searchTerm ? "search" : "default"}`}
                                     title={<EditableTitle value={category} level="sub" parentName={mainCategory} onRename={handleRename} />}
-                                    defaultOpen={false}
-                                    meta={`항목 수: ${groupedRows[mainCategory][category].length}`}
+                                    defaultOpen={Boolean(searchTerm)}
+                                    meta={`항목 수: ${categoryMap[category].length}`}
                                     action={
                                         <button
                                             onClick={(e) => {
@@ -359,13 +455,13 @@ export default function TotalCalc() {
                                     <div className="p-4">
                                         <DataTable
                                             columns={columns}
-                                            rows={groupedRows[mainCategory][category]}
+                                            rows={categoryMap[category]}
                                             onChange={(idx, key, value) => {
-                                                const targetRow = groupedRows[mainCategory][category][idx];
+                                                const targetRow = categoryMap[category][idx];
                                                 if (targetRow) handleChange(targetRow.id, key, value);
                                             }}
                                             onDelete={(idx) => {
-                                                const targetRow = groupedRows[mainCategory][category][idx];
+                                                const targetRow = categoryMap[category][idx];
                                                 if (targetRow) handleDelete(targetRow.id);
                                             }}
                                             onAutoSave={checkAndSave}
@@ -379,7 +475,7 @@ export default function TotalCalc() {
 
                 {/* Main Category Add Button */}
                 <button
-                    onClick={() => handleAdd("새 대분류", "새 공정", "새 공종")}
+                    onClick={() => handleAdd("새 대분류", "새 공정", "새 세부공종")}
                     className="w-full py-4 border-2 border-dashed border-gray-700 bg-[#2c2c3a]/50 hover:bg-[#2c2c3a] hover:border-blue-500/50 hover:text-blue-400 rounded-xl text-gray-500 transition-all flex items-center justify-center gap-2 font-medium"
                 >
                     <Plus size={20} />
@@ -387,11 +483,11 @@ export default function TotalCalc() {
                 </button>
             </div>
 
-            {Object.keys(groupedRows).length === 0 && (
+            {groupedEntries.length === 0 && (
                 <div className="text-center text-gray-500 py-10 bg-[#2c2c3a] rounded-xl border border-gray-700">
-                    <p className="mb-4">표시할 데이터가 없습니다.</p>
+                    <p className="mb-4">{searchTerm ? "검색 결과가 없습니다." : "표시할 데이터가 없습니다."}</p>
                     <button
-                        onClick={() => handleAdd("기본 대분류", "기본 공정", "기본 공종")}
+                        onClick={() => handleAdd("기본 대분류", "기본 공정", "기본 세부공종")}
                         className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded transition"
                     >
                         첫 항목 추가하기

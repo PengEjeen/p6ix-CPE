@@ -47,6 +47,7 @@ export default function ScheduleMasterList() {
     const setStoreWorkDayType = useScheduleStore((state) => state.setWorkDayType);
     const setStoreSubTasks = useScheduleStore((state) => state.setSubTasks);
     const updateItem = useScheduleStore((state) => state.updateItem);
+    const updateItemsField = useScheduleStore((state) => state.updateItemsField);
     const addItem = useScheduleStore((state) => state.addItem);
     const addItemAtIndex = useScheduleStore((state) => state.addItemAtIndex);
     const deleteItems = useScheduleStore((state) => state.deleteItems);
@@ -57,34 +58,90 @@ export default function ScheduleMasterList() {
 
     // Temporal (Undo/Redo) - Safe Access
     const temporalStore = useScheduleStore.temporal;
-    const { undo, redo, pastStates, futureStates } = temporalStore
-        ? temporalStore.getState()
-        : { undo: () => { }, redo: () => { }, pastStates: [], futureStates: [] };
+    const [, forceTemporalVersion] = useState(0);
+    const temporalState = temporalStore ? temporalStore.getState() : null;
+    const pastStates = temporalState?.pastStates || [];
+    const futureStates = temporalState?.futureStates || [];
 
     const canUndo = pastStates.length > 0;
     const canRedo = futureStates.length > 0;
+
+    useEffect(() => {
+        if (!temporalStore) return undefined;
+        const unsubscribe = temporalStore.subscribe(() => {
+            forceTemporalVersion((version) => version + 1);
+        });
+        return unsubscribe;
+    }, [temporalStore]);
+
+    const runUndo = useCallback(() => {
+        if (!temporalStore) return;
+        const temporal = temporalStore.getState();
+        const lastPastState = temporal?.pastStates?.[temporal.pastStates.length - 1];
+        if (!lastPastState) return;
+
+        // Corrupted temporal entry guard: prevent hard crash on malformed states.
+        if (!Array.isArray(lastPastState.items)) {
+            console.error("[Temporal] Invalid undo state:", lastPastState);
+            temporal.clear?.();
+            toast.error("히스토리 상태가 꼬여 실행 취소 기록을 초기화했습니다.");
+            return;
+        }
+
+        try {
+            temporal.undo();
+        } catch (error) {
+            console.error("[Temporal] undo failed:", error);
+            toast.error("실행 취소 중 오류가 발생했습니다.");
+        }
+    }, [temporalStore]);
+
+    const runRedo = useCallback(() => {
+        if (!temporalStore) return;
+        const temporal = temporalStore.getState();
+        const lastFutureState = temporal?.futureStates?.[temporal.futureStates.length - 1];
+        if (!lastFutureState) return;
+
+        if (!Array.isArray(lastFutureState.items)) {
+            console.error("[Temporal] Invalid redo state:", lastFutureState);
+            temporal.clear?.();
+            toast.error("히스토리 상태가 꼬여 다시 실행 기록을 초기화했습니다.");
+            return;
+        }
+
+        try {
+            temporal.redo();
+        } catch (error) {
+            console.error("[Temporal] redo failed:", error);
+            toast.error("다시 실행 중 오류가 발생했습니다.");
+        }
+    }, [temporalStore]);
 
     // Keyboard Shortcuts
     useEffect(() => {
         if (!temporalStore) return;
 
         const handleKeyDown = (e) => {
-            if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
+            const target = e.target;
+            const isEditableTarget = target?.tagName === 'INPUT' || target?.tagName === 'TEXTAREA' || target?.isContentEditable;
+            if (isEditableTarget) return;
+
+            if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
                 if (e.shiftKey) {
-                    if (canRedo) redo();
+                    if (canRedo) runRedo();
                 } else {
-                    if (canUndo) undo();
+                    if (canUndo) runUndo();
                 }
                 e.preventDefault();
-            } else if ((e.ctrlKey || e.metaKey) && e.key === 'y') {
-                if (canRedo) redo();
+            } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') {
+                if (canRedo) runRedo();
                 e.preventDefault();
             }
         };
 
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [undo, redo, canUndo, canRedo, temporalStore]);
+    }, [canUndo, canRedo, runRedo, runUndo, temporalStore]);
 
     // Smart Actions
     const resizeTaskBar = useScheduleStore((state) => state.resizeTaskBar);
@@ -143,6 +200,12 @@ export default function ScheduleMasterList() {
     const [standardItems, setStandardItems] = useState([]);
     const [selectedItemIds, setSelectedItemIds] = useState([]);
     const [isSelectionDragging, setIsSelectionDragging] = useState(false);
+    const [rowClassEditModal, setRowClassEditModal] = useState({
+        open: false,
+        itemId: null,
+        process: "",
+        sub_process: ""
+    });
     const [floorBatchModal, setFloorBatchModal] = useState(null);
     const [floorBatchRange, setFloorBatchRange] = useState({ min: "", max: "" });
     const [openCategoryMenu, setOpenCategoryMenu] = useState(null);
@@ -441,10 +504,45 @@ export default function ScheduleMasterList() {
         updateItem(id, field, value);
     };
 
+    const handleGroupFieldChange = useCallback((id, field, value, targetIds = []) => {
+        const ids = Array.isArray(targetIds) ? targetIds.filter(Boolean) : [];
+        if (ids.length > 1) {
+            updateItemsField(ids, field, value);
+            return;
+        }
+        updateItem(id, field, value);
+    }, [updateItem, updateItemsField]);
+
+    const handleOpenRowClassEdit = useCallback((item) => {
+        if (!item?.id) return;
+        setRowClassEditModal({
+            open: true,
+            itemId: item.id,
+            process: item.process || "",
+            sub_process: item.sub_process || ""
+        });
+    }, []);
+
+    const handleCloseRowClassEdit = useCallback(() => {
+        setRowClassEditModal({
+            open: false,
+            itemId: null,
+            process: "",
+            sub_process: ""
+        });
+    }, []);
+
+    const handleSaveRowClassEdit = useCallback(() => {
+        if (!rowClassEditModal.itemId) return;
+        updateItem(rowClassEditModal.itemId, "process", rowClassEditModal.process);
+        updateItem(rowClassEditModal.itemId, "sub_process", rowClassEditModal.sub_process);
+        handleCloseRowClassEdit();
+    }, [handleCloseRowClassEdit, rowClassEditModal.itemId, rowClassEditModal.process, rowClassEditModal.sub_process, updateItem]);
+
     const handleAddItem = (parentItem = null) => {
         const newItem = {
             id: `new-${Date.now()}`,
-            main_category: parentItem ? parentItem.main_category : "새 공종",
+            main_category: parentItem ? parentItem.main_category : "새 세부공종",
             process: parentItem ? parentItem.process : "새 작업",
             sub_process: parentItem ? (parentItem.sub_process || "") : "새 세부공정",
             work_type: "새 세부작업",
@@ -472,7 +570,7 @@ export default function ScheduleMasterList() {
             itemId,
             startDay,
             durationDays,
-            label: "부공종",
+            label: "부세부공종",
             ...extraProps
         });
     }, [addSubTask]);
@@ -559,12 +657,12 @@ export default function ScheduleMasterList() {
         dataArray.forEach(std => {
             const processName = std.category || std.process_name || importTargetParent?.process || "수입 작업";
             const subProcessName = std.sub_category || std.work_type_name || importTargetParent?.sub_process || "";
-            const workTypeName = std.sub_category || std.work_type_name || std.category || "수입 공종";
+            const workTypeName = std.sub_category || std.work_type_name || std.category || "수입 세부공종";
             const tocLabel = std.item_name || "";
             const noteText = tocLabel ? (std.remark ? `${tocLabel} (${std.remark})` : tocLabel) : (std.remark || "");
             const newItem = {
                 id: `imp-${Date.now()}-${Math.random()}`,
-                main_category: importTargetParent?.main_category || "수입 공종",
+                main_category: importTargetParent?.main_category || "수입 세부공종",
                 process: processName,
                 sub_process: subProcessName,
                 work_type: workTypeName,
@@ -577,7 +675,7 @@ export default function ScheduleMasterList() {
                 operating_rate_type: "EARTH",
                 operating_rate_value: 0,
                 standard_code: std.code || std.standard,
-                // 목차(item_name)는 비고(note)로 반영
+                // 표준품셈 목차(item_name)는 비고(note)로 반영
                 note: noteText,
                 remarks: noteText
             };
@@ -632,7 +730,7 @@ export default function ScheduleMasterList() {
         }, {});
 
         Object.values(groupedItems).forEach((categoryItems) => {
-            // Merge same `process` values in "구분" column.
+            // Merge same `process` values in "중공종" column.
             let i = 0;
             while (i < categoryItems.length) {
                 const processValue = String(categoryItems[i]?.process || "");
@@ -641,11 +739,13 @@ export default function ScheduleMasterList() {
                     j += 1;
                 }
                 const span = j - i;
+                const groupIds = categoryItems.slice(i, j).map((row) => row.id);
                 for (let k = i; k < j; k += 1) {
                     const row = categoryItems[k];
                     if (!map[row.id]) map[row.id] = {};
                     map[row.id].isProcessFirst = k === i;
                     map[row.id].processRowSpan = span;
+                    map[row.id].processGroupIds = groupIds;
                 }
                 i = j;
             }
@@ -664,11 +764,13 @@ export default function ScheduleMasterList() {
                     j += 1;
                 }
                 const span = j - i;
+                const groupIds = categoryItems.slice(i, j).map((row) => row.id);
                 for (let k = i; k < j; k += 1) {
                     const row = categoryItems[k];
                     if (!map[row.id]) map[row.id] = {};
                     map[row.id].isSubProcessFirst = k === i;
                     map[row.id].subProcessRowSpan = span;
+                    map[row.id].subProcessGroupIds = groupIds;
                 }
                 i = j;
             }
@@ -879,7 +981,7 @@ export default function ScheduleMasterList() {
         };
 
         if (!fallbackRow) {
-            toast.error("복제할 기준 공종 묶음을 찾을 수 없습니다.");
+            toast.error("복제할 기준 세부공종 묶음을 찾을 수 없습니다.");
             return;
         }
 
@@ -967,9 +1069,9 @@ export default function ScheduleMasterList() {
         }
 
         if (skippedRowCount > 0) {
-            toast.success(`${createdFloorCount}개 층 / ${createdRowCount}개 공종 생성, ${skippedRowCount}개 중복 건너뜀`);
+            toast.success(`${createdFloorCount}개 층 / ${createdRowCount}개 세부공종 생성, ${skippedRowCount}개 중복 건너뜀`);
         } else {
-            toast.success(`${createdFloorCount}개 층 / ${createdRowCount}개 공종 생성`);
+            toast.success(`${createdFloorCount}개 층 / ${createdRowCount}개 세부공종 생성`);
         }
         handleCloseFloorBatchModal();
     }, [addItemAtIndex, floorBatchModal, floorBatchRange.max, floorBatchRange.min, handleCloseFloorBatchModal, items]);
@@ -1149,9 +1251,9 @@ export default function ScheduleMasterList() {
                                     />
                                 </th>
                                 <th className="sticky top-0 bg-[var(--navy-surface)] border-r border-[var(--navy-border-soft)] px-1 z-10"></th>
-                                <th className="sticky top-0 bg-[var(--navy-surface)] border-r border-[var(--navy-border-soft)] px-2 py-2 z-10">구분</th>
+                                <th className="sticky top-0 bg-[var(--navy-surface)] border-r border-[var(--navy-border-soft)] px-2 py-2 z-10">중공종</th>
                                 <th className="sticky top-0 bg-[var(--navy-surface)] border-r border-[var(--navy-border-soft)] px-2 py-2 z-10">공정</th>
-                                <th className="sticky top-0 bg-[var(--navy-surface)] border-r border-[var(--navy-border-soft)] px-2 py-2 z-10">공종</th>
+                                <th className="sticky top-0 bg-[var(--navy-surface)] border-r border-[var(--navy-border-soft)] px-2 py-2 z-10">세부공종</th>
                                 <th className="sticky top-0 bg-[var(--navy-surface)] border-r border-[var(--navy-border-soft)] px-2 py-2 z-10">수량산출(개산)</th>
                                 <th className="sticky top-0 bg-[var(--navy-surface)] border-r border-[var(--navy-border-soft)] px-2 py-2 z-10">단위</th>
                                 <th className="sticky top-0 bg-[var(--navy-surface)] border-r border-[var(--navy-border-soft)] px-2 py-2 z-10">내역수량</th>
@@ -1184,7 +1286,7 @@ export default function ScheduleMasterList() {
                                                     className={`px-4 py-3 ${forPrint ? "" : "sticky z-[9] bg-[var(--navy-bg)] border-b border-[var(--navy-border-soft)]"}`}
                                                     style={forPrint ? undefined : { top: `${tableHeaderHeight + 12}px` }}
                                                 >
-                                                    <div className="flex flex-wrap items-center gap-3">
+                                                    <div className="flex w-full flex-wrap items-center gap-3">
                                                         <div className="text-sm font-semibold text-[var(--navy-text)]">대공종 추가</div>
                                                         <input
                                                             type="text"
@@ -1200,6 +1302,18 @@ export default function ScheduleMasterList() {
                                                         >
                                                             추가
                                                         </button>
+                                                        <div className="flex flex-1 justify-center min-w-[220px]">
+                                                            <div className="ui-edit-legend">
+                                                                <div className="ui-edit-legend-item">
+                                                                    <span className="ui-edit-legend-box ui-edit-legend-box-editable" aria-hidden="true"></span>
+                                                                    <span>수정 가능</span>
+                                                                </div>
+                                                                <div className="ui-edit-legend-item">
+                                                                    <span className="ui-edit-legend-box ui-edit-legend-box-readonly" aria-hidden="true"></span>
+                                                                    <span>수정 불가능</span>
+                                                                </div>
+                                                            </div>
+                                                        </div>
                                                         <button
                                                             type="button"
                                                             onClick={handleDeleteSelectedItems}
@@ -1407,10 +1521,19 @@ export default function ScheduleMasterList() {
                                                         workDayType={workDayType}
                                                         isLinked={item.link_module_type && item.link_module_type !== 'NONE'}
                                                         handleChange={handleChange}
+                                                        handleGroupFieldChange={handleGroupFieldChange}
                                                         handleDeleteItem={handleDeleteItem}
+                                                        onOpenRowClassEdit={handleOpenRowClassEdit}
                                                         handleAddItem={handleAddItem}
                                                         handleOpenImport={handleOpenImport}
-                                                        spanInfo={spanInfoMap[item.id] || { isProcessFirst: true, isSubProcessFirst: true, processRowSpan: 1, subProcessRowSpan: 1 }}
+                                                        spanInfo={spanInfoMap[item.id] || {
+                                                            isProcessFirst: true,
+                                                            isSubProcessFirst: true,
+                                                            processRowSpan: 1,
+                                                            subProcessRowSpan: 1,
+                                                            processGroupIds: [item.id],
+                                                            subProcessGroupIds: [item.id]
+                                                        }}
                                                         standardItems={standardItems}
                                                         onApplyStandard={handleApplyStandardToRow}
                                                         isDragActive={Boolean(activeId)}
@@ -1471,8 +1594,8 @@ export default function ScheduleMasterList() {
                     onViewModeChange={setViewMode}
                     canUndo={canUndo}
                     canRedo={canRedo}
-                    onUndo={undo}
-                    onRedo={redo}
+                    onUndo={runUndo}
+                    onRedo={runRedo}
                     onSnapshotOpen={() => setSnapshotModalOpen(true)}
                     startDate={startDate}
                     onStartDateChange={(val) => {
@@ -1579,6 +1702,55 @@ export default function ScheduleMasterList() {
                         setSnapshotModalOpen(false);
                     }}
                 />
+            )}
+
+            {rowClassEditModal.open && (
+                <div className="fixed inset-0 z-[510] flex items-center justify-center bg-black/60 backdrop-blur-sm">
+                    <div className="w-[420px] rounded-xl border border-[var(--navy-border-soft)] bg-[var(--navy-surface)] p-6 shadow-2xl">
+                        <h3 className="text-lg font-bold text-[var(--navy-text)]">개별 중공종/공정 수정</h3>
+                        <p className="mt-1 text-xs text-[var(--navy-text-muted)]">
+                            병합 그룹과 별개로 현재 행만 수정합니다.
+                        </p>
+
+                        <div className="mt-4 space-y-3">
+                            <label className="flex flex-col gap-1">
+                                <span className="text-xs font-semibold text-[var(--navy-text-muted)]">중공종</span>
+                                <input
+                                    type="text"
+                                    value={rowClassEditModal.process}
+                                    onChange={(e) => setRowClassEditModal((prev) => ({ ...prev, process: e.target.value }))}
+                                    className="ui-input px-3 py-2"
+                                />
+                            </label>
+                            <label className="flex flex-col gap-1">
+                                <span className="text-xs font-semibold text-[var(--navy-text-muted)]">공정</span>
+                                <input
+                                    type="text"
+                                    value={rowClassEditModal.sub_process}
+                                    onChange={(e) => setRowClassEditModal((prev) => ({ ...prev, sub_process: e.target.value }))}
+                                    className="ui-input px-3 py-2"
+                                />
+                            </label>
+                        </div>
+
+                        <div className="mt-5 flex justify-end gap-2">
+                            <button
+                                type="button"
+                                onClick={handleCloseRowClassEdit}
+                                className="rounded-lg border border-[var(--navy-border)] px-3 py-2 text-sm text-[var(--navy-text-muted)] hover:bg-[var(--navy-surface-3)]"
+                            >
+                                취소
+                            </button>
+                            <button
+                                type="button"
+                                onClick={handleSaveRowClassEdit}
+                                className="ui-btn-primary px-3 py-2 text-sm"
+                            >
+                                저장
+                            </button>
+                        </div>
+                    </div>
+                </div>
             )}
 
             {floorBatchModal && (

@@ -205,7 +205,7 @@ export default function SubtaskLayer({
                         if (onSelectSubtask) onSelectSubtask(subtask.id, e);
                     }}
                 >
-                    {subtask.label || "부공종"}
+                    {subtask.label || "부세부공종"}
                 </div>
                 <div
                     className={`absolute rounded-full ${readOnly ? "cursor-default" : "cursor-grab"} select-none pointer-events-auto group/row
@@ -224,7 +224,7 @@ export default function SubtaskLayer({
                     onDoubleClick={(e) => {
                         if (readOnly) return;
                         e.stopPropagation();
-                        setRenameModal({ open: true, id: subtask.id, value: subtask.label || "부공종" });
+                        setRenameModal({ open: true, id: subtask.id, value: subtask.label || "부세부공종" });
                     }}
                 >
                     {!readOnly && (
@@ -288,7 +288,7 @@ export default function SubtaskLayer({
                                 e.stopPropagation();
                                 if (onDeleteSubtask) onDeleteSubtask(subtask.id);
                             }}
-                            aria-label="부공종 삭제"
+                            aria-label="부세부공종 삭제"
                         >
                             ×
                         </button>

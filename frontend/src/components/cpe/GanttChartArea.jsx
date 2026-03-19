@@ -679,7 +679,7 @@ const GanttChartArea = ({
                 onClose={() => setRenameModal({ open: false, id: null, value: "" })}
                 onSubmit={() => {
                     if (renameModal.id && onUpdateSubtask) {
-                        const label = renameModal.value.trim() || "부공종";
+                        const label = renameModal.value.trim() || "부세부공종";
                         onUpdateSubtask(renameModal.id, { label });
                     }
                     setRenameModal({ open: false, id: null, value: "" });

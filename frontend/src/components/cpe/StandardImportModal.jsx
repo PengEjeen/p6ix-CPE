@@ -157,7 +157,7 @@ export default function StandardImportModal({ isOpen, onClose, onSelect, project
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" size={16} />
                         <input
                             type="text"
-                            placeholder="공정, 공종, 항목명, 규격 검색..."
+                            placeholder="공정, 세부공종, 항목명, 규격 검색..."
                             className="w-full bg-[#1f1f2b] border border-gray-700 text-gray-200 pl-10 pr-4 py-2.5 rounded-xl focus:outline-none focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/50 transition text-sm font-medium placeholder-gray-600"
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
@@ -194,7 +194,7 @@ export default function StandardImportModal({ isOpen, onClose, onSelect, project
                                             <thead>
                                                 <tr className="bg-[#1f1f2b] text-gray-400 border-b border-gray-700/50 text-xs uppercase tracking-wider">
                                                     <th className="py-2 px-4 font-medium w-28">공정</th>
-                                                    <th className="py-2 px-4 font-medium w-32">공종</th>
+                                                    <th className="py-2 px-4 font-medium w-32">세부공종</th>
                                                     <th className="py-2 px-4 font-medium">항목명</th>
                                                     <th className="py-2 px-4 font-medium">규격</th>
                                                     <th className="py-2 px-4 font-medium w-16 text-center">단위</th>

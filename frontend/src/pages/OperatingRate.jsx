@@ -574,10 +574,12 @@ export default function OperatingRate() {
         },
       });
 
+      setSaving(false);
       await alert("저장되었습니다.");
       window.location.reload();
     } catch (error) {
       console.error("가동률 저장 실패:", error);
+      setSaving(false);
       await alert("저장 중 오류가 발생했습니다.");
     } finally {
       setSaving(false);

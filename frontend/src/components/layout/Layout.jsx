@@ -184,7 +184,7 @@ function Layout() {
             )}
           </div>
 
-          {/* 갑지목록 컴포넌트 삽입 */}
+          {/* 프로젝트목록 컴포넌트 삽입 */}
           {menuOpen && <Projects />}
         </div>
 

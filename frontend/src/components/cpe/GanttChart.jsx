@@ -65,7 +65,7 @@ const buildAggregatedViewData = (itemsWithTiming, mode) => {
         const start = parseFloat(item.startDay) || 0;
         const end = start + (parseFloat(item.durationDays) || 0);
         const main = String(item.main_category || "기타");
-        const section = String(item.process || "미분류 구분");
+        const section = String(item.process || "미분류 중공종");
         const process = String(item.sub_process || "미분류 공정");
 
         const isSectionMode = mode === GANTT_VIEW_MODE.CATEGORY;
@@ -283,7 +283,7 @@ export default function GanttChart({
                             label: subtask.label,
                             startDay: subtask.startDay
                         });
-                        toast.success("부공종 복사됨");
+                        toast.success("부세부공종 복사됨");
                     }
                 }
             }
@@ -312,10 +312,10 @@ export default function GanttChart({
                                 { label: copiedSubtask.label }
                             );
                         });
-                        toast.success(`부공종 붙여넣기 완료 (${targetItemIds.size}개)`);
+                        toast.success(`부세부공종 붙여넣기 완료 (${targetItemIds.size}개)`);
                     } else {
                         // Optional: If nothing selected, maybe warn? Or just silent.
-                        // toast("붙여넣을 공종(행)을 선택해주세요", { icon: "ℹ️" });
+                        // toast("붙여넣을 세부공종(행)을 선택해주세요", { icon: "ℹ️" });
                     }
                 }
             }
@@ -676,17 +676,19 @@ export default function GanttChart({
         let processGroup = null;
 
         itemsWithTiming.forEach((item, index) => {
-            const itemStart = item.startDay;
-            const itemEnd = item.startDay + item.durationDays;
+            const mainCategory = item?.main_category ?? "기타";
+            const processName = item?.process ?? "";
+            const itemStart = item?.startDay ?? 0;
+            const itemEnd = (item?.startDay ?? 0) + (item?.durationDays ?? 0);
 
             // New main category
-            if (item.main_category !== currentMainCategory) {
+            if (mainCategory !== currentMainCategory || !mainCategoryGroup) {
                 if (mainCategoryGroup) groups.push(mainCategoryGroup);
 
-                currentMainCategory = item.main_category;
+                currentMainCategory = mainCategory;
                 currentProcess = null;
                 mainCategoryGroup = {
-                    mainCategory: item.main_category,
+                    mainCategory,
                     processes: [],
                     startIndex: index,
                     minStart: itemStart, // Init with current item
@@ -700,10 +702,10 @@ export default function GanttChart({
             }
 
             // New process within same category
-            if (item.process !== currentProcess) {
-                currentProcess = item.process;
+            if (processName !== currentProcess || !processGroup) {
+                currentProcess = processName;
                 processGroup = {
-                    process: item.process,
+                    process: processName,
                     items: [],
                     startIndex: index
                 };

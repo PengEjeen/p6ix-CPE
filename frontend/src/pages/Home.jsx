@@ -143,7 +143,7 @@ export default function Home() {
         setFtueTotal(loadFtue("TOTAL"));
         setFtueApartment(loadFtue("APARTMENT"));
       } catch (e) {
-        console.error("갑지 목록 불러오기 실패:", e);
+        console.error("프로젝트 목록 불러오기 실패:", e);
         setProjects([]);
       } finally {
         setLoading(false);
@@ -186,14 +186,31 @@ export default function Home() {
 
   const filteredProjects = useMemo(() => {
     const kw = String(search || "").trim().toLowerCase();
-    return allSorted.filter((p) => {
+    const filtered = allSorted.filter((p) => {
       if (!p?.id) return false;
       if (typeFilter !== "ALL" && String(p.calc_type || "") !== typeFilter) return false;
       if (!kw) return true;
       return String(p.title || "").toLowerCase().includes(kw) ||
         String(p.description || "").toLowerCase().includes(kw);
     });
-  }, [allSorted, search, typeFilter]);
+
+    const pinnedOrder = new Map(pinnedIds.map((id, idx) => [String(id), idx]));
+    return filtered
+      .map((project, index) => ({ project, index }))
+      .sort((a, b) => {
+        const aId = String(a.project?.id ?? "");
+        const bId = String(b.project?.id ?? "");
+        const aPinned = pinnedOrder.has(aId);
+        const bPinned = pinnedOrder.has(bId);
+
+        if (aPinned !== bPinned) return aPinned ? -1 : 1;
+        if (aPinned && bPinned) {
+          return (pinnedOrder.get(aId) ?? Number.MAX_SAFE_INTEGER) - (pinnedOrder.get(bId) ?? Number.MAX_SAFE_INTEGER);
+        }
+        return a.index - b.index;
+      })
+      .map(({ project }) => project);
+  }, [allSorted, search, typeFilter, pinnedIds]);
 
   const isEmpty = !loading && projects.length === 0;
 
@@ -224,7 +241,7 @@ export default function Home() {
   const openProjectFromHome = useCallback((p) => {
     if (!p?.id) return;
     const ct = p.calc_type;
-    // APARTMENT: 갑지 열기 = '갑지 확인하기' step 완료
+    // APARTMENT: 프로젝트 열기 = '프로젝트 확인하기' step 완료
     if (ct === "APARTMENT") markFtueDone("APARTMENT", "view_result", FTUE_STEP_IDS.APARTMENT);
     // TOTAL: 각 페이지(OperatingRate, ScheduleMasterList 등)에서 step 마킹
     saveLastOpenedId(p.id);
@@ -251,8 +268,8 @@ export default function Home() {
 
   const handleCreate = useCallback(async () => {
     if (isCreating) return;
-    if (!createType) { await alert("갑지 유형을 먼저 선택해 주세요."); return; }
-    if (!String(createTitle || "").trim()) { await alert("갑지명을 입력해 주세요."); return; }
+    if (!createType) { await alert("프로젝트 유형을 먼저 선택해 주세요."); return; }
+    if (!String(createTitle || "").trim()) { await alert("프로젝트명을 입력해 주세요."); return; }
     try {
       setIsCreating(true);
       const res = await createProjects({
@@ -272,8 +289,8 @@ export default function Home() {
         navigate(getProjectEntryPath(res));
       }
     } catch (e) {
-      console.error("갑지 생성 실패:", e);
-      await alert("갑지 생성에 실패했습니다.");
+      console.error("프로젝트 생성 실패:", e);
+      await alert("프로젝트 생성에 실패했습니다.");
     } finally {
       setIsCreating(false);
     }
@@ -288,22 +305,22 @@ export default function Home() {
       setMenuOpenId(null);
       persistPinned(pinnedIds.filter((x) => x !== String(p.id)));
     } catch (e) {
-      console.error("갑지 삭제 실패:", e);
-      await alert("갑지 삭제에 실패했습니다.");
+      console.error("프로젝트 삭제 실패:", e);
+      await alert("프로젝트 삭제에 실패했습니다.");
     }
   }, [alert, confirm, persistPinned, pinnedIds]);
 
   const handleSaveEdit = useCallback(async () => {
     if (!editModal?.id) return;
     const title = String(editModal.title || "").trim();
-    if (!title) { await alert("갑지명을 입력해 주세요."); return; }
+    if (!title) { await alert("프로젝트명을 입력해 주세요."); return; }
     try {
       const updated = await updateProject(editModal.id, { title, description: String(editModal.description || "").trim() });
       setProjects((prev) => (Array.isArray(prev) ? prev : []).map((p) => p.id === editModal.id ? { ...p, ...updated } : p));
       setEditModal(null);
     } catch (e) {
-      console.error("갑지 수정 실패:", e);
-      await alert("갑지 수정에 실패했습니다.");
+      console.error("프로젝트 수정 실패:", e);
+      await alert("프로젝트 수정에 실패했습니다.");
     }
   }, [alert, editModal]);
 
@@ -392,13 +409,13 @@ export default function Home() {
         <div className="fixed inset-0 z-[500] flex items-center justify-center bg-black/60">
           <div className="w-[560px] max-w-[92vw] rounded-2xl border border-gray-700 bg-[#2c2c3a] shadow-2xl overflow-hidden">
             <div className="px-6 py-4 border-b border-gray-700 bg-[#3a3a4a]">
-              <div className="text-lg font-extrabold text-white">새 갑지 만들기</div>
+              <div className="text-lg font-extrabold text-white">새 프로젝트 만들기</div>
               <div className="text-sm text-gray-300 mt-1">유형 선택 → 기본정보 입력</div>
             </div>
             <div className="px-6 py-6">
               {createStep === 1 ? (
                 <div className="space-y-3">
-                  <div className="text-sm text-gray-300">갑지 유형을 선택하세요.</div>
+                  <div className="text-sm text-gray-300">프로젝트 유형을 선택하세요.</div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     {[
                       { type: "TOTAL", label: "전체 공기산정", features: ["스케줄 편집/간트", "AI 공기 조정", "엑셀/보고서 내보내기"] },
@@ -426,7 +443,7 @@ export default function Home() {
                   </div>
                   <div className="space-y-3">
                     <div>
-                      <label className="block text-sm text-gray-300 mb-1">갑지명 (필수)</label>
+                      <label className="block text-sm text-gray-300 mb-1">프로젝트명 (필수)</label>
                       <input value={createTitle} disabled={isCreating}
                         onChange={(e) => setCreateTitle(e.target.value)}
                         onKeyDown={(e) => { if (e.key === "Enter" && !isCreating) handleCreate(); }}
@@ -464,11 +481,11 @@ export default function Home() {
         <div className="fixed inset-0 z-[500] flex items-center justify-center bg-black/60">
           <div className="w-[480px] max-w-[92vw] rounded-2xl border border-gray-700 bg-[#2c2c3a] shadow-2xl overflow-hidden">
             <div className="px-6 py-4 border-b border-gray-700 bg-[#3a3a4a]">
-              <div className="text-base font-extrabold text-white">갑지 정보 수정</div>
+              <div className="text-base font-extrabold text-white">프로젝트 정보 수정</div>
             </div>
             <div className="px-6 py-5 space-y-3">
               <div>
-                <label className="block text-sm text-gray-300 mb-1">갑지명</label>
+                <label className="block text-sm text-gray-300 mb-1">프로젝트명</label>
                 <input value={editModal.title}
                   onChange={(e) => setEditModal((p) => ({ ...p, title: e.target.value }))}
                   autoFocus
@@ -502,7 +519,7 @@ export default function Home() {
               className="w-[400px] max-w-[90vw] rounded-2xl border border-[var(--navy-border-soft)] bg-[var(--navy-surface)] px-6 py-5 shadow-2xl">
               <div className="flex items-center gap-3">
                 <Loader2 size={20} className="animate-spin text-[var(--navy-accent)]" />
-                <div className="font-extrabold text-[var(--navy-text)]">갑지 생성 중...</div>
+                <div className="font-extrabold text-[var(--navy-text)]">프로젝트 생성 중...</div>
               </div>
               <div className="mt-2 text-sm text-[var(--navy-text-muted)]">초기 데이터를 생성하고 있습니다.</div>
             </motion.div>
@@ -550,7 +567,7 @@ function NewUserView({ ftueTotal, ftueApartment, onOpenCreate, onBack }) {
           공기산정툴에 오신 것을 환영합니다
         </div>
         <h1 className="text-2xl md:text-3xl font-black text-[var(--navy-text)] leading-tight">
-          첫 갑지를 만들어<br />시작해 보세요
+          첫 프로젝트를 만들어<br />시작해 보세요
         </h1>
         <p className="text-sm text-[var(--navy-text-muted)] leading-6">
           어떤 유형을 사용할지 먼저 선택하면<br />순서대로 안내해 드립니다.
@@ -569,7 +586,7 @@ function NewUserView({ ftueTotal, ftueApartment, onOpenCreate, onBack }) {
           {
             type: "APARTMENT", icon: <Building2 size={20} />,
             label: "공기 계산",
-            desc: "개요·조건·공종 입력 중심으로 공기를 계산하고 결과를 확인합니다.",
+            desc: "개요·조건·세부공종 입력 중심으로 공기를 계산하고 결과를 확인합니다.",
             color: "indigo",
           },
         ].map(({ type, icon, label, desc, color }) => (
@@ -648,7 +665,7 @@ function NewUserView({ ftueTotal, ftueApartment, onOpenCreate, onBack }) {
         가이드를 건너뛰고 싶다면{" "}
         <button type="button" onClick={() => onOpenCreate(activeType)}
           className="underline underline-offset-2 hover:text-[var(--navy-text)] transition">
-          바로 갑지를 생성
+          바로 프로젝트를 생성
         </button>해도 됩니다.
       </p>
     </motion.div>
@@ -673,12 +690,12 @@ function ReturningUserView({
         <div className="relative flex-1 max-w-sm">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--navy-text-muted)]" />
           <input value={search} onChange={(e) => setSearch(e.target.value)}
-            placeholder="갑지 검색..."
+            placeholder="프로젝트 검색..."
             className="w-full rounded-xl border border-[var(--navy-border-soft)] bg-[var(--navy-surface)] pl-9 pr-4 py-2.5 text-sm text-[var(--navy-text)] placeholder-[var(--navy-text-muted)] focus:outline-none focus:ring-2 focus:ring-blue-500/30 transition" />
         </div>
         <button type="button" onClick={onOpen}
           className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-500 px-4 py-2.5 text-sm font-extrabold text-white hover:from-blue-500 hover:to-indigo-400 transition shadow-md shadow-blue-500/20">
-          <Plus size={15} />새 갑지
+          <Plus size={15} />새 프로젝트
         </button>
       </div>
 
@@ -749,7 +766,7 @@ function ReturningUserView({
         {/* header */}
         <div className="flex items-center justify-between gap-3 px-5 py-3.5 border-b border-[var(--navy-border-soft)]">
           <span className="text-sm font-black text-[var(--navy-text)]">
-            전체 갑지 <span className="font-normal text-[var(--navy-text-muted)] text-xs">{filteredProjects.length}개</span>
+            전체 프로젝트 <span className="font-normal text-[var(--navy-text-muted)] text-xs">{filteredProjects.length}개</span>
           </span>
           <div className="flex items-center gap-2">
             <div className="inline-flex rounded-lg border border-[var(--navy-border-soft)] bg-[var(--navy-surface-2)] p-0.5">
@@ -770,7 +787,7 @@ function ReturningUserView({
 
         {filteredProjects.length === 0 ? (
           <div className="px-5 py-8 text-center text-sm text-[var(--navy-text-muted)]">
-            {search ? "검색 결과가 없습니다." : "해당 유형의 갑지가 없습니다."}
+            {search ? "검색 결과가 없습니다." : "해당 유형의 프로젝트가 없습니다."}
           </div>
         ) : (
           <>

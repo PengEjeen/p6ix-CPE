@@ -198,7 +198,7 @@ export default function FrameworkSection({ data, setData, onAutoSave }) {
       )}
       {renderTable(
         "층변화",
-        ["구분", "소요일(일)"],
+        ["중공종", "소요일(일)"],
         [
           { label: "전이층", value: data.change_transfer },
           { label: "세팅층", value: data.change_setting },
@@ -236,7 +236,7 @@ export default function FrameworkSection({ data, setData, onAutoSave }) {
       )}
       {renderTable(
         "역타공법 지하층 소요일",
-        ["구분", "소요일(일)"],
+        ["중공종", "소요일(일)"],
         [{ label: "적용", value: data.reverse_excavation }],
         ["reverse_excavation"]
       )}

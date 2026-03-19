@@ -25,6 +25,12 @@
   --ui-outline-text-color: #d1d5db;
   --ui-outline-border-color: var(--navy-accent);
   --ui-outline-hover-bg: rgb(75 85 99 / 0.18);
+  --table-editable-bg: #1f2636;
+  --table-editable-border: rgb(6 182 212 / 0.35);
+  --table-editable-focus-border: rgb(103 232 249 / 0.95);
+  --table-editable-focus-ring: rgb(34 211 238 / 0.3);
+  --table-editable-disabled-bg: #1f1f2b;
+  --table-editable-disabled-border: #374151;
 
   --legacy-bg-main: #1e1e2f;
   --legacy-bg-main-alt: #1e1e24;
@@ -86,6 +92,12 @@
   --ui-outline-text-color: #e2e8f0;
   --ui-outline-border-color: #54627f;
   --ui-outline-hover-bg: rgb(84 98 127 / 0.2);
+  --table-editable-bg: #1a2334;
+  --table-editable-border: rgb(34 211 238 / 0.32);
+  --table-editable-focus-border: rgb(103 232 249 / 0.95);
+  --table-editable-focus-ring: rgb(34 211 238 / 0.28);
+  --table-editable-disabled-bg: #161622;
+  --table-editable-disabled-border: #2f374a;
 
   --legacy-bg-main: #12121d;
   --legacy-bg-main-alt: #11111a;
@@ -148,6 +160,12 @@
   --ui-outline-text-color: #111827;
   --ui-outline-border-color: #94a3b8;
   --ui-outline-hover-bg: rgb(148 163 184 / 0.28);
+  --table-editable-bg: #eef6ff;
+  --table-editable-border: rgb(56 189 248 / 0.4);
+  --table-editable-focus-border: rgb(2 132 199 / 0.95);
+  --table-editable-focus-ring: rgb(56 189 248 / 0.24);
+  --table-editable-disabled-bg: #ffffff;
+  --table-editable-disabled-border: #cbd5e1;
 
   --legacy-bg-main: #f4f6fb;
   --legacy-bg-main-alt: #f1f4fa;
@@ -209,6 +227,12 @@
   --ui-outline-text-color: #111827;
   --ui-outline-border-color: #bda589;
   --ui-outline-hover-bg: rgb(110 82 56 / 0.18);
+  --table-editable-bg: #f4ebdf;
+  --table-editable-border: rgb(110 82 56 / 0.35);
+  --table-editable-focus-border: rgb(95 70 47 / 0.92);
+  --table-editable-focus-ring: rgb(110 82 56 / 0.24);
+  --table-editable-disabled-bg: #fff7ef;
+  --table-editable-disabled-border: #ccb79d;
 
   --legacy-bg-main: #f3ece3;
   --legacy-bg-main-alt: #f0e7dd;
@@ -331,6 +355,23 @@ code {
     --tw-ring-color: rgb(75 85 99 / 0.35);
   }
 
+  .ui-table-editable-input {
+    @apply w-full rounded border outline-none transition;
+    background: var(--table-editable-bg);
+    border-color: var(--table-editable-border);
+  }
+
+  .ui-table-editable-input:focus {
+    border-color: var(--table-editable-focus-border);
+    box-shadow: 0 0 0 1px var(--table-editable-focus-ring);
+  }
+
+  .ui-table-editable-input-disabled {
+    @apply w-full rounded border outline-none;
+    background: var(--table-editable-disabled-bg);
+    border-color: var(--table-editable-disabled-border);
+  }
+
   .ui-icon-btn {
     @apply rounded p-1.5 transition-colors;
     color: var(--ui-icon-color);
@@ -433,6 +474,31 @@ code {
     background: rgb(44 44 58 / 0.96);
     border-color: rgb(75 85 99 / 0.45);
     color: #e5e7eb;
+  }
+
+  .ui-edit-legend {
+    @apply flex items-center gap-3 rounded-lg border px-3 py-1.5 text-xs font-semibold;
+    border-color: var(--navy-border-soft);
+    background: color-mix(in srgb, var(--navy-surface) 86%, transparent);
+    color: var(--navy-text-muted);
+  }
+
+  .ui-edit-legend-item {
+    @apply inline-flex items-center gap-1.5;
+  }
+
+  .ui-edit-legend-box {
+    @apply inline-block h-3.5 w-5 rounded-sm border;
+  }
+
+  .ui-edit-legend-box-editable {
+    background: var(--table-editable-bg);
+    border-color: var(--table-editable-border);
+  }
+
+  .ui-edit-legend-box-readonly {
+    background: var(--table-editable-disabled-bg);
+    border-color: var(--table-editable-disabled-border);
   }
 
   .btn-blue {

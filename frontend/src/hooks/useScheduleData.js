@@ -60,21 +60,27 @@ export const useScheduleData = (projectId, setStoreItems, setStoreOperatingRates
                 fetchBoredPileStandard()
             ]);
 
-            // Handle Initial Init
-            let scheduleItems = fetchedData.items;
-            let scheduleLinks = fetchedData.links || [];
-            let scheduleSubTasks = fetchedData.sub_tasks || fetchedData.subTasks || [];
-            let currentContainerId = fetchedData.containerId;
+            // Handle Initial Init (defensive normalization for unexpected API payloads)
+            const normalizedFetchedData = fetchedData && typeof fetchedData === "object"
+                ? fetchedData
+                : { containerId: null, items: [], links: [], sub_tasks: [] };
+            let scheduleItems = normalizedFetchedData.items || [];
+            let scheduleLinks = normalizedFetchedData.links || [];
+            let scheduleSubTasks = normalizedFetchedData.sub_tasks || normalizedFetchedData.subTasks || [];
+            let currentContainerId = normalizedFetchedData.containerId;
 
             if (!currentContainerId || !scheduleItems || scheduleItems.length === 0) {
                 // Initialize if empty (Backend)
                 try {
                     await initializeDefaultItems(projectId);
                     const refetched = await fetchScheduleItems(projectId);
-                    scheduleItems = refetched.items;
-                    scheduleLinks = refetched.links || [];
-                    scheduleSubTasks = refetched.sub_tasks || refetched.subTasks || [];
-                    currentContainerId = refetched.containerId;
+                    const normalizedRefetched = refetched && typeof refetched === "object"
+                        ? refetched
+                        : { containerId: null, items: [], links: [], sub_tasks: [] };
+                    scheduleItems = normalizedRefetched.items || [];
+                    scheduleLinks = normalizedRefetched.links || [];
+                    scheduleSubTasks = normalizedRefetched.sub_tasks || normalizedRefetched.subTasks || [];
+                    currentContainerId = normalizedRefetched.containerId;
                 } catch (e) {
                     console.error("Backend Init Failed, using local fallback");
                 }
@@ -95,8 +101,6 @@ export const useScheduleData = (projectId, setStoreItems, setStoreOperatingRates
             // Ensure proper calculation on load
             setContainerId(currentContainerId);
 
-            // Store Init
-            setStoreOperatingRates(rateData);
             // Store Init
             setStoreOperatingRates(rateData);
 

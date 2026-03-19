@@ -30,7 +30,7 @@ export default function GanttToolbar({
                                         : "text-gray-500 hover:text-gray-900"
                                         }`}
                                 >
-                                    구분별
+                                    중공종별
                                 </button>
                                 <button
                                     type="button"
@@ -50,7 +50,7 @@ export default function GanttToolbar({
                                         : "text-gray-500 hover:text-gray-900"
                                         }`}
                                 >
-                                    공종별
+                                    세부공종별
                                 </button>
                             </div>
                             {canEdit && (
@@ -79,7 +79,7 @@ export default function GanttToolbar({
                                                 : 'bg-gray-50 text-gray-600 hover:bg-gray-100 border-gray-200'
                                                 }`}
                                         >
-                                            부공종 추가
+                                            부세부공종 추가
                                         </button>
                                         {subtaskMode && (
                                             <span className="text-[10px] text-emerald-600 font-semibold tracking-wide">드래그해서 그리기</span>

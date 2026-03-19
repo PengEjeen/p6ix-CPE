@@ -60,7 +60,8 @@ const StandardSuggestList = ({
     const content = (
         <div
             ref={listRef}
-            className="fixed bg-[#1f1f2b] border border-gray-700 rounded-lg shadow-xl z-[9999] max-h-64 overflow-auto"
+            className="fixed bg-[#1f1f2b] border border-gray-700 rounded-lg shadow-xl z-[9999] max-h-80 overflow-y-auto overflow-x-hidden overscroll-contain"
+            onWheel={(e) => e.stopPropagation()}
             style={{
                 left: anchorRect ? `${anchorRect.left}px` : "0px",
                 top: anchorRect ? `${position === "top" ? anchorRect.top : anchorRect.bottom}px` : "0px",
@@ -70,10 +71,10 @@ const StandardSuggestList = ({
             }}
         >
             <div className="sticky top-0 z-10 grid grid-cols-[0.9fr_0.9fr_1fr_1.2fr_0.8fr] gap-x-2 border-b border-gray-700 bg-[#252536] px-3 py-2 text-[11px] font-semibold text-gray-300">
-                <div>구분</div>
+                <div>중공종</div>
                 <div>공정</div>
-                <div>공종</div>
-                <div>목차</div>
+                <div>세부공종</div>
+                <div>표준품셈 목차</div>
                 <div>규격</div>
             </div>
             {items.map((std, index) => {
