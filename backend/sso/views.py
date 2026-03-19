@@ -1,5 +1,6 @@
 import json
 import logging
+import re
 import secrets
 from urllib.error import HTTPError, URLError
 from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
@@ -20,6 +21,7 @@ from .keycloak_auth import KeycloakAuthError, KeycloakClaims, KeycloakTokenVerif
 from .services import LocalUserSyncMixin, is_safe_next_path
 
 logger = logging.getLogger(__name__)
+IDP_ALIAS_PATTERN = re.compile(r"^[A-Za-z0-9._-]+$")
 
 
 def append_query_param(url: str, key: str, value: str) -> str:
@@ -90,6 +92,11 @@ class SSOLoginRedirectView(views.APIView):
             "state": state,
             "nonce": nonce,
         }
+
+        # Optional IdP hint (e.g. provider=google) to skip Keycloak username/password screen.
+        provider = (request.GET.get("provider") or "").strip()
+        if provider and IDP_ALIAS_PATTERN.fullmatch(provider):
+            params["kc_idp_hint"] = provider
 
         return HttpResponseRedirect(f"{authorize_url}?{urlencode(params)}")
 

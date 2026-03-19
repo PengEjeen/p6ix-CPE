@@ -96,7 +96,7 @@ function Layout() {
       const nextUrl = `${window.location.origin}${normalizedAppBase}login`;
 
       const apiBase = import.meta.env.DEV
-        ? "http://localhost:8000/api"
+        ? "/api"
         : (import.meta.env.VITE_API_BASE || "/api");
       const normalizedApiBase = apiBase.endsWith("/") ? apiBase : `${apiBase}/`;
       const logoutUrl = `${normalizedApiBase}sso/logout/?next=${encodeURIComponent(nextUrl)}`;

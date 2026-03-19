@@ -71,6 +71,7 @@
 - `VITE_KEYCLOAK_ENABLED=true`
 - `VITE_API_BASE=/api` (또는 실제 API 주소)
 - 선택: `VITE_SSO_NEXT_PATH` (로그인 성공 후 이동할 경로/URL)
+- 선택: `VITE_SSO_PROVIDER=google` (로그인 시 `kc_idp_hint` 전달로 특정 IdP로 바로 이동)
 
 참고: 현재 코드에서는 `VITE_KEYCLOAK_URL`, `VITE_KEYCLOAK_REALM`, `VITE_KEYCLOAK_CLIENT_ID` 값을 직접 사용하지 않고, 실제 인증 플로우는 백엔드 `/api/sso/*`를 통해 수행합니다.
 

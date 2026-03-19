@@ -34,6 +34,7 @@ jobs:
           VITE_USE_SESSION_AUTH: ${{ vars.VITE_USE_SESSION_AUTH }}
           VITE_KEYCLOAK_ENABLED: ${{ vars.VITE_KEYCLOAK_ENABLED }}
           VITE_SSO_NEXT_PATH: ${{ vars.VITE_SSO_NEXT_PATH }}
+          VITE_SSO_PROVIDER: ${{ vars.VITE_SSO_PROVIDER }}
           VITE_APP_BASE: ${{ vars.VITE_APP_BASE }}
         run: npm run build
 
@@ -75,6 +76,7 @@ jobs:
             --build-arg VITE_USE_SESSION_AUTH="${{ vars.VITE_USE_SESSION_AUTH }}" \
             --build-arg VITE_KEYCLOAK_ENABLED="${{ vars.VITE_KEYCLOAK_ENABLED }}" \
             --build-arg VITE_SSO_NEXT_PATH="${{ vars.VITE_SSO_NEXT_PATH }}" \
+            --build-arg VITE_SSO_PROVIDER="${{ vars.VITE_SSO_PROVIDER }}" \
             --build-arg VITE_APP_BASE="${{ vars.VITE_APP_BASE }}" \
             -t p6ix_cpe:ci .
 
@@ -121,6 +123,7 @@ jobs:
             VITE_USE_SESSION_AUTH=${{ vars.VITE_USE_SESSION_AUTH }}
             VITE_KEYCLOAK_ENABLED=${{ vars.VITE_KEYCLOAK_ENABLED }}
             VITE_SSO_NEXT_PATH=${{ vars.VITE_SSO_NEXT_PATH }}
+            VITE_SSO_PROVIDER=${{ vars.VITE_SSO_PROVIDER }}
             VITE_APP_BASE=${{ vars.VITE_APP_BASE }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}

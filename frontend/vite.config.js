@@ -36,6 +36,13 @@ export default defineConfig(({ mode }) => {
             host: true,
             port: 3000,
             strictPort: true,
+            proxy: {
+                "/api": {
+                    target: env.VITE_DEV_API_PROXY_TARGET || "http://127.0.0.1:8000",
+                    changeOrigin: true,
+                    secure: false,
+                },
+            },
             fs: {
                 allow: [repoRoot],
             },

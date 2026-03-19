@@ -17,7 +17,7 @@ function Login() {
 
   const ssoLoginUrl = useMemo(() => {
     const rawBase = import.meta.env.DEV
-      ? "http://localhost:8000/api"
+      ? "/api"
       : (import.meta.env.VITE_API_BASE || "/api");
 
     const normalized = rawBase.endsWith("/") ? rawBase : `${rawBase}/`;

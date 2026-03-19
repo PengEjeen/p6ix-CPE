@@ -1,9 +1,9 @@
 import axios from "axios";
 
-// 개발 환경에서는 localhost:8000/api 사용, 배포 환경에서는 .env 설정 사용
+// 개발 환경에서는 Vite /api 프록시 사용, 배포 환경에서는 .env 설정 사용
 const isDev = import.meta.env.DEV;
 const baseURL = isDev
-  ? "http://localhost:8000/api"
+  ? "/api"
   : (import.meta.env.VITE_API_BASE || "/api");
 
 const USE_SESSION_AUTH =
