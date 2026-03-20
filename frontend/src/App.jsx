@@ -9,6 +9,7 @@ import Calc from "./pages/Calc";
 import Criteria from "./pages/Criteria";
 import Operatingrate from "./pages/OperatingRate";
 import Quotation from "./pages/Quotation";
+import Summary from "./pages/Summary";
 import UserProfile from "./pages/UserProfile";
 import TotalCalc from "./pages/TotalCalc";
 import CIPBasisList from "./pages/CIPBasisList";
@@ -38,7 +39,7 @@ const router = createBrowserRouter(
         <Route path="/projects/:id/criteria" element={<Criteria />} />
         <Route path="/projects/:id/operating_rate" element={<Operatingrate />} />
         <Route path="/projects/:id/" element={<Quotation />} />
-        <Route path="/projects/:id/summary" element={<Quotation />} />
+        <Route path="/projects/:id/summary" element={<Summary />} />
         <Route path="/projects/:id/total-calc" element={<TotalCalc />} />
         <Route path="/projects/:id/cip-basis" element={<CIPBasisList />} />
         <Route path="/projects/:id/pile-basis" element={<PileBasisList />} />

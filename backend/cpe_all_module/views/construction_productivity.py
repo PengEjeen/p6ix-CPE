@@ -1,9 +1,12 @@
 from rest_framework import viewsets
+from rest_framework.exceptions import PermissionDenied
+from django.shortcuts import get_object_or_404
 
 from cpe_all_module.models.construction_productivity_models import ConstructionProductivity
 from cpe_all_module.serializers.construction_productivity_serializers import (
     ConstructionProductivitySerializer,
 )
+from cpe_module.models.project_models import Project
 
 
 class ConstructionProductivityViewSet(viewsets.ModelViewSet):
@@ -60,16 +63,48 @@ class ConstructionProductivityViewSet(viewsets.ModelViewSet):
         project_id = self.kwargs.get("project_id") or self.request.query_params.get(
             "project_id"
         )
-        if not project_id:
-            return queryset
-
-        project_queryset = queryset.filter(project_id=project_id)
+        owner_queryset = queryset.filter(
+            project__user=self.request.user,
+            project__is_delete=False,
+        )
         template_queryset = queryset.filter(project__isnull=True)
+
+        if not project_id:
+            return owner_queryset
+
+        get_object_or_404(
+            Project,
+            id=project_id,
+            user=self.request.user,
+            is_delete=False,
+        )
+
+        project_queryset = owner_queryset.filter(project_id=project_id)
 
         if project_queryset.exists():
             self._ensure_project_defaults(project_id, project_queryset, template_queryset)
-            return queryset.filter(project_id=project_id)
+            return owner_queryset.filter(project_id=project_id)
 
         # 일부 구버전 프로젝트는 표준 데이터를 복제하지 않고 생성됨.
         # 이 경우 템플릿(project is null) 데이터를 fallback으로 반환한다.
         return template_queryset
+
+    def perform_create(self, serializer):
+        project = serializer.validated_data.get("project")
+        if (
+            project is None
+            or project.user_id != self.request.user.id
+            or project.is_delete
+        ):
+            raise PermissionDenied("project access denied")
+        serializer.save()
+
+    def perform_update(self, serializer):
+        project = serializer.validated_data.get("project", serializer.instance.project)
+        if (
+            project is None
+            or project.user_id != self.request.user.id
+            or project.is_delete
+        ):
+            raise PermissionDenied("project access denied")
+        serializer.save()

@@ -266,9 +266,10 @@ export default function OperatingRate() {
     loadRegions();
   }, []);
 
-  useEffect(() => {
-    const loadData = async () => {
-      try {
+  const loadData = useCallback(async ({ silent = false } = {}) => {
+    try {
+      if (!silent) setLoading(true);
+
         const [weightData, scheduleData, workCondData] = await Promise.all([
           detailOperatingRate(projectId),
           fetchScheduleItems(projectId),
@@ -383,16 +384,21 @@ export default function OperatingRate() {
             dataYears: workCond.data_years ? `${workCond.data_years}년` : "10년",
           }));
         }
-      } catch (error) {
-        console.error("가동률 불러오기 실패:", error);
+    } catch (error) {
+      console.error("가동률 불러오기 실패:", error);
+      if (!silent) {
         setWorkTypes([]);
-      } finally {
+      }
+    } finally {
+      if (!silent) {
         setLoading(false);
       }
-    };
-
-    loadData();
+    }
   }, [projectId]);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
 
   useEffect(() => {
     if (!loading && !globalSettings.region && regions.length > 0) {
@@ -574,9 +580,9 @@ export default function OperatingRate() {
         },
       });
 
+      await loadData({ silent: true });
       setSaving(false);
       await alert("저장되었습니다.");
-      window.location.reload();
     } catch (error) {
       console.error("가동률 저장 실패:", error);
       setSaving(false);
@@ -584,7 +590,7 @@ export default function OperatingRate() {
     } finally {
       setSaving(false);
     }
-  }, [alert, projectId, workTypes, globalSettings]);
+  }, [alert, projectId, workTypes, globalSettings, loadData]);
 
   const climateRows = [
     {

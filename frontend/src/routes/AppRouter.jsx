@@ -8,6 +8,7 @@ import Calc from "../pages/Calc"
 import Criteria from "../pages/Criteria"
 import Operatingrate from "../pages/OperatingRate"
 import Quotation from "../pages/Quotation";
+import Summary from "../pages/Summary";
 import UserProfile from "../pages/UserProfile";
 
 export default function AppRouter() {
@@ -28,6 +29,7 @@ export default function AppRouter() {
         <Route path="/projects/:id/criteria" element={<Criteria />} />
         <Route path="/projects/:id/operating_rate" element={<Operatingrate />} />
         <Route path="/projects/:id/" element={<Quotation />} />
+        <Route path="/projects/:id/summary" element={<Summary />} />
       </Route>
     </Routes>
   );

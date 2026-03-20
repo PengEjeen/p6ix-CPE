@@ -199,6 +199,9 @@ export default function ScheduleMasterList() {
     const [isScrolling, setIsScrolling] = useState(false);
     const [standardItems, setStandardItems] = useState([]);
     const [selectedItemIds, setSelectedItemIds] = useState([]);
+    const [activeEditingItemId, setActiveEditingItemId] = useState(null);
+    const [categoryRenameTarget, setCategoryRenameTarget] = useState(null);
+    const [categoryRenameValue, setCategoryRenameValue] = useState("");
     const [isSelectionDragging, setIsSelectionDragging] = useState(false);
     const [rowClassEditModal, setRowClassEditModal] = useState({
         open: false,
@@ -222,6 +225,10 @@ export default function ScheduleMasterList() {
     const selectionDragVisitedRef = useRef(new Set());
 
     const allItemIds = useMemo(() => items.map((item) => item.id), [items]);
+    const activeEditingItem = useMemo(
+        () => items.find((item) => item.id === activeEditingItemId) || null,
+        [items, activeEditingItemId]
+    );
     const selectedCount = selectedItemIds.length;
     const allSelected = allItemIds.length > 0 && selectedCount === allItemIds.length;
     const {
@@ -436,6 +443,14 @@ export default function ScheduleMasterList() {
     }, [items]);
 
     useEffect(() => {
+        if (!activeEditingItemId) return;
+        const exists = items.some((item) => item.id === activeEditingItemId);
+        if (!exists) {
+            setActiveEditingItemId(null);
+        }
+    }, [items, activeEditingItemId]);
+
+    useEffect(() => {
         if (!selectAllRef.current) return;
         selectAllRef.current.indeterminate = selectedCount > 0 && !allSelected;
     }, [allSelected, selectedCount]);
@@ -539,12 +554,18 @@ export default function ScheduleMasterList() {
         handleCloseRowClassEdit();
     }, [handleCloseRowClassEdit, rowClassEditModal.itemId, rowClassEditModal.process, rowClassEditModal.sub_process, updateItem]);
 
+    const handleActivateItem = useCallback((item) => {
+        if (!item?.id) return;
+        setActiveEditingItemId(item.id);
+    }, []);
+
     const handleAddItem = (parentItem = null) => {
+        const targetItem = parentItem || activeEditingItem;
         const newItem = {
             id: `new-${Date.now()}`,
-            main_category: parentItem ? parentItem.main_category : "새 세부공종",
-            process: parentItem ? parentItem.process : "새 작업",
-            sub_process: parentItem ? (parentItem.sub_process || "") : "새 세부공정",
+            main_category: targetItem ? targetItem.main_category : "새 세부공종",
+            process: targetItem ? targetItem.process : "새 작업",
+            sub_process: targetItem ? (targetItem.sub_process || "") : "새 세부공정",
             work_type: "새 세부작업",
             unit: "",
             quantity: 0,
@@ -552,12 +573,12 @@ export default function ScheduleMasterList() {
             productivity: 0,
             crew_size: 1,
             remarks: "",
-            operating_rate_type: parentItem ? parentItem.operating_rate_type : "EARTH",
+            operating_rate_type: targetItem ? targetItem.operating_rate_type : "EARTH",
             operating_rate_value: 0
         };
 
-        if (parentItem) {
-            const index = items.findIndex(i => i.id === parentItem.id);
+        if (targetItem) {
+            const index = items.findIndex(i => i.id === targetItem.id);
             addItemAtIndex(newItem, index + 1);
         } else {
             addItem(newItem);
@@ -819,6 +840,86 @@ export default function ScheduleMasterList() {
         }
         toast.success("대공종이 삭제되었습니다.");
     };
+
+    const handleStartCategoryRename = useCallback((category) => {
+        setCategoryRenameTarget(category);
+        setCategoryRenameValue(category);
+        setOpenCategoryMenu(null);
+    }, []);
+
+    const handleCancelCategoryRename = useCallback(() => {
+        setCategoryRenameTarget(null);
+        setCategoryRenameValue("");
+    }, []);
+
+    const handleCommitCategoryRename = useCallback(async (oldCategory) => {
+        const sourceCategory = String(oldCategory || "").trim();
+        const nextCategory = String(categoryRenameValue || "").trim();
+        if (!sourceCategory) return;
+
+        if (!nextCategory) {
+            toast.error("대공종명을 입력해주세요.");
+            return;
+        }
+
+        if (sourceCategory === nextCategory) {
+            handleCancelCategoryRename();
+            return;
+        }
+
+        const hasDuplicateCategory = items.some((item) => {
+            const current = String(item?.main_category || "기타");
+            return current === nextCategory && current !== sourceCategory;
+        });
+        if (hasDuplicateCategory) {
+            toast.error("이미 존재하는 대공종명입니다.");
+            return;
+        }
+
+        const targetIds = items
+            .filter((item) => String(item?.main_category || "기타") === sourceCategory)
+            .map((item) => item.id);
+
+        if (targetIds.length === 0) {
+            handleCancelCategoryRename();
+            return;
+        }
+
+        const rateIdsToRename = operatingRates
+            .filter((rate) => String(rate?.main_category || "기타") === sourceCategory)
+            .map((rate) => rate.id)
+            .filter(Boolean);
+
+        const nextRates = operatingRates.map((rate) => {
+            if (String(rate?.main_category || "기타") !== sourceCategory) return rate;
+            return {
+                ...rate,
+                main_category: nextCategory
+            };
+        });
+
+        // Keep table calculation stable by syncing category/rate keys together immediately.
+        setStoreOperatingRates(nextRates);
+        updateItemsField(targetIds, "main_category", nextCategory);
+        handleCancelCategoryRename();
+        toast.success("대공종명이 변경되었습니다.");
+
+        if (rateIdsToRename.length > 0) {
+            try {
+                const { updateOperatingRate: updateOperatingRateAPI } = await import("../api/cpe/operating_rate");
+                const savedRates = await updateOperatingRateAPI(projectId, {
+                    weights: rateIdsToRename.map((id) => ({
+                        id,
+                        main_category: nextCategory
+                    }))
+                });
+                setStoreOperatingRates(savedRates);
+            } catch (error) {
+                console.error("대공종명 변경 후 가동률 저장 실패:", error);
+                toast.error("가동률 대공종명 저장 실패");
+            }
+        }
+    }, [categoryRenameValue, handleCancelCategoryRename, items, operatingRates, projectId, setStoreOperatingRates, updateItemsField]);
 
     const handleMoveCategory = useCallback((category, direction) => {
         const categoryOrder = [];
@@ -1341,9 +1442,56 @@ export default function ScheduleMasterList() {
                                                                 <div className="flex items-center justify-between gap-2">
                                                                     <div className="flex items-center gap-2">
                                                                         <div className="ui-accent-dot w-1 h-5 rounded-full"></div>
-                                                                        <h3 className="font-bold text-[var(--navy-text)] text-base tracking-tight">
-                                                                            {category}
-                                                                        </h3>
+                                                                        {categoryRenameTarget === category && !forPrint ? (
+                                                                            <div className="flex items-center gap-1.5">
+                                                                                <input
+                                                                                    type="text"
+                                                                                    value={categoryRenameValue}
+                                                                                    onChange={(e) => setCategoryRenameValue(e.target.value)}
+                                                                                    onKeyDown={(e) => {
+                                                                                        if (e.key === "Enter") {
+                                                                                            e.preventDefault();
+                                                                                            handleCommitCategoryRename(category);
+                                                                                        } else if (e.key === "Escape") {
+                                                                                            e.preventDefault();
+                                                                                            handleCancelCategoryRename();
+                                                                                        }
+                                                                                    }}
+                                                                                    autoFocus
+                                                                                    className="ui-input py-1 px-2 min-w-[180px]"
+                                                                                    aria-label="대공종명 수정"
+                                                                                />
+                                                                                <button
+                                                                                    type="button"
+                                                                                    onClick={() => handleCommitCategoryRename(category)}
+                                                                                    className="rounded-md border border-[var(--navy-accent)] px-2 py-1 text-[11px] font-semibold text-white bg-[var(--navy-accent)] hover:bg-[var(--navy-accent-hover)]"
+                                                                                >
+                                                                                    적용
+                                                                                </button>
+                                                                                <button
+                                                                                    type="button"
+                                                                                    onClick={handleCancelCategoryRename}
+                                                                                    className="rounded-md border border-[var(--navy-border)] px-2 py-1 text-[11px] text-[var(--navy-text-muted)] hover:bg-[var(--navy-surface-3)]"
+                                                                                >
+                                                                                    취소
+                                                                                </button>
+                                                                            </div>
+                                                                        ) : (
+                                                                            <>
+                                                                                <h3 className="font-bold text-[var(--navy-text)] text-base tracking-tight">
+                                                                                    {category}
+                                                                                </h3>
+                                                                                {!forPrint && (
+                                                                                    <button
+                                                                                        type="button"
+                                                                                        onClick={() => handleStartCategoryRename(category)}
+                                                                                        className="inline-flex h-8 items-center justify-center rounded-lg border border-[var(--navy-border)] bg-[var(--navy-surface-2)] px-3 text-xs font-bold text-[var(--navy-text)] shadow-sm transition hover:bg-[var(--navy-surface-3)] hover:border-[var(--navy-accent)]"
+                                                                                    >
+                                                                                        이름수정
+                                                                                    </button>
+                                                                                )}
+                                                                            </>
+                                                                        )}
                                                                         <span className="text-xs text-[var(--navy-text-muted)] bg-[var(--navy-bg)] px-2 py-0.5 rounded-full border border-[var(--navy-border-soft)]">
                                                                             {categoryItems.length}개 항목
                                                                         </span>
@@ -1417,12 +1565,16 @@ export default function ScheduleMasterList() {
                                                                                 type="button"
                                                                                 onClick={() => {
                                                                                     const lastCategoryItem = categoryItems[categoryItems.length - 1] || items[0];
-                                                                                    if (lastCategoryItem) {
+                                                                                    const activeInCategory = activeEditingItem && activeEditingItem.main_category === category
+                                                                                        ? activeEditingItem
+                                                                                        : null;
+                                                                                    const targetItem = activeInCategory || lastCategoryItem;
+                                                                                    if (targetItem) {
                                                                                         handleAddItem({
-                                                                                            ...lastCategoryItem,
+                                                                                            ...targetItem,
                                                                                             main_category: category,
-                                                                                            process: category === lastCategoryItem.main_category ? lastCategoryItem.process : "",
-                                                                                            sub_process: category === lastCategoryItem.main_category ? (lastCategoryItem.sub_process || "") : ""
+                                                                                            process: category === targetItem.main_category ? targetItem.process : "",
+                                                                                            sub_process: category === targetItem.main_category ? (targetItem.sub_process || "") : ""
                                                                                         });
                                                                                     }
                                                                                     setOpenCategoryMenu(null);
@@ -1525,6 +1677,7 @@ export default function ScheduleMasterList() {
                                                         handleDeleteItem={handleDeleteItem}
                                                         onOpenRowClassEdit={handleOpenRowClassEdit}
                                                         handleAddItem={handleAddItem}
+                                                        onActivateItem={handleActivateItem}
                                                         handleOpenImport={handleOpenImport}
                                                         spanInfo={spanInfoMap[item.id] || {
                                                             isProcessFirst: true,

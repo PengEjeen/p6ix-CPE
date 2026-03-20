@@ -18,13 +18,24 @@ from ..serializers.calc_serializers import (
     EarthworkInputSerializer,
     FrameWorkInputSerializer,
 )
+from ..models.project_models import Project
+
+
+def _get_owned_project_or_404(request, project_id):
+    return get_object_or_404(
+        Project,
+        id=project_id,
+        user=request.user,
+        is_delete=False,
+    )
 
 
 # 공사개요
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def detail_construction_overview(request, project_id):
-    instance = get_object_or_404(ConstructionOverview, project_id=project_id)
+    project = _get_owned_project_or_404(request, project_id)
+    instance = get_object_or_404(ConstructionOverview, project=project)
     serializer = ConstructionOverviewSerializer(instance)
     return Response(serializer.data)
 
@@ -32,7 +43,8 @@ def detail_construction_overview(request, project_id):
 @api_view(["PUT"])
 @permission_classes([IsAuthenticated])
 def update_construction_overview(request, project_id):
-    instance = get_object_or_404(ConstructionOverview, project_id=project_id)
+    project = _get_owned_project_or_404(request, project_id)
+    instance = get_object_or_404(ConstructionOverview, project=project)
     serializer = ConstructionOverviewSerializer(instance, data=request.data, partial=True)
     if serializer.is_valid():
         serializer.save()
@@ -43,7 +55,8 @@ def update_construction_overview(request, project_id):
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def detail_work_condition(request, project_id):
-    instance, _ = WorkCondition.objects.get_or_create(project_id=project_id)
+    project = _get_owned_project_or_404(request, project_id)
+    instance, _ = WorkCondition.objects.get_or_create(project=project)
     serializer = WorkConditionSerializer(instance)
     return Response(serializer.data)
 
@@ -51,28 +64,22 @@ def detail_work_condition(request, project_id):
 @api_view(["PUT"])
 @permission_classes([IsAuthenticated])
 def update_work_condition(request, project_id):
-    print(f"[DEBUG] update_work_condition called for project_id: {project_id}")
-    print(f"[DEBUG] Request data: {request.data}")
-    
-    instance, created = WorkCondition.objects.get_or_create(project_id=project_id)
-    print(f"[DEBUG] Instance: {instance}, Created: {created}")
-    print(f"[DEBUG] Current earthwork_type: {instance.earthwork_type}")
-    print(f"[DEBUG] Current framework_type: {instance.framework_type}")
-    
+    project = _get_owned_project_or_404(request, project_id)
+    instance, _ = WorkCondition.objects.get_or_create(project=project)
+
     serializer = WorkConditionSerializer(instance, data=request.data, partial=True)
     if serializer.is_valid():
         serializer.save()
-        print(f"[DEBUG] Save successful. New earthwork_type: {instance.earthwork_type}")
         return Response(serializer.data)
-    
-    print(f"[DEBUG] Validation errors: {serializer.errors}")
+
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 # 준비·정리 기간
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def detail_preparation_period(request, project_id):
-    instance = get_object_or_404(PreparationPeriod, project_id=project_id)
+    project = _get_owned_project_or_404(request, project_id)
+    instance = get_object_or_404(PreparationPeriod, project=project)
     serializer = PreparationPeriodSerializer(instance)
     return Response(serializer.data)
 
@@ -80,7 +87,8 @@ def detail_preparation_period(request, project_id):
 @api_view(["PUT"])
 @permission_classes([IsAuthenticated])
 def update_preparation_period(request, project_id):
-    instance = get_object_or_404(PreparationPeriod, project_id=project_id)
+    project = _get_owned_project_or_404(request, project_id)
+    instance = get_object_or_404(PreparationPeriod, project=project)
     serializer = PreparationPeriodSerializer(instance, data=request.data, partial=True)
     if serializer.is_valid():
         serializer.save()
@@ -91,7 +99,8 @@ def update_preparation_period(request, project_id):
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def detail_earthwork_input(request, project_id):
-    instance = get_object_or_404(EarthworkInput, project_id=project_id)
+    project = _get_owned_project_or_404(request, project_id)
+    instance = get_object_or_404(EarthworkInput, project=project)
     serializer = EarthworkInputSerializer(instance)
     return Response(serializer.data)
 
@@ -99,7 +108,8 @@ def detail_earthwork_input(request, project_id):
 @api_view(["PUT"])
 @permission_classes([IsAuthenticated])
 def update_earthwork_input(request, project_id):
-    instance = get_object_or_404(EarthworkInput, project_id=project_id)
+    project = _get_owned_project_or_404(request, project_id)
+    instance = get_object_or_404(EarthworkInput, project=project)
     serializer = EarthworkInputSerializer(instance, data=request.data, partial=True)
     if serializer.is_valid():
         serializer.save()
@@ -110,7 +120,8 @@ def update_earthwork_input(request, project_id):
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def detail_framework_input(request, project_id):
-    instance = get_object_or_404(FrameWorkInput, project_id=project_id)
+    project = _get_owned_project_or_404(request, project_id)
+    instance = get_object_or_404(FrameWorkInput, project=project)
     serializer = FrameWorkInputSerializer(instance)
     return Response(serializer.data)
 
@@ -118,7 +129,8 @@ def detail_framework_input(request, project_id):
 @api_view(["PUT"])
 @permission_classes([IsAuthenticated])
 def update_framework_input(request, project_id):
-    instance = get_object_or_404(FrameWorkInput, project_id=project_id)
+    project = _get_owned_project_or_404(request, project_id)
+    instance = get_object_or_404(FrameWorkInput, project=project)
     serializer = FrameWorkInputSerializer(instance, data=request.data, partial=True)
     if serializer.is_valid():
         serializer.save()

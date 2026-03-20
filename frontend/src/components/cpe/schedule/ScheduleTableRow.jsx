@@ -17,6 +17,7 @@ const ScheduleTableRow = ({
     handleDeleteItem,
     onOpenRowClassEdit,
     handleAddItem,
+    onActivateItem,
     handleOpenImport,
     spanInfo,
     isOverlay,
@@ -192,6 +193,14 @@ const ScheduleTableRow = ({
             ref={setNodeRef}
             style={style}
             className={`hover:bg-white/5 transition-colors text-base ${rowClassName} ${isSelected ? "bg-blue-900/20" : ""} ${isDragging && !isOverlay ? "bg-blue-900/20" : ""} ${isPartOfDraggingGroup && !isDragging ? "bg-blue-900/25" : ""} ${isDropTarget ? (isDropInvalid ? "bg-red-900/15" : "bg-cyan-900/15") : ""}`}
+            onMouseDownCapture={(e) => {
+                if (isOverlay || e.button !== 0) return;
+                onActivateItem?.(item);
+            }}
+            onFocusCapture={() => {
+                if (isOverlay) return;
+                onActivateItem?.(item);
+            }}
         >
             {/* Row Select */}
             <td

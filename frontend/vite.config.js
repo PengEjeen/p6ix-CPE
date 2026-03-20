@@ -52,5 +52,11 @@ export default defineConfig(({ mode }) => {
                 { find: "@", replacement: "/src" },
             ],
         },
+        test: {
+            environment: "jsdom",
+            setupFiles: "./src/test/setup.js",
+            globals: true,
+            css: true,
+        },
     };
 });

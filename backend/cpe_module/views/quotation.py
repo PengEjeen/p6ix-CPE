@@ -16,21 +16,33 @@ from cpe_module.models.calc_models import (
     EarthworkInput,
     FrameWorkInput,
 )
+from cpe_module.models.project_models import Project
+
+
+def _get_owned_project_or_404(request, project_id):
+    return get_object_or_404(
+        Project,
+        id=project_id,
+        user=request.user,
+        is_delete=False,
+    )
 
 # 견적서 상세조회
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def detail_quotation(request, project_id):
-    instance = get_object_or_404(Quotation, project_id=project_id)
+    project = _get_owned_project_or_404(request, project_id)
+    instance = get_object_or_404(Quotation, project=project)
     serializer = QuotationSerializer(instance)
     return Response(serializer.data)
 
 
 # 견적서 수정
-@api_view(["Patch"])
+@api_view(["PATCH"])
 @permission_classes([IsAuthenticated])
 def update_quotation(request, project_id):
-    instance = get_object_or_404(Quotation, project_id=project_id)
+    project = _get_owned_project_or_404(request, project_id)
+    instance = get_object_or_404(Quotation, project=project)
     serializer = QuotationSerializer(instance, data=request.data, partial=True)
     if serializer.is_valid():
         serializer.save()
@@ -39,25 +51,26 @@ def update_quotation(request, project_id):
 
 # ai 결과 저장
 @api_view(["POST"])
-# @permission_classes([IsAuthenticated])
+@permission_classes([IsAuthenticated])
 def update_ai_quotation(request, project_id):
-    quotation = get_object_or_404(Quotation, project_id=project_id)
+    project = _get_owned_project_or_404(request, project_id)
+    quotation = get_object_or_404(Quotation, project=project)
 
     # AI 새로 요청할 때 이전 결과 초기화(상태 알림용)
     quotation.ai_response = None
     quotation.save(update_fields=["ai_response"])
 
     # 기준(Criteria)
-    prep_criteria = PreparationWork.objects.filter(project_id=project_id).last()
-    earth_criteria = Earthwork.objects.filter(project_id=project_id).last()
-    frame_criteria = FrameWork.objects.filter(project_id=project_id).last()
+    prep_criteria = PreparationWork.objects.filter(project=project).last()
+    earth_criteria = Earthwork.objects.filter(project=project).last()
+    frame_criteria = FrameWork.objects.filter(project=project).last()
 
     # 사용자 입력(Calc)
-    overview = ConstructionOverview.objects.filter(project_id=project_id).last()
-    work = WorkCondition.objects.filter(project_id=project_id).last()
-    prep_calc = PreparationPeriod.objects.filter(project_id=project_id).last()
-    earth_calc = EarthworkInput.objects.filter(project_id=project_id).last()
-    frame_calc = FrameWorkInput.objects.filter(project_id=project_id).last()
+    overview = ConstructionOverview.objects.filter(project=project).last()
+    work = WorkCondition.objects.filter(project=project).last()
+    prep_calc = PreparationPeriod.objects.filter(project=project).last()
+    earth_calc = EarthworkInput.objects.filter(project=project).last()
+    frame_calc = FrameWorkInput.objects.filter(project=project).last()
 
     # 비동기 실행 함수 정의
     def run_ai_analysis():

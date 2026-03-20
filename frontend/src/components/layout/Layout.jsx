@@ -47,6 +47,7 @@ function Layout() {
   useEffect(() => {
     const checkAuth = async () => {
       if (USE_SESSION_AUTH) {
+        const storedUser = JSON.parse(localStorage.getItem("user") || "{}");
         try {
           const res = await api.get("sso/session/");
           if (res.data?.authenticated && res.data?.user?.id) {
@@ -54,12 +55,21 @@ function Layout() {
             localStorage.setItem("user", JSON.stringify(res.data.user));
             return;
           }
+          // 세션 확인 성공 + 비인증 응답인 경우에만 로그인 화면으로 이동
+          localStorage.removeItem("user");
+          navigate("/login");
+          return;
         } catch (err) {
           console.error("세션 확인 실패:", err);
+          // 일시적인 네트워크/API 오류일 수 있으므로, 기존 로그인 사용자 정보가 있으면 유지
+          if (storedUser?.id) {
+            setUser(storedUser);
+            return;
+          }
+          localStorage.removeItem("user");
+          navigate("/login");
+          return;
         }
-        localStorage.removeItem("user");
-        navigate("/login");
-        return;
       }
 
       const access = localStorage.getItem("access");

@@ -1,7 +1,9 @@
 from rest_framework import viewsets, status, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from rest_framework.exceptions import PermissionDenied
 from django.http import HttpResponse
+from django.shortcuts import get_object_or_404
 from datetime import date as date_cls
 import io
 import xlsxwriter
@@ -34,12 +36,43 @@ class ConstructionScheduleItemViewSet(viewsets.ModelViewSet):
 
     permission_classes = [permissions.IsAuthenticated]
 
+    def _get_owned_project_or_404(self, project_id):
+        return get_object_or_404(
+            Project,
+            id=project_id,
+            user=self.request.user,
+            is_delete=False,
+        )
+
     def get_queryset(self):
-        queryset = super().get_queryset()
+        queryset = super().get_queryset().filter(
+            project__user=self.request.user,
+            project__is_delete=False,
+        )
         project_id = self.request.query_params.get('project_id')
         if project_id:
             queryset = queryset.filter(project_id=project_id)
         return queryset
+
+    def perform_create(self, serializer):
+        project = serializer.validated_data.get("project")
+        if (
+            project is None
+            or project.user_id != self.request.user.id
+            or project.is_delete
+        ):
+            raise PermissionDenied("project access denied")
+        serializer.save()
+
+    def perform_update(self, serializer):
+        project = serializer.validated_data.get("project", serializer.instance.project)
+        if (
+            project is None
+            or project.user_id != self.request.user.id
+            or project.is_delete
+        ):
+            raise PermissionDenied("project access denied")
+        serializer.save()
         
     def update(self, request, *args, **kwargs):
         # Log update request for debugging
@@ -53,14 +86,16 @@ class ConstructionScheduleItemViewSet(viewsets.ModelViewSet):
         project_id = request.data.get('project_id')
         if not project_id:
             return Response({"error": "project_id is required"}, status=status.HTTP_400_BAD_REQUEST)
-        
+
+        project = self._get_owned_project_or_404(project_id)
+
         # Cleanup legacy multiple rows if they exist
-        existing = ConstructionScheduleItem.objects.filter(project_id=project_id)
+        existing = ConstructionScheduleItem.objects.filter(project=project)
         if existing.count() > 1:
             existing.delete()
         
         # Get or Create Single Container
-        container, created = ConstructionScheduleItem.objects.get_or_create(project_id=project_id)
+        container, created = ConstructionScheduleItem.objects.get_or_create(project=project)
         
         # If it exists but has no data, or we just created it -> Populate Defaults
         if not container.data:
@@ -82,7 +117,8 @@ class ConstructionScheduleItemViewSet(viewsets.ModelViewSet):
             if not project_id:
                 return Response({"error": "project_id is required"}, status=status.HTTP_400_BAD_REQUEST)
 
-            container = ConstructionScheduleItem.objects.filter(project_id=project_id).first()
+            project = self._get_owned_project_or_404(project_id)
+            container = ConstructionScheduleItem.objects.filter(project=project).first()
             if not container or not container.data:
                 return Response({"error": "schedule data not found"}, status=status.HTTP_404_NOT_FOUND)
 
@@ -91,9 +127,8 @@ class ConstructionScheduleItemViewSet(viewsets.ModelViewSet):
             if not isinstance(items, list):
                 return Response({"error": "invalid schedule data"}, status=status.HTTP_400_BAD_REQUEST)
 
-            project = Project.objects.filter(id=project_id).first()
-            project_name = project.title if project else "프로젝트"
-            start_date = project.start_date if project and project.start_date else date_cls.today()
+            project_name = project.title
+            start_date = project.start_date if project.start_date else date_cls.today()
 
             gantt_image_bytes = build_gantt_preview_png(
                 items=items,
@@ -117,7 +152,7 @@ class ConstructionScheduleItemViewSet(viewsets.ModelViewSet):
                 project_id=project_id,
                 ordered_categories=ordered_categories,
                 region=region,
-                project_start_date=project.start_date if project else None,
+                project_start_date=project.start_date,
                 work_condition_years=work_condition_years,
             )
 
@@ -153,7 +188,8 @@ class ConstructionScheduleItemViewSet(viewsets.ModelViewSet):
             if not project_id:
                 return Response({"error": "project_id is required"}, status=status.HTTP_400_BAD_REQUEST)
 
-            container = ConstructionScheduleItem.objects.filter(project_id=project_id).first()
+            project = self._get_owned_project_or_404(project_id)
+            container = ConstructionScheduleItem.objects.filter(project=project).first()
             if not container or not container.data:
                 return Response({"error": "schedule data not found"}, status=status.HTTP_404_NOT_FOUND)
 
@@ -167,8 +203,7 @@ class ConstructionScheduleItemViewSet(viewsets.ModelViewSet):
             if not isinstance(items, list):
                 return Response({"error": "invalid schedule data"}, status=status.HTTP_400_BAD_REQUEST)
 
-            project = Project.objects.filter(id=project_id).first()
-            project_name = project.title if project else "프로젝트"
+            project_name = project.title
 
             rate_qs = WorkScheduleWeight.objects.filter(project_id=project_id).values("main_category", "operating_rate")
             rate_map = {row["main_category"]: row["operating_rate"] for row in rate_qs}
@@ -187,7 +222,7 @@ class ConstructionScheduleItemViewSet(viewsets.ModelViewSet):
             write_table_sheet(wb, items, ordered_categories, grouped, rate_summary, rate_map, project_name)
 
             # ---- Sheet 2: Gantt (shape-based, Excel-editable) ----
-            start_date = project.start_date if project and project.start_date else date_cls.today()
+            start_date = project.start_date if project.start_date else date_cls.today()
             gantt_meta = write_gantt_sheet(wb, items, sub_tasks, links, project_name, start_date)
             print(f"[export-excel] gantt_shapes_count={len(gantt_meta['shapes'])}")
 

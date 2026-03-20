@@ -17,6 +17,8 @@ const api = axios.create({
   baseURL: baseURL.endsWith("/") ? baseURL : `${baseURL}/`,
   headers: { "Content-Type": "application/json" },
   withCredentials: USE_SESSION_AUTH,
+  xsrfCookieName: "csrftoken",
+  xsrfHeaderName: "X-CSRFToken",
 });
 
 // refresh 전용 클라이언트(인터셉터 없음)
@@ -24,7 +26,18 @@ const refreshClient = axios.create({
   baseURL: api.defaults.baseURL,
   headers: { "Content-Type": "application/json" },
   withCredentials: USE_SESSION_AUTH,
+  xsrfCookieName: "csrftoken",
+  xsrfHeaderName: "X-CSRFToken",
 });
+
+function getCookie(name) {
+  if (typeof document === "undefined") return "";
+  const match = document.cookie
+    .split(";")
+    .map((c) => c.trim())
+    .find((c) => c.startsWith(`${name}=`));
+  return match ? decodeURIComponent(match.split("=").slice(1).join("=")) : "";
+}
 
 // 요청 인터셉터: 인증/프로젝트 파라미터 주입
 api.interceptors.request.use((config) => {
@@ -47,6 +60,15 @@ api.interceptors.request.use((config) => {
     const token = localStorage.getItem("access");
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
+    }
+  } else {
+    const method = String(config.method || "get").toUpperCase();
+    const unsafeMethod = ["POST", "PUT", "PATCH", "DELETE"].includes(method);
+    if (unsafeMethod && !config.headers["X-CSRFToken"]) {
+      const csrfToken = getCookie("csrftoken");
+      if (csrfToken) {
+        config.headers["X-CSRFToken"] = csrfToken;
+      }
     }
   }
 
@@ -100,10 +122,6 @@ api.interceptors.response.use(
 
     // Session 모드에서는 refresh를 하지 않고 그대로 에러 전달
     if (USE_SESSION_AUTH) {
-      const isSessionCheck = url.includes("sso/session");
-      if (status === 401 && !isSessionCheck) {
-        forceLogout();
-      }
       return Promise.reject(error);
     }
 
