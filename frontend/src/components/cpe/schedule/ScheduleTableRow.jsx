@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Trash2, Link, GripVertical } from "lucide-react";
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
@@ -30,8 +30,13 @@ const ScheduleTableRow = ({
     dropPosition = null,
     isDropInvalid = false,
     isPartOfDraggingGroup = false,
-    isDragActive = false
+    isDragActive = false,
+    disableDrag = false,
+    isActive = false
 }) => {
+    const STICKY_LEFT_SELECT = 0;
+    const STICKY_LEFT_DRAG = 40;
+
     // main+process 우선 매칭, 없으면 main_category 매칭
     const rateObj = findOperatingRateForItem(operatingRates, item);
 
@@ -72,6 +77,10 @@ const ScheduleTableRow = ({
             : `inset 0 -3px 0 0 ${indicatorColor}`;
         style.boxShadow = style.boxShadow ? `${style.boxShadow}, ${dropShadow}` : dropShadow;
     }
+    if (!isOverlay && isActive) {
+        const activeShadow = "inset 0 0 0 1px rgba(56, 189, 248, 0.75)";
+        style.boxShadow = style.boxShadow ? `${style.boxShadow}, ${activeShadow}` : activeShadow;
+    }
 
     const [activeField, setActiveField] = useState(null);
     const [processQuery, setProcessQuery] = useState("");
@@ -83,7 +92,12 @@ const ScheduleTableRow = ({
     const processInputRef = useRef(null);
     const subProcessInputRef = useRef(null);
     const workTypeInputRef = useRef(null);
+    const formulaInputRef = useRef(null);
+    const unitInputRef = useRef(null);
+    const noteInputRef = useRef(null);
     const editableInputBaseClass = "ui-table-editable-input text-gray-100";
+    const focusRingClass = "ring-1 ring-cyan-400/70";
+    const multilineInputClass = "resize-none overflow-hidden whitespace-pre-wrap break-words leading-snug";
 
     const rememberFieldOrigin = (field, value) => {
         if (!(field in editOriginRef.current)) {
@@ -141,7 +155,7 @@ const ScheduleTableRow = ({
             });
             return { std, score };
         }).filter((entry) => entry.score > 0);
-        return scored.sort((a, b) => b.score - a.score).slice(0, 40).map((entry) => entry.std);
+        return scored.sort((a, b) => b.score - a.score).slice(0, 80).map((entry) => entry.std);
     };
 
     const processSuggestions = useMemo(() => buildSuggestions(processQuery), [processQuery, standardItems]);
@@ -165,7 +179,7 @@ const ScheduleTableRow = ({
         clearFieldOrigin(field);
         blurTimeoutRef.current = setTimeout(() => {
             setActiveField(null);
-        }, 150);
+        }, 220);
     };
 
     const handleSuggestionSelect = (std) => {
@@ -188,11 +202,26 @@ const ScheduleTableRow = ({
         }
     };
 
+    const resizeTextarea = (element) => {
+        if (!element) return;
+        element.style.height = "0px";
+        element.style.height = `${Math.max(element.scrollHeight, 34)}px`;
+    };
+
+    useEffect(() => {
+        resizeTextarea(processInputRef.current);
+        resizeTextarea(subProcessInputRef.current);
+        resizeTextarea(workTypeInputRef.current);
+        resizeTextarea(formulaInputRef.current);
+        resizeTextarea(unitInputRef.current);
+        resizeTextarea(noteInputRef.current);
+    }, [item.process, item.sub_process, item.work_type, item.quantity_formula, item.unit, item.note]);
+
     return (
         <tr
             ref={setNodeRef}
             style={style}
-            className={`hover:bg-white/5 transition-colors text-base ${rowClassName} ${isSelected ? "bg-blue-900/20" : ""} ${isDragging && !isOverlay ? "bg-blue-900/20" : ""} ${isPartOfDraggingGroup && !isDragging ? "bg-blue-900/25" : ""} ${isDropTarget ? (isDropInvalid ? "bg-red-900/15" : "bg-cyan-900/15") : ""}`}
+            className={`hover:bg-white/5 transition-colors text-base ${rowClassName} ${isSelected ? "bg-blue-900/50" : ""} ${isDragging && !isOverlay ? "bg-blue-900/25" : ""} ${isPartOfDraggingGroup && !isDragging ? "bg-blue-900/30" : ""} ${isDropTarget ? (isDropInvalid ? "bg-red-900/25" : "bg-cyan-900/25") : ""} ${isActive ? "schedule-row-active" : ""}`}
             onMouseDownCapture={(e) => {
                 if (isOverlay || e.button !== 0) return;
                 onActivateItem?.(item);
@@ -204,9 +233,11 @@ const ScheduleTableRow = ({
         >
             {/* Row Select */}
             <td
-                className="border-r border-gray-700 text-center p-1 select-none cursor-cell"
+                className={`sticky z-50 border-r border-gray-700 text-center p-1 select-none cursor-cell ${isSelected ? "bg-cyan-900/55 shadow-[inset_0_0_0_1px_rgba(125,211,252,0.85)]" : "bg-[var(--navy-surface)]"}`}
+                style={{ left: `${STICKY_LEFT_SELECT}px` }}
                 onMouseDown={(e) => {
                     if (isOverlay || e.button !== 0) return;
+                    if (!e.shiftKey) return;
                     e.preventDefault();
                     e.stopPropagation();
                     onStartSelectionDrag?.(item.id);
@@ -215,30 +246,36 @@ const ScheduleTableRow = ({
                     if (isOverlay || e.buttons !== 1) return;
                     onDragSelectionEnter?.(item.id);
                 }}
+                title="체크박스 클릭: 단일 선택, Shift+드래그: 다중 선택"
             >
                 {!isOverlay ? (
                     <input
                         type="checkbox"
                         checked={isSelected}
-                        readOnly
+                        onChange={(e) => {
+                            e.stopPropagation();
+                            onToggleSelect?.(item.id);
+                        }}
                         onClick={(e) => {
-                            e.preventDefault();
                             e.stopPropagation();
                         }}
-                        className="h-3.5 w-3.5 accent-blue-500 cursor-pointer"
+                        className="h-4 w-4 accent-cyan-400 cursor-pointer"
                         aria-label="행 선택"
                     />
                 ) : null}
             </td>
 
             {/* Drag Handle */}
-            <td className={`border-r border-gray-700 text-center p-1 ${isDragActive ? "text-blue-300" : "text-gray-400"}`}>
+            <td
+                className={`sticky z-30 border-r border-gray-700 bg-[var(--navy-surface)] text-center p-1 ${isDragActive ? "text-blue-300" : "text-gray-400"}`}
+                style={{ left: `${STICKY_LEFT_DRAG}px` }}
+            >
                 <button
                     type="button"
                     aria-label="행 이동"
-                    title={isPartOfDraggingGroup ? "선택 항목 일괄 이동" : "행 이동"}
-                    disabled={isOverlay}
-                    className={`mx-auto flex h-6 w-6 items-center justify-center rounded-md transition ${isOverlay ? "text-gray-500 cursor-default" : "cursor-grab active:cursor-grabbing hover:bg-blue-500/20 hover:text-blue-100 active:scale-95"} ${isDragging ? "bg-blue-500/30 text-blue-100" : ""}`}
+                    title={isPartOfDraggingGroup ? "선택 항목 일괄 이동 (같은 대공종 내)" : "행 이동 (같은 대공종 내)"}
+                    disabled={isOverlay || disableDrag}
+                    className={`mx-auto flex h-6 w-6 items-center justify-center rounded-md transition ${(isOverlay || disableDrag) ? "text-gray-500 cursor-default" : "cursor-grab active:cursor-grabbing hover:bg-blue-500/20 hover:text-blue-100 active:scale-95"} ${isDragging ? "bg-blue-500/30 text-blue-100" : ""}`}
                     {...attributes}
                     {...listeners}
                 >
@@ -253,9 +290,10 @@ const ScheduleTableRow = ({
                     className="border-r border-gray-700 bg-[#2c2c3a] p-1 align-top"
                 >
                     <div className="relative">
-                        <input
+                        <textarea
                             ref={processInputRef}
-                            className={`${editableInputBaseClass} px-1 py-1 font-medium text-center text-base`}
+                            rows={1}
+                            className={`${editableInputBaseClass} ${multilineInputClass} px-1 py-1 font-medium text-center text-base ${activeField === 'process' ? focusRingClass : ''}`}
                             value={item.process}
                             onChange={(e) => {
                                 if (handleGroupFieldChange && spanInfo?.processGroupIds?.length > 1) {
@@ -264,8 +302,12 @@ const ScheduleTableRow = ({
                                     handleChange(item.id, 'process', e.target.value);
                                 }
                                 setProcessQuery(e.target.value);
+                                resizeTextarea(e.currentTarget);
                             }}
-                            onFocus={() => handleInputFocus('process', item.process || "")}
+                            onFocus={(e) => {
+                                handleInputFocus('process', item.process || "");
+                                resizeTextarea(e.currentTarget);
+                            }}
                             onBlur={() => handleInputBlur('process')}
                             onKeyDown={(e) => {
                                 if (handleEscRevert(e, 'process', (value) => setProcessQuery(value ?? ""))) return;
@@ -292,9 +334,10 @@ const ScheduleTableRow = ({
                     className="border-r border-gray-700 bg-[#2c2c3a] p-1 align-top"
                 >
                     <div className="relative">
-                        <input
+                        <textarea
                             ref={subProcessInputRef}
-                            className={`${editableInputBaseClass} px-1 py-1 font-medium text-center text-base`}
+                            rows={1}
+                            className={`${editableInputBaseClass} ${multilineInputClass} px-1 py-1 font-medium text-center text-base ${activeField === 'sub_process' ? focusRingClass : ''}`}
                             value={item.sub_process || ""}
                             onChange={(e) => {
                                 if (handleGroupFieldChange && spanInfo?.subProcessGroupIds?.length > 1) {
@@ -303,8 +346,12 @@ const ScheduleTableRow = ({
                                     handleChange(item.id, 'sub_process', e.target.value);
                                 }
                                 setSubProcessQuery(e.target.value);
+                                resizeTextarea(e.currentTarget);
                             }}
-                            onFocus={() => handleInputFocus('sub_process', item.sub_process || "")}
+                            onFocus={(e) => {
+                                handleInputFocus('sub_process', item.sub_process || "");
+                                resizeTextarea(e.currentTarget);
+                            }}
                             onBlur={() => handleInputBlur('sub_process')}
                             onKeyDown={(e) => {
                                 if (handleEscRevert(e, 'sub_process', (value) => setSubProcessQuery(value ?? ""))) return;
@@ -327,17 +374,26 @@ const ScheduleTableRow = ({
             {/* Work Type (세부공종) */}
             <td className="border-r border-gray-700 px-2 py-1">
                 <div className="flex items-center gap-1 relative">
-                    {isLinked && <Link size={12} className="text-blue-500" />}
-                    <input
-                        type="text"
+                    {isLinked && (
+                        <span className="inline-flex items-center gap-1 rounded-md border border-blue-400/40 bg-blue-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-blue-200" title="외부 모듈과 연결된 항목">
+                            <Link size={11} className="text-blue-300" />
+                            연결
+                        </span>
+                    )}
+                    <textarea
                         ref={workTypeInputRef}
-                        className={`${editableInputBaseClass} p-1 text-base font-medium`}
+                        rows={1}
+                        className={`${editableInputBaseClass} ${multilineInputClass} p-1 text-base font-medium ${activeField === 'work_type' ? focusRingClass : ''}`}
                         value={item.work_type}
                         onChange={(e) => {
                             handleChange(item.id, 'work_type', e.target.value);
                             setWorkTypeQuery(e.target.value);
+                            resizeTextarea(e.currentTarget);
                         }}
-                        onFocus={() => handleInputFocus('work_type', item.work_type || "")}
+                        onFocus={(e) => {
+                            handleInputFocus('work_type', item.work_type || "");
+                            resizeTextarea(e.currentTarget);
+                        }}
                         onBlur={() => handleInputBlur('work_type')}
                         onKeyDown={(e) => {
                             if (handleEscRevert(e, 'work_type', (value) => setWorkTypeQuery(value ?? ""))) return;
@@ -358,12 +414,20 @@ const ScheduleTableRow = ({
 
             {/* Formula */}
             <td className="border-r border-gray-700 p-1">
-                <input
-                    className={`${editableInputBaseClass} p-1 text-right text-sm font-medium`}
+                <textarea
+                    ref={formulaInputRef}
+                    rows={1}
+                    className={`${editableInputBaseClass} ${multilineInputClass} p-1 text-right text-sm font-medium`}
                     value={item.quantity_formula || ''}
                     placeholder="-"
-                    onChange={(e) => handleChange(item.id, 'quantity_formula', e.target.value)}
-                    onFocus={() => rememberFieldOrigin('quantity_formula', item.quantity_formula || "")}
+                    onChange={(e) => {
+                        handleChange(item.id, 'quantity_formula', e.target.value);
+                        resizeTextarea(e.currentTarget);
+                    }}
+                    onFocus={(e) => {
+                        rememberFieldOrigin('quantity_formula', item.quantity_formula || "");
+                        resizeTextarea(e.currentTarget);
+                    }}
                     onBlur={() => clearFieldOrigin('quantity_formula')}
                     onKeyDown={(e) => handleEscRevert(e, 'quantity_formula')}
                 />
@@ -371,11 +435,19 @@ const ScheduleTableRow = ({
 
             {/* Unit */}
             <td className="border-r border-gray-700 p-1">
-                <input
-                    className={`${editableInputBaseClass} p-1 text-center text-base font-medium`}
+                <textarea
+                    ref={unitInputRef}
+                    rows={1}
+                    className={`${editableInputBaseClass} ${multilineInputClass} p-1 text-center text-base font-medium`}
                     value={item.unit}
-                    onChange={(e) => handleChange(item.id, 'unit', e.target.value)}
-                    onFocus={() => rememberFieldOrigin('unit', item.unit || "")}
+                    onChange={(e) => {
+                        handleChange(item.id, 'unit', e.target.value);
+                        resizeTextarea(e.currentTarget);
+                    }}
+                    onFocus={(e) => {
+                        rememberFieldOrigin('unit', item.unit || "");
+                        resizeTextarea(e.currentTarget);
+                    }}
                     onBlur={() => clearFieldOrigin('unit')}
                     onKeyDown={(e) => handleEscRevert(e, 'unit')}
                 />
@@ -384,6 +456,10 @@ const ScheduleTableRow = ({
             {/* Quantity */}
             <td className="border-r border-gray-700 p-1">
                 <input
+                    type="number"
+                    min="0"
+                    step="any"
+                    inputMode="decimal"
                     className={`${editableInputBaseClass} p-1 text-right font-bold text-base tracking-tight`}
                     value={item.quantity}
                     onChange={(e) => handleChange(item.id, 'quantity', e.target.value)}
@@ -396,6 +472,10 @@ const ScheduleTableRow = ({
             {/* Productivity */}
             <td className={`border-r border-gray-700 p-1 ${isLinked ? 'bg-blue-900/20' : ''}`}>
                 <input
+                    type="number"
+                    min="0"
+                    step="any"
+                    inputMode="decimal"
                     className={`w-full text-right outline-none p-1 text-base rounded ${isLinked
                         ? 'ui-table-editable-input-disabled text-blue-300 font-bold cursor-not-allowed'
                         : 'ui-table-editable-input text-gray-200 font-semibold'}`}
@@ -405,12 +485,17 @@ const ScheduleTableRow = ({
                     onFocus={() => rememberFieldOrigin('productivity', item.productivity ?? "")}
                     onBlur={() => clearFieldOrigin('productivity')}
                     onKeyDown={(e) => handleEscRevert(e, 'productivity')}
+                    title={isLinked ? "연결 모듈 항목은 생산량을 직접 수정할 수 없습니다." : undefined}
                 />
             </td>
 
             {/* Crew */}
             <td className="border-r border-gray-700 p-1">
                 <input
+                    type="number"
+                    min="0"
+                    step="1"
+                    inputMode="numeric"
                     className={`${editableInputBaseClass} p-1 text-center text-base font-semibold`}
                     value={item.crew_size}
                     onChange={(e) => handleChange(item.id, 'crew_size', e.target.value)}
@@ -425,17 +510,52 @@ const ScheduleTableRow = ({
                 {item.daily_production?.toLocaleString()}
             </td>
 
-            {/* Apply Rate */}
+            {/* CP Check */}
+            <td className="border-r border-gray-700 p-1 text-center">
+                <input
+                    type="checkbox"
+                    checked={item.cp_checked !== false}
+                    onChange={(e) => handleChange(item.id, 'cp_checked', e.target.checked)}
+                    className="h-4 w-4 accent-blue-500 cursor-pointer"
+                    aria-label="CP 체크"
+                />
+            </td>
+
+            {/* Parallel Rate */}
+            <td className="border-r border-gray-700 p-1">
+                <div className="relative">
+                    <input
+                        className={`${editableInputBaseClass} p-1 pr-5 text-right text-base font-semibold ${item.cp_checked === false ? "bg-[#1f1f2b] text-gray-500 cursor-not-allowed" : ""}`}
+                        type="number"
+                        min="0"
+                        max="100"
+                        step="0.1"
+                        value={item.cp_checked === false ? 100 : (item.parallel_rate ?? item.application_rate ?? 100)}
+                        onChange={(e) => handleChange(item.id, 'parallel_rate', e.target.value)}
+                        onFocus={() => rememberFieldOrigin('parallel_rate', item.parallel_rate ?? item.application_rate ?? 100)}
+                        onBlur={() => clearFieldOrigin('parallel_rate')}
+                        onKeyDown={(e) => handleEscRevert(e, 'parallel_rate')}
+                        disabled={item.cp_checked === false}
+                        title={item.cp_checked === false ? "CP 미체크 시 병행률은 100%로 고정됩니다." : undefined}
+                    />
+                    <span className="absolute right-1.5 top-1/2 -translate-y-1/2 text-xs text-gray-400 pointer-events-none">%</span>
+                </div>
+            </td>
+
+            {/* Reflection Rate */}
             <td className="border-r border-gray-700 p-1">
                 <div className="relative">
                     <input
                         className={`${editableInputBaseClass} p-1 pr-5 text-right text-base font-semibold`}
                         type="number"
-                        value={item.application_rate ?? 100}
-                        onChange={(e) => handleChange(item.id, 'application_rate', e.target.value)}
-                        onFocus={() => rememberFieldOrigin('application_rate', item.application_rate ?? 100)}
-                        onBlur={() => clearFieldOrigin('application_rate')}
-                        onKeyDown={(e) => handleEscRevert(e, 'application_rate')}
+                        min="0"
+                        max="100"
+                        step="0.1"
+                        value={item.reflection_rate ?? 100}
+                        onChange={(e) => handleChange(item.id, 'reflection_rate', e.target.value)}
+                        onFocus={() => rememberFieldOrigin('reflection_rate', item.reflection_rate ?? 100)}
+                        onBlur={() => clearFieldOrigin('reflection_rate')}
+                        onKeyDown={(e) => handleEscRevert(e, 'reflection_rate')}
                     />
                     <span className="absolute right-1.5 top-1/2 -translate-y-1/2 text-xs text-gray-400 pointer-events-none">%</span>
                 </div>
@@ -463,11 +583,19 @@ const ScheduleTableRow = ({
 
             {/* Remarks (Note) */}
             <td className="border-r border-gray-700 p-1">
-                <input
-                    className={`${editableInputBaseClass} p-1 text-sm font-medium`}
+                <textarea
+                    ref={noteInputRef}
+                    rows={1}
+                    className={`${editableInputBaseClass} ${multilineInputClass} p-1 text-sm font-medium`}
                     value={item.note || ""}
-                    onChange={(e) => handleChange(item.id, 'note', e.target.value)}
-                    onFocus={() => rememberFieldOrigin('note', item.note || "")}
+                    onChange={(e) => {
+                        handleChange(item.id, 'note', e.target.value);
+                        resizeTextarea(e.currentTarget);
+                    }}
+                    onFocus={(e) => {
+                        rememberFieldOrigin('note', item.note || "");
+                        resizeTextarea(e.currentTarget);
+                    }}
                     onBlur={() => clearFieldOrigin('note')}
                     onKeyDown={(e) => handleEscRevert(e, 'note')}
                 />
@@ -476,7 +604,13 @@ const ScheduleTableRow = ({
             {/* Action */}
             <td className="p-1 text-center">
                 <div className="flex items-center justify-center gap-1">
-                    <button className="text-gray-400 hover:text-red-500 transition-colors" onClick={() => handleDeleteItem(item.id)}>
+                    <button
+                        type="button"
+                        aria-label="행 삭제"
+                        title="행 삭제"
+                        className="flex h-7 w-7 items-center justify-center rounded-md text-gray-400 hover:text-red-400 hover:bg-red-500/15 transition-colors"
+                        onClick={() => handleDeleteItem(item.id)}
+                    >
                         <Trash2 size={16} />
                     </button>
                 </div>

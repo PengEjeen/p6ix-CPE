@@ -29,8 +29,12 @@
   --table-editable-border: rgb(6 182 212 / 0.35);
   --table-editable-focus-border: rgb(103 232 249 / 0.95);
   --table-editable-focus-ring: rgb(34 211 238 / 0.3);
+  --table-editable-focus-fill: rgb(34 211 238 / 0.12);
   --table-editable-disabled-bg: #1f1f2b;
   --table-editable-disabled-border: #374151;
+  --table-row-active-overlay: rgb(14 116 144 / 0.22);
+  --table-row-active-border: rgb(103 232 249 / 0.42);
+  --table-row-active-leftbar: rgb(103 232 249 / 0.92);
 
   --legacy-bg-main: #1e1e2f;
   --legacy-bg-main-alt: #1e1e24;
@@ -96,8 +100,12 @@
   --table-editable-border: rgb(34 211 238 / 0.32);
   --table-editable-focus-border: rgb(103 232 249 / 0.95);
   --table-editable-focus-ring: rgb(34 211 238 / 0.28);
+  --table-editable-focus-fill: rgb(34 211 238 / 0.12);
   --table-editable-disabled-bg: #161622;
   --table-editable-disabled-border: #2f374a;
+  --table-row-active-overlay: rgb(12 74 110 / 0.28);
+  --table-row-active-border: rgb(125 211 252 / 0.45);
+  --table-row-active-leftbar: rgb(125 211 252 / 0.95);
 
   --legacy-bg-main: #12121d;
   --legacy-bg-main-alt: #11111a;
@@ -164,8 +172,12 @@
   --table-editable-border: rgb(56 189 248 / 0.4);
   --table-editable-focus-border: rgb(2 132 199 / 0.95);
   --table-editable-focus-ring: rgb(56 189 248 / 0.24);
+  --table-editable-focus-fill: rgb(2 132 199 / 0.1);
   --table-editable-disabled-bg: #ffffff;
   --table-editable-disabled-border: #cbd5e1;
+  --table-row-active-overlay: rgb(2 132 199 / 0.14);
+  --table-row-active-border: rgb(2 132 199 / 0.42);
+  --table-row-active-leftbar: rgb(2 132 199 / 0.95);
 
   --legacy-bg-main: #f4f6fb;
   --legacy-bg-main-alt: #f1f4fa;
@@ -231,8 +243,12 @@
   --table-editable-border: rgb(110 82 56 / 0.35);
   --table-editable-focus-border: rgb(95 70 47 / 0.92);
   --table-editable-focus-ring: rgb(110 82 56 / 0.24);
+  --table-editable-focus-fill: rgb(110 82 56 / 0.1);
   --table-editable-disabled-bg: #fff7ef;
   --table-editable-disabled-border: #ccb79d;
+  --table-row-active-overlay: rgb(110 82 56 / 0.12);
+  --table-row-active-border: rgb(110 82 56 / 0.38);
+  --table-row-active-leftbar: rgb(95 70 47 / 0.9);
 
   --legacy-bg-main: #f3ece3;
   --legacy-bg-main-alt: #f0e7dd;
@@ -359,17 +375,44 @@ code {
     @apply w-full rounded border outline-none transition;
     background: var(--table-editable-bg);
     border-color: var(--table-editable-border);
+    position: relative;
+    z-index: 1;
   }
 
-  .ui-table-editable-input:focus {
+  .ui-table-editable-input:focus,
+  .ui-table-editable-input:focus-visible {
     border-color: var(--table-editable-focus-border);
-    box-shadow: 0 0 0 1px var(--table-editable-focus-ring);
+    box-shadow: 0 0 0 2px var(--table-editable-focus-ring), inset 0 0 0 9999px var(--table-editable-focus-fill);
+    z-index: 8;
   }
 
   .ui-table-editable-input-disabled {
     @apply w-full rounded border outline-none;
     background: var(--table-editable-disabled-bg);
     border-color: var(--table-editable-disabled-border);
+  }
+
+  .schedule-row-active > td {
+    box-shadow:
+      inset 0 1px 0 var(--table-row-active-border),
+      inset 0 -1px 0 var(--table-row-active-border),
+      inset 0 0 0 9999px var(--table-row-active-overlay);
+  }
+
+  .schedule-row-active > td:first-child {
+    box-shadow:
+      inset 3px 0 0 var(--table-row-active-leftbar),
+      inset 0 1px 0 var(--table-row-active-border),
+      inset 0 -1px 0 var(--table-row-active-border),
+      inset 0 0 0 9999px var(--table-row-active-overlay);
+  }
+
+  .schedule-row-active > td:last-child {
+    box-shadow:
+      inset -1px 0 0 var(--table-row-active-border),
+      inset 0 1px 0 var(--table-row-active-border),
+      inset 0 -1px 0 var(--table-row-active-border),
+      inset 0 0 0 9999px var(--table-row-active-overlay);
   }
 
   .ui-icon-btn {

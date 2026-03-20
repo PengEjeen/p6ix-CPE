@@ -29,7 +29,7 @@ export const fetchScheduleItems = async (projectId) => {
         return { containerId: null, items: [], links: [], sub_tasks: [] };
     } catch (error) {
         console.error("Error fetching schedule items:", error);
-        return { containerId: null, items: [], links: [], sub_tasks: [] };
+        throw error;
     }
 };
 

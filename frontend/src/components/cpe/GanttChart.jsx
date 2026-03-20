@@ -244,11 +244,13 @@ export default function GanttChart({
                 }
             }
             if (target) {
+                target.parallel_rate = parallelState.application_rate;
                 target.application_rate = parallelState.application_rate;
                 target.parallel_segments = parallelState.parallel_segments;
             } else {
                 updates.push({
                     id,
+                    parallel_rate: parallelState.application_rate,
                     application_rate: parallelState.application_rate,
                     parallel_segments: parallelState.parallel_segments
                 });

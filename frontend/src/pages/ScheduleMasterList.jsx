@@ -3,7 +3,7 @@ import { useParams } from "react-router-dom";
 import { saveScheduleData, initializeDefaultItems, fetchScheduleItems, exportScheduleExcel } from "../api/cpe_all/construction_schedule";
 import { updateWorkCondition } from "../api/cpe/calc";
 import toast from "react-hot-toast";
-import { ArrowDown, ArrowUp, ChevronLeft, ChevronRight, Layers3, MoreVertical, Plus, RefreshCw, SlidersHorizontal, Trash2, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, X } from "lucide-react";
 import { markFtueDone } from "../utils/ftue";
 import { FTUE_STEP_IDS } from "../config/ftueSteps";
 
@@ -14,8 +14,9 @@ import StandardImportModal from "../components/cpe/StandardImportModal";
 import ScheduleHeader from "../components/cpe/schedule/ScheduleHeader";
 import ScheduleGanttPanel from "../components/cpe/schedule/ScheduleGanttPanel";
 import EvidenceResultModal from "../components/cpe/schedule/EvidenceResultModal";
-import ScheduleTableRow from "../components/cpe/schedule/ScheduleTableRow";
 import SnapshotManager from "../components/cpe/schedule/SnapshotManager";
+import ScheduleMasterTableToolbarRow from "../components/cpe/schedule/ScheduleMasterTableToolbarRow";
+import ScheduleCategorySection from "../components/cpe/schedule/ScheduleCategorySection";
 
 import { useScheduleStore } from "../stores/scheduleStore";
 import { useConfirm } from "../contexts/ConfirmContext";
@@ -212,25 +213,94 @@ export default function ScheduleMasterList() {
     const [floorBatchModal, setFloorBatchModal] = useState(null);
     const [floorBatchRange, setFloorBatchRange] = useState({ min: "", max: "" });
     const [openCategoryMenu, setOpenCategoryMenu] = useState(null);
+    const [searchKeyword, setSearchKeyword] = useState("");
+    const [categoryFilter, setCategoryFilter] = useState("ALL");
+    const [isTablePointerInside, setIsTablePointerInside] = useState(false);
+    const [isTableFocusInside, setIsTableFocusInside] = useState(false);
     const selectAllRef = useRef(null);
     const tableHeaderRef = useRef(null);
     const tableScrollRef = useRef(null);
+    const tableInteractionRef = useRef(null);
     const categoryMenuRef = useRef(null);
+    const categoryMenuDropdownRef = useRef(null);
     const [tableHeaderHeight, setTableHeaderHeight] = useState(44);
+    const [categoryMenuPosition, setCategoryMenuPosition] = useState(null);
     const [hasHorizontalOverflow, setHasHorizontalOverflow] = useState(false);
     const [canScrollLeft, setCanScrollLeft] = useState(false);
     const [canScrollRight, setCanScrollRight] = useState(false);
     const [showHorizontalHint, setShowHorizontalHint] = useState(false);
     const selectionDragModeRef = useRef(null);
     const selectionDragVisitedRef = useRef(new Set());
+    const startDateRequestRef = useRef(0);
 
-    const allItemIds = useMemo(() => items.map((item) => item.id), [items]);
+    const selectedIdSet = useMemo(() => new Set(selectedItemIds), [selectedItemIds]);
+    const normalizedSearchKeyword = useMemo(() => searchKeyword.trim().toLowerCase(), [searchKeyword]);
+    const hasSearchKeyword = normalizedSearchKeyword.length > 0;
+    const isFilterActive = categoryFilter !== "ALL" || normalizedSearchKeyword.length > 0;
+    const categoryOptions = useMemo(() => {
+        const seen = new Set();
+        const result = [];
+        items.forEach((item) => {
+            const category = String(item.main_category || "기타");
+            if (seen.has(category)) return;
+            seen.add(category);
+            result.push(category);
+        });
+        return result;
+    }, [items]);
+    const categoryItemsMap = useMemo(() => {
+        const map = new Map();
+        items.forEach((item) => {
+            const category = String(item.main_category || "기타");
+            if (!map.has(category)) {
+                map.set(category, []);
+            }
+            map.get(category).push(item);
+        });
+        return map;
+    }, [items]);
+    const visibleItems = useMemo(() => {
+        return items.filter((item) => {
+            const category = String(item.main_category || "기타");
+            if (categoryFilter !== "ALL" && category !== categoryFilter) return false;
+            if (!normalizedSearchKeyword) return true;
+            const fields = [
+                category,
+                item.process,
+                item.sub_process,
+                item.work_type,
+                item.unit,
+                item.note,
+                item.remarks,
+                item.quantity_formula
+            ];
+            const haystack = fields
+                .filter((field) => field !== null && field !== undefined)
+                .map((field) => String(field).toLowerCase())
+                .join(" ");
+            return haystack.includes(normalizedSearchKeyword);
+        });
+    }, [categoryFilter, items, normalizedSearchKeyword]);
+    const visibleItemIds = useMemo(() => visibleItems.map((item) => item.id), [visibleItems]);
+    const visibleItemIdSet = useMemo(() => new Set(visibleItemIds), [visibleItemIds]);
+    const selectedVisibleCount = useMemo(
+        () => selectedItemIds.reduce((count, id) => count + (visibleItemIdSet.has(id) ? 1 : 0), 0),
+        [selectedItemIds, visibleItemIdSet]
+    );
+    const selectedCount = isFilterActive ? selectedVisibleCount : selectedItemIds.length;
+    const allSelected = visibleItemIds.length > 0 && visibleItemIds.every((id) => selectedIdSet.has(id));
+    const groupedVisibleItems = useMemo(() => {
+        return visibleItems.reduce((acc, item) => {
+            const category = String(item.main_category || "기타");
+            if (!acc[category]) acc[category] = [];
+            acc[category].push(item);
+            return acc;
+        }, {});
+    }, [visibleItems]);
     const activeEditingItem = useMemo(
         () => items.find((item) => item.id === activeEditingItemId) || null,
         [items, activeEditingItemId]
     );
-    const selectedCount = selectedItemIds.length;
-    const allSelected = allItemIds.length > 0 && selectedCount === allItemIds.length;
     const {
         activeId,
         overId,
@@ -273,13 +343,32 @@ export default function ScheduleMasterList() {
         });
     }, [isSelectionDragging]);
 
-    const toggleSelectAllItems = useCallback((checked) => {
-        setSelectedItemIds(checked ? allItemIds : []);
-    }, [allItemIds]);
-
-    const clearSelection = useCallback(() => {
-        setSelectedItemIds([]);
+    const updateCategoryMenuPosition = useCallback(() => {
+        if (!categoryMenuRef.current || typeof window === "undefined") return;
+        const rect = categoryMenuRef.current.getBoundingClientRect();
+        const menuWidth = 188;
+        const menuHeightEstimate = 220;
+        const left = Math.min(
+            window.innerWidth - menuWidth - 8,
+            Math.max(8, rect.right - menuWidth)
+        );
+        const spaceBelow = window.innerHeight - rect.bottom;
+        const top = spaceBelow < menuHeightEstimate
+            ? Math.max(8, rect.top - menuHeightEstimate - 6)
+            : rect.bottom + 6;
+        setCategoryMenuPosition({ top, left });
     }, []);
+
+    const toggleSelectAllItems = useCallback((checked) => {
+        setSelectedItemIds((prev) => {
+            if (!checked) {
+                return prev.filter((id) => !visibleItemIdSet.has(id));
+            }
+            const next = new Set(prev);
+            visibleItemIds.forEach((id) => next.add(id));
+            return Array.from(next);
+        });
+    }, [visibleItemIdSet, visibleItemIds]);
 
     useEffect(() => {
         if (!isSelectionDragging) return;
@@ -291,6 +380,11 @@ export default function ScheduleMasterList() {
         window.addEventListener("mouseup", handleMouseUp);
         return () => window.removeEventListener("mouseup", handleMouseUp);
     }, [isSelectionDragging]);
+
+    useEffect(() => {
+        if (!isFilterActive) return;
+        setSelectedItemIds((prev) => prev.filter((id) => visibleItemIdSet.has(id)));
+    }, [isFilterActive, visibleItemIdSet]);
 
     const updateHorizontalScrollState = useCallback(() => {
         const el = tableScrollRef.current;
@@ -354,7 +448,10 @@ export default function ScheduleMasterList() {
     useEffect(() => {
         if (!openCategoryMenu) return;
         const handleClickOutside = (event) => {
-            if (categoryMenuRef.current && !categoryMenuRef.current.contains(event.target)) {
+            const target = event.target;
+            const clickedTrigger = categoryMenuRef.current?.contains(target);
+            const clickedDropdown = categoryMenuDropdownRef.current?.contains(target);
+            if (!clickedTrigger && !clickedDropdown) {
                 setOpenCategoryMenu(null);
             }
         };
@@ -368,6 +465,21 @@ export default function ScheduleMasterList() {
             window.removeEventListener("keydown", handleEscape);
         };
     }, [openCategoryMenu]);
+
+    useEffect(() => {
+        if (!openCategoryMenu) {
+            setCategoryMenuPosition(null);
+            return;
+        }
+        const rafId = window.requestAnimationFrame(updateCategoryMenuPosition);
+        window.addEventListener("resize", updateCategoryMenuPosition);
+        window.addEventListener("scroll", updateCategoryMenuPosition, true);
+        return () => {
+            window.cancelAnimationFrame(rafId);
+            window.removeEventListener("resize", updateCategoryMenuPosition);
+            window.removeEventListener("scroll", updateCategoryMenuPosition, true);
+        };
+    }, [openCategoryMenu, updateCategoryMenuPosition]);
 
     const handleExportExcel = useCallback(async () => {
         try {
@@ -503,7 +615,11 @@ export default function ScheduleMasterList() {
             crew_size: parent.crew_size || 1,
             remarks: row.description || row.remark || "",
             operating_rate_type: parent.operating_rate_type || "EARTH",
-            operating_rate_value: parent.operating_rate_value || 0
+            operating_rate_value: parent.operating_rate_value || 0,
+            cp_checked: true,
+            parallel_rate: 100,
+            application_rate: 100,
+            reflection_rate: 100
         };
         const index = items.findIndex((item) => item.id === parent.id);
         if (index >= 0) {
@@ -574,7 +690,11 @@ export default function ScheduleMasterList() {
             crew_size: 1,
             remarks: "",
             operating_rate_type: targetItem ? targetItem.operating_rate_type : "EARTH",
-            operating_rate_value: 0
+            operating_rate_value: 0,
+            cp_checked: true,
+            parallel_rate: targetItem?.parallel_rate ?? targetItem?.application_rate ?? 100,
+            application_rate: targetItem?.parallel_rate ?? targetItem?.application_rate ?? 100,
+            reflection_rate: targetItem?.reflection_rate ?? 100
         };
 
         if (targetItem) {
@@ -623,7 +743,11 @@ export default function ScheduleMasterList() {
             crew_size: 1,
             remarks: "",
             operating_rate_type: "EARTH",
-            operating_rate_value: 0
+            operating_rate_value: 0,
+            cp_checked: true,
+            parallel_rate: 100,
+            application_rate: 100,
+            reflection_rate: 100
         };
         addItem(newItem);
         setNewMainCategory("");
@@ -631,26 +755,45 @@ export default function ScheduleMasterList() {
     };
 
     const handleCategoryRunRateChange = async (category, newRunRate) => {
-        try {
-            // Update store first (optimistic update)
-            updateOperatingRate(category, parseInt(newRunRate));
+        const parsedRunRate = parseInt(newRunRate, 10);
+        if (!Number.isFinite(parsedRunRate) || parsedRunRate < 1) {
+            toast.error("유효한 Run Rate 값을 선택해주세요.");
+            return;
+        }
 
-            // Save to backend
-            const rateToUpdate = operatingRates.find(r => r.main_category === category);
-            if (rateToUpdate) {
-                const { updateOperatingRate: updateOperatingRateAPI } = await import("../api/cpe/operating_rate");
-                await updateOperatingRateAPI(projectId, {
-                    weights: [{
-                        id: rateToUpdate.id,
-                        main_category: category,
-                        work_week_days: parseInt(newRunRate)
-                    }]
-                });
-                toast.success(`${category} Run Rate 업데이트 완료`);
+        const prevRates = Array.isArray(operatingRates)
+            ? operatingRates.map((rate) => ({ ...rate }))
+            : [];
+
+        try {
+            // Optimistic update for instant UI feedback
+            updateOperatingRate(category, parsedRunRate);
+
+            const rateToUpdate = prevRates.find((r) => r.main_category === category);
+            const payload = {
+                weights: [{
+                    ...(rateToUpdate?.id ? { id: rateToUpdate.id } : {}),
+                    main_category: category,
+                    work_week_days: parsedRunRate
+                }]
+            };
+            const { updateOperatingRate: updateOperatingRateAPI } = await import("../api/cpe/operating_rate");
+            const savedRatesResponse = await updateOperatingRateAPI(projectId, payload);
+            const normalizedSavedRates = Array.isArray(savedRatesResponse)
+                ? savedRatesResponse
+                : Array.isArray(savedRatesResponse?.results)
+                    ? savedRatesResponse.results
+                    : Array.isArray(savedRatesResponse?.data)
+                        ? savedRatesResponse.data
+                        : null;
+            if (normalizedSavedRates) {
+                setStoreOperatingRates(normalizedSavedRates);
             }
+            toast.success(`${category} Run Rate 업데이트 완료`);
         } catch (error) {
             console.error("Run Rate 업데이트 실패:", error);
-            toast.error("Run Rate 업데이트 실패");
+            setStoreOperatingRates(prevRates);
+            toast.error("Run Rate 업데이트 실패 - 변경값을 되돌렸습니다.");
         }
     };
 
@@ -698,7 +841,11 @@ export default function ScheduleMasterList() {
                 standard_code: std.code || std.standard,
                 // 표준품셈 목차(item_name)는 비고(note)로 반영
                 note: noteText,
-                remarks: noteText
+                remarks: noteText,
+                cp_checked: true,
+                parallel_rate: 100,
+                application_rate: 100,
+                reflection_rate: 100
             };
 
             if (importTargetParent) {
@@ -743,7 +890,11 @@ export default function ScheduleMasterList() {
 
     const spanInfoMap = useMemo(() => {
         const map = {};
-        const groupedItems = items.reduce((acc, item) => {
+        const splitRowIdSet = new Set(selectedItemIds);
+        if (activeEditingItemId) {
+            splitRowIdSet.add(activeEditingItemId);
+        }
+        const groupedItems = visibleItems.reduce((acc, item) => {
             const category = item.main_category || '기타';
             if (!acc[category]) acc[category] = [];
             acc[category].push(item);
@@ -755,11 +906,18 @@ export default function ScheduleMasterList() {
             let i = 0;
             while (i < categoryItems.length) {
                 const processValue = String(categoryItems[i]?.process || "");
+                const startRow = categoryItems[i];
+                const startRowSelected = splitRowIdSet.has(startRow.id);
                 let j = i + 1;
-                while (j < categoryItems.length && String(categoryItems[j]?.process || "") === processValue) {
+                while (
+                    !startRowSelected &&
+                    j < categoryItems.length &&
+                    String(categoryItems[j]?.process || "") === processValue &&
+                    !splitRowIdSet.has(categoryItems[j].id)
+                ) {
                     j += 1;
                 }
-                const span = j - i;
+                const span = startRowSelected ? 1 : (j - i);
                 const groupIds = categoryItems.slice(i, j).map((row) => row.id);
                 for (let k = i; k < j; k += 1) {
                     const row = categoryItems[k];
@@ -776,15 +934,19 @@ export default function ScheduleMasterList() {
             while (i < categoryItems.length) {
                 const processValue = String(categoryItems[i]?.process || "");
                 const subProcessValue = String(categoryItems[i]?.sub_process || "");
+                const startRow = categoryItems[i];
+                const startRowSelected = splitRowIdSet.has(startRow.id);
                 let j = i + 1;
                 while (
+                    !startRowSelected &&
                     j < categoryItems.length &&
                     String(categoryItems[j]?.process || "") === processValue &&
-                    String(categoryItems[j]?.sub_process || "") === subProcessValue
+                    String(categoryItems[j]?.sub_process || "") === subProcessValue &&
+                    !splitRowIdSet.has(categoryItems[j].id)
                 ) {
                     j += 1;
                 }
-                const span = j - i;
+                const span = startRowSelected ? 1 : (j - i);
                 const groupIds = categoryItems.slice(i, j).map((row) => row.id);
                 for (let k = i; k < j; k += 1) {
                     const row = categoryItems[k];
@@ -798,7 +960,7 @@ export default function ScheduleMasterList() {
         });
 
         return map;
-    }, [items]);
+    }, [visibleItems, selectedItemIds, activeEditingItemId]);
 
     const handleDeleteItem = async (id) => {
         const ok = await confirm("삭제하시겠습니까?");
@@ -808,13 +970,17 @@ export default function ScheduleMasterList() {
     };
 
     const handleDeleteSelectedItems = useCallback(async () => {
-        if (selectedItemIds.length === 0) return;
-        const ok = await confirm(`선택된 ${selectedItemIds.length}개 항목을 삭제하시겠습니까?`);
+        const targetIds = isFilterActive
+            ? selectedItemIds.filter((id) => visibleItemIdSet.has(id))
+            : selectedItemIds;
+        if (targetIds.length === 0) return;
+        const ok = await confirm(`선택된 ${targetIds.length}개 항목을 삭제하시겠습니까?`);
         if (!ok) return;
-        deleteItems(selectedItemIds);
-        clearSelection();
-        toast.success(`${selectedItemIds.length}개 항목이 삭제되었습니다.`);
-    }, [clearSelection, confirm, deleteItems, selectedItemIds]);
+        deleteItems(targetIds);
+        const removedIdSet = new Set(targetIds);
+        setSelectedItemIds((prev) => prev.filter((id) => !removedIdSet.has(id)));
+        toast.success(`${targetIds.length}개 항목이 삭제되었습니다.`);
+    }, [confirm, deleteItems, isFilterActive, selectedItemIds, visibleItemIdSet]);
 
     const handleDeleteCategory = async (category, categoryItems) => {
         const ok = await confirm(`${category} 대공종을 삭제하시겠습니까? (항목 ${categoryItems.length}개)`);
@@ -825,19 +991,21 @@ export default function ScheduleMasterList() {
             (link) => remainingIds.has(link.from) && remainingIds.has(link.to)
         );
         const remainingSubTasks = subTasks.filter((subtask) => remainingIds.has(subtask.itemId));
-        deleteItems(categoryItems.map((item) => item.id));
-        setSelectedItemIds((prev) => {
-            const removedIdSet = new Set(categoryItems.map((item) => item.id));
-            return prev.filter((id) => !removedIdSet.has(id));
-        });
+
         if (containerId) {
             try {
                 await saveScheduleData(containerId, { items: remainingItems, links: remainingLinks, sub_tasks: remainingSubTasks });
             } catch (error) {
                 console.error("Failed to save after category delete:", error);
                 toast.error("대공종 삭제 저장 실패");
+                return;
             }
         }
+        deleteItems(categoryItems.map((item) => item.id));
+        setSelectedItemIds((prev) => {
+            const removedIdSet = new Set(categoryItems.map((item) => item.id));
+            return prev.filter((id) => !removedIdSet.has(id));
+        });
         toast.success("대공종이 삭제되었습니다.");
     };
 
@@ -901,9 +1069,6 @@ export default function ScheduleMasterList() {
         // Keep table calculation stable by syncing category/rate keys together immediately.
         setStoreOperatingRates(nextRates);
         updateItemsField(targetIds, "main_category", nextCategory);
-        handleCancelCategoryRename();
-        toast.success("대공종명이 변경되었습니다.");
-
         if (rateIdsToRename.length > 0) {
             try {
                 const { updateOperatingRate: updateOperatingRateAPI } = await import("../api/cpe/operating_rate");
@@ -916,9 +1081,14 @@ export default function ScheduleMasterList() {
                 setStoreOperatingRates(savedRates);
             } catch (error) {
                 console.error("대공종명 변경 후 가동률 저장 실패:", error);
-                toast.error("가동률 대공종명 저장 실패");
+                setStoreOperatingRates(operatingRates);
+                updateItemsField(targetIds, "main_category", sourceCategory);
+                toast.error("가동률 대공종명 저장 실패 - 변경을 되돌렸습니다.");
+                return;
             }
         }
+        handleCancelCategoryRename();
+        toast.success("대공종명이 변경되었습니다.");
     }, [categoryRenameValue, handleCancelCategoryRename, items, operatingRates, projectId, setStoreOperatingRates, updateItemsField]);
 
     const handleMoveCategory = useCallback((category, direction) => {
@@ -1146,7 +1316,10 @@ export default function ScheduleMasterList() {
                     operating_rate_type: sourceRow.operating_rate_type || "FRAME",
                     operating_rate_value: sourceRow.operating_rate_value ?? 0,
                     standard_code: sourceRow.standard_code || "",
-                    application_rate: sourceRow.application_rate ?? 100,
+                    cp_checked: sourceRow.cp_checked !== false,
+                    parallel_rate: sourceRow.parallel_rate ?? sourceRow.application_rate ?? 100,
+                    application_rate: sourceRow.parallel_rate ?? sourceRow.application_rate ?? 100,
+                    reflection_rate: sourceRow.reflection_rate ?? 100,
                     front_parallel_days: sourceRow.front_parallel_days ?? 0,
                     back_parallel_days: sourceRow.back_parallel_days ?? 0,
                     parallel_segments: Array.isArray(sourceRow.parallel_segments) ? sourceRow.parallel_segments : []
@@ -1181,15 +1354,28 @@ export default function ScheduleMasterList() {
         const handleTableHotkeys = (e) => {
             if (viewMode !== "table") return;
             const target = e.target;
-            if (target?.tagName === 'INPUT' || target?.tagName === 'TEXTAREA' || target?.isContentEditable) return;
+
+            const isTypingTarget = (() => {
+                if (!target) return false;
+                if (target?.isContentEditable) return true;
+                if (target?.tagName === "TEXTAREA") return true;
+                if (target?.tagName !== "INPUT") return false;
+                const inputType = String(target?.type || "").toLowerCase();
+                return !["checkbox", "radio", "button", "submit", "reset"].includes(inputType);
+            })();
+            if (isTypingTarget) return;
 
             if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'a') {
                 e.preventDefault();
-                setSelectedItemIds(allItemIds);
+                setSelectedItemIds((prev) => {
+                    const next = new Set(prev);
+                    visibleItemIds.forEach((id) => next.add(id));
+                    return Array.from(next);
+                });
                 return;
             }
 
-            if (selectedItemIds.length === 0) return;
+            if (selectedCount === 0) return;
             if (e.key === 'Delete' || e.key === 'Backspace') {
                 e.preventDefault();
                 handleDeleteSelectedItems();
@@ -1198,7 +1384,17 @@ export default function ScheduleMasterList() {
 
         window.addEventListener('keydown', handleTableHotkeys);
         return () => window.removeEventListener('keydown', handleTableHotkeys);
-    }, [allItemIds, handleDeleteSelectedItems, selectedItemIds.length, viewMode]);
+    }, [handleDeleteSelectedItems, selectedCount, viewMode, visibleItemIds]);
+
+    const handleTableBlurCapture = useCallback(() => {
+        window.setTimeout(() => {
+            if (!tableInteractionRef.current) return;
+            const nextActiveElement = document.activeElement;
+            if (!tableInteractionRef.current.contains(nextActiveElement)) {
+                setIsTableFocusInside(false);
+            }
+        }, 0);
+    }, []);
 
     const handleSaveAll = async () => {
         console.log("Saving schedule data... ContainerID:", containerId);
@@ -1258,8 +1454,13 @@ export default function ScheduleMasterList() {
                 console.error("Run Rate save failed:", runRateResult.reason);
             }
 
-            if (scheduleResult.status === "fulfilled" || runRateResult.status === "fulfilled") {
+            if (scheduleResult.status === "fulfilled" && runRateResult.status === "fulfilled") {
                 toast.success("저장 완료");
+            } else if (scheduleResult.status === "fulfilled" || runRateResult.status === "fulfilled") {
+                const failedParts = [];
+                if (scheduleResult.status !== "fulfilled") failedParts.push("공정표");
+                if (runRateResult.status !== "fulfilled") failedParts.push("Run Rate");
+                toast.error(`부분 저장 실패: ${failedParts.join(", ")} 저장에 실패했습니다.`);
             } else {
                 throw new Error("Both saves failed");
             }
@@ -1270,6 +1471,23 @@ export default function ScheduleMasterList() {
             setSaving(false);
         }
     };
+
+    const handleStartDateChange = useCallback(async (val) => {
+        const previousDate = startDate;
+        setStartDate(val);
+        const requestId = startDateRequestRef.current + 1;
+        startDateRequestRef.current = requestId;
+
+        try {
+            const { updateProject } = await import("../api/cpe/project");
+            await updateProject(projectId, { start_date: val });
+        } catch (error) {
+            if (startDateRequestRef.current !== requestId) return;
+            console.error("Start Date 저장 실패:", error);
+            setStartDate(previousDate);
+            toast.error("시작일 저장 실패 - 이전 값으로 되돌렸습니다.");
+        }
+    }, [projectId, setStartDate, startDate]);
 
     if (loading) return <div className="p-8 flex justify-center items-center h-full">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[var(--navy-accent)]"></div>
@@ -1303,7 +1521,14 @@ export default function ScheduleMasterList() {
         activeItem && dropTargetItem && activeItem.main_category !== dropTargetItem.main_category
     );
     const renderTableView = ({ forPrint = false } = {}) => (
-        <div className="relative h-full w-full">
+        <div
+            className="relative h-full w-full"
+            ref={forPrint ? undefined : tableInteractionRef}
+            onMouseEnter={forPrint ? undefined : () => setIsTablePointerInside(true)}
+            onMouseLeave={forPrint ? undefined : () => setIsTablePointerInside(false)}
+            onFocusCapture={forPrint ? undefined : () => setIsTableFocusInside(true)}
+            onBlurCapture={forPrint ? undefined : handleTableBlurCapture}
+        >
             <div
                 className={`scroll-container w-full overflow-auto rounded-xl border border-[var(--navy-border-soft)] shadow-xl bg-[var(--navy-surface)] relative ${isScrolling ? 'scrolling' : ''} ${forPrint ? 'print-table' : ''}`}
                 style={{ height: '100%' }}
@@ -1320,28 +1545,30 @@ export default function ScheduleMasterList() {
                 >
                     <table className="w-full text-m box-border table-fixed border-collapse bg-[var(--navy-surface)] rounded-lg text-[var(--navy-text)]">
                         <colgroup>
-                            <col width="34" />
-                            <col width="30" />
+                            <col width="40" />
+                            <col width="36" />
                             <col width="180" />
-                            <col width="220" />
-                            <col width="320" />
-                            <col width="140" />
-                            <col width="60" />
-                            <col width="90" />
-                            <col width="100" />
+                            <col width="180" />
+                            <col width="260" />
+                            <col width="130" />
                             <col width="70" />
-                            <col width="100" />
-                            <col width="80" />
-                            <col width="100" />
                             <col width="90" />
-                            <col width="200" />
-                            <col width="500" />
-                            <col width="60" />
+                            <col width="90" />
+                            <col width="72" />
+                            <col width="90" />
+                            <col width="72" />
+                            <col width="86" />
+                            <col width="86" />
+                            <col width="90" />
+                            <col width="80" />
+                            <col width="150" />
+                            <col width="280" />
+                            <col width="64" />
 
                         </colgroup>
                         <thead ref={tableHeaderRef} className="bg-[var(--navy-surface-3)] text-[var(--navy-text)]">
                             <tr className="bg-[var(--navy-surface)] text-[var(--navy-text-muted)] font-medium sticky top-0 z-[2] shadow-sm border-b border-[var(--navy-border-soft)]">
-                                <th className="sticky top-0 bg-[var(--navy-surface)] border-r border-[var(--navy-border-soft)] px-1 z-10">
+                                <th className="sticky top-0 left-0 bg-[var(--navy-surface)] border-r border-[var(--navy-border-soft)] px-1 z-30">
                                     <input
                                         ref={selectAllRef}
                                         type="checkbox"
@@ -1351,7 +1578,7 @@ export default function ScheduleMasterList() {
                                         aria-label="전체 선택"
                                     />
                                 </th>
-                                <th className="sticky top-0 bg-[var(--navy-surface)] border-r border-[var(--navy-border-soft)] px-1 z-10"></th>
+                                <th className="sticky top-0 left-[40px] bg-[var(--navy-surface)] border-r border-[var(--navy-border-soft)] px-1 z-30"></th>
                                 <th className="sticky top-0 bg-[var(--navy-surface)] border-r border-[var(--navy-border-soft)] px-2 py-2 z-10">중공종</th>
                                 <th className="sticky top-0 bg-[var(--navy-surface)] border-r border-[var(--navy-border-soft)] px-2 py-2 z-10">공정</th>
                                 <th className="sticky top-0 bg-[var(--navy-surface)] border-r border-[var(--navy-border-soft)] px-2 py-2 z-10">세부공종</th>
@@ -1361,6 +1588,8 @@ export default function ScheduleMasterList() {
                                 <th className="sticky top-0 bg-[var(--navy-surface)] border-r border-[var(--navy-border-soft)] px-2 py-2 z-10">단위 작업량</th>
                                 <th className="sticky top-0 bg-[var(--navy-surface)] border-r border-[var(--navy-border-soft)] px-2 py-2 z-10">투입조</th>
                                 <th className="sticky top-0 bg-[var(--navy-surface)] border-r border-[var(--navy-border-soft)] px-2 py-2 z-10">생산량/일</th>
+                                <th className="sticky top-0 bg-[var(--navy-surface)] border-r border-[var(--navy-border-soft)] px-2 py-2 z-10">CP 체크</th>
+                                <th className="sticky top-0 bg-[var(--navy-surface)] border-r border-[var(--navy-border-soft)] px-2 py-2 z-10">병행률(%)</th>
                                 <th className="sticky top-0 bg-[var(--navy-surface)] border-r border-[var(--navy-border-soft)] px-2 py-2 z-10">반영률(%)</th>
                                 <th className="sticky top-0 bg-[var(--navy-surface)] border-r border-[var(--navy-border-soft)] px-2 py-2 z-10">작업기간 W/D</th>
                                 <th className="sticky top-0 bg-[var(--navy-surface)] border-r border-[var(--navy-border-soft)] px-2 py-2 z-10">가동률</th>
@@ -1369,335 +1598,99 @@ export default function ScheduleMasterList() {
                                 <th className="sticky top-0 bg-[var(--navy-surface)] border-r border-[var(--navy-border-soft)] px-2 py-2 z-10"></th>
                             </tr>
                         </thead>
-                        <SortableContext items={items} strategy={verticalListSortingStrategy}>
+                        <SortableContext items={visibleItemIds} strategy={verticalListSortingStrategy}>
                             <tbody className="divide-y divide-gray-700">
                                 {(() => {
-                                    const groupedItems = items.reduce((acc, item) => {
-                                        const category = item.main_category || '기타';
-                                        if (!acc[category]) acc[category] = [];
-                                        acc[category].push(item);
-                                        return acc;
-                                    }, {});
+                                    const groupedItems = groupedVisibleItems;
 
                                     return [
                                         (
-                                            <tr key="add-main-category" className={`bg-[var(--navy-bg)] ${forPrint ? "no-print" : ""}`}>
-                                                <td
-                                                    colSpan="17"
-                                                    className={`px-4 py-3 ${forPrint ? "" : "sticky z-[9] bg-[var(--navy-bg)] border-b border-[var(--navy-border-soft)]"}`}
-                                                    style={forPrint ? undefined : { top: `${tableHeaderHeight + 12}px` }}
-                                                >
-                                                    <div className="flex w-full flex-wrap items-center gap-3">
-                                                        <div className="text-sm font-semibold text-[var(--navy-text)]">대공종 추가</div>
-                                                        <input
-                                                            type="text"
-                                                            value={newMainCategory}
-                                                            onChange={(e) => setNewMainCategory(e.target.value)}
-                                                            placeholder="대공종명 입력"
-                                                            className="ui-input min-w-[220px]"
-                                                        />
-                                                        <button
-                                                            type="button"
-                                                            onClick={handleAddMainCategory}
-                                                            className="ui-btn-primary"
-                                                        >
-                                                            추가
-                                                        </button>
-                                                        <div className="flex flex-1 justify-center min-w-[220px]">
-                                                            <div className="ui-edit-legend">
-                                                                <div className="ui-edit-legend-item">
-                                                                    <span className="ui-edit-legend-box ui-edit-legend-box-editable" aria-hidden="true"></span>
-                                                                    <span>수정 가능</span>
-                                                                </div>
-                                                                <div className="ui-edit-legend-item">
-                                                                    <span className="ui-edit-legend-box ui-edit-legend-box-readonly" aria-hidden="true"></span>
-                                                                    <span>수정 불가능</span>
-                                                                </div>
-                                                            </div>
-                                                        </div>
-                                                        <button
-                                                            type="button"
-                                                            onClick={handleDeleteSelectedItems}
-                                                            disabled={selectedCount === 0}
-                                                            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition ${selectedCount > 0
-                                                                ? "border-red-500/50 text-red-200 hover:bg-red-500/10"
-                                                                : "border-gray-700 text-gray-500 cursor-not-allowed"
-                                                                }`}
-                                                        >
-                                                            <Trash2 size={14} />
-                                                            선택 삭제 {selectedCount > 0 ? `(${selectedCount})` : ""}
-                                                        </button>
-                                                    </div>
-                                                </td>
-                                            </tr>
+                                            <ScheduleMasterTableToolbarRow
+                                                key="add-main-category"
+                                                forPrint={forPrint}
+                                                tableHeaderHeight={tableHeaderHeight}
+                                                newMainCategory={newMainCategory}
+                                                onNewMainCategoryChange={setNewMainCategory}
+                                                onAddMainCategory={handleAddMainCategory}
+                                                searchKeyword={searchKeyword}
+                                                onSearchKeywordChange={setSearchKeyword}
+                                                onClearSearch={() => setSearchKeyword("")}
+                                                categoryFilter={categoryFilter}
+                                                onCategoryFilterChange={setCategoryFilter}
+                                                categoryOptions={categoryOptions}
+                                                isFilterActive={isFilterActive}
+                                                hasSearchKeyword={hasSearchKeyword}
+                                                visibleItemCount={visibleItems.length}
+                                                totalItemCount={items.length}
+                                                selectedCount={selectedCount}
+                                                onDeleteSelectedItems={handleDeleteSelectedItems}
+                                            />
                                         ),
                                         ...Object.entries(groupedItems).map(([category, categoryItems], categoryIndex, categoryEntries) => (
-                                            <React.Fragment key={category}>
-                                                {(() => {
-                                                    const categoryCalDays = calculateTotalCalendarDays(categoryItems);
-                                                    const categoryCalMonths = calculateTotalCalendarMonths(categoryCalDays);
-                                                    return (
-                                                        <tr className="bg-gradient-to-r from-[var(--navy-surface)] to-[var(--navy-surface-2)] border-t border-[var(--navy-border-soft)]">
-                                                            <td colSpan="17" className="px-4 py-2.5">
-                                                                <div className="flex items-center justify-between gap-2">
-                                                                    <div className="flex items-center gap-2">
-                                                                        <div className="ui-accent-dot w-1 h-5 rounded-full"></div>
-                                                                        {categoryRenameTarget === category && !forPrint ? (
-                                                                            <div className="flex items-center gap-1.5">
-                                                                                <input
-                                                                                    type="text"
-                                                                                    value={categoryRenameValue}
-                                                                                    onChange={(e) => setCategoryRenameValue(e.target.value)}
-                                                                                    onKeyDown={(e) => {
-                                                                                        if (e.key === "Enter") {
-                                                                                            e.preventDefault();
-                                                                                            handleCommitCategoryRename(category);
-                                                                                        } else if (e.key === "Escape") {
-                                                                                            e.preventDefault();
-                                                                                            handleCancelCategoryRename();
-                                                                                        }
-                                                                                    }}
-                                                                                    autoFocus
-                                                                                    className="ui-input py-1 px-2 min-w-[180px]"
-                                                                                    aria-label="대공종명 수정"
-                                                                                />
-                                                                                <button
-                                                                                    type="button"
-                                                                                    onClick={() => handleCommitCategoryRename(category)}
-                                                                                    className="rounded-md border border-[var(--navy-accent)] px-2 py-1 text-[11px] font-semibold text-white bg-[var(--navy-accent)] hover:bg-[var(--navy-accent-hover)]"
-                                                                                >
-                                                                                    적용
-                                                                                </button>
-                                                                                <button
-                                                                                    type="button"
-                                                                                    onClick={handleCancelCategoryRename}
-                                                                                    className="rounded-md border border-[var(--navy-border)] px-2 py-1 text-[11px] text-[var(--navy-text-muted)] hover:bg-[var(--navy-surface-3)]"
-                                                                                >
-                                                                                    취소
-                                                                                </button>
-                                                                            </div>
-                                                                        ) : (
-                                                                            <>
-                                                                                <h3 className="font-bold text-[var(--navy-text)] text-base tracking-tight">
-                                                                                    {category}
-                                                                                </h3>
-                                                                                {!forPrint && (
-                                                                                    <button
-                                                                                        type="button"
-                                                                                        onClick={() => handleStartCategoryRename(category)}
-                                                                                        className="inline-flex h-8 items-center justify-center rounded-lg border border-[var(--navy-border)] bg-[var(--navy-surface-2)] px-3 text-xs font-bold text-[var(--navy-text)] shadow-sm transition hover:bg-[var(--navy-surface-3)] hover:border-[var(--navy-accent)]"
-                                                                                    >
-                                                                                        이름수정
-                                                                                    </button>
-                                                                                )}
-                                                                            </>
-                                                                        )}
-                                                                        <span className="text-xs text-[var(--navy-text-muted)] bg-[var(--navy-bg)] px-2 py-0.5 rounded-full border border-[var(--navy-border-soft)]">
-                                                                            {categoryItems.length}개 항목
-                                                                        </span>
-                                                                        <span className="text-xs ui-accent-text bg-[rgb(59_59_79/0.22)] px-2 py-0.5 rounded-full border border-[rgb(75_85_99/0.45)] font-semibold">
-                                                                            {categoryCalDays}일 ({categoryCalMonths}개월)
-                                                                        </span>
-                                                                        {/* Category-specific Run Rate */}
-                                                                        {(() => {
-                                                                            const categoryRate = operatingRates.find(r => r.main_category === category);
-                                                                            const currentRunRate = categoryRate?.work_week_days || 6;
-                                                                            return (
-                                                                                <div className="flex items-center gap-2 ml-4">
-                                                                                    <label className="text-[10px] font-bold text-[var(--navy-text-muted)] uppercase tracking-widest">Run Rate</label>
-                                                                                    <select
-                                                                                        className="ui-input py-1 px-2"
-                                                                                        value={currentRunRate}
-                                                                                        onChange={(e) => handleCategoryRunRateChange(category, e.target.value)}
-                                                                                        disabled={forPrint}
-                                                                                    >
-                                                                                        <option value="5">주5일</option>
-                                                                                        <option value="6">주6일</option>
-                                                                                        <option value="7">주7일</option>
-                                                                                    </select>
-                                                                                </div>
-                                                                            );
-                                                                        })()}
-                                                                    </div>
-                                                                    <div
-                                                                        className={`flex items-center ${forPrint
-                                                                            ? "no-print"
-                                                                            : "sticky right-1 z-[25] ml-auto border-l border-[var(--navy-border-soft)] bg-[rgb(44_44_58/0.96)] py-1 pl-3 pr-1 backdrop-blur-sm"
-                                                                            }`}
-                                                                    >
-                                                                        <div
-                                                                            className="relative inline-flex items-center gap-1 rounded-lg border border-[var(--navy-border)] bg-[var(--navy-surface)] p-1 shadow-sm"
-                                                                            ref={openCategoryMenu === category ? categoryMenuRef : undefined}
-                                                                        >
-                                                                            <button
-                                                                                type="button"
-                                                                                onClick={() => {
-                                                                                    handleMoveCategory(category, "up");
-                                                                                    setOpenCategoryMenu(null);
-                                                                                }}
-                                                                                disabled={categoryIndex === 0}
-                                                                                className={`flex h-8 w-8 items-center justify-center rounded-md border transition ${categoryIndex === 0
-                                                                                    ? "cursor-not-allowed border-gray-700 text-gray-500"
-                                                                                    : "border-[var(--navy-border)] text-[var(--navy-text)] hover:bg-[var(--navy-surface-3)]"
-                                                                                    }`}
-                                                                                title="대공종 위로 이동"
-                                                                                aria-label="대공종 위로 이동"
-                                                                            >
-                                                                                <ArrowUp size={14} />
-                                                                            </button>
-                                                                            <button
-                                                                                type="button"
-                                                                                onClick={() => {
-                                                                                    handleMoveCategory(category, "down");
-                                                                                    setOpenCategoryMenu(null);
-                                                                                }}
-                                                                                disabled={categoryIndex === categoryEntries.length - 1}
-                                                                                className={`flex h-8 w-8 items-center justify-center rounded-md border transition ${categoryIndex === categoryEntries.length - 1
-                                                                                    ? "cursor-not-allowed border-gray-700 text-gray-500"
-                                                                                    : "border-[var(--navy-border)] text-[var(--navy-text)] hover:bg-[var(--navy-surface-3)]"
-                                                                                    }`}
-                                                                                title="대공종 아래로 이동"
-                                                                                aria-label="대공종 아래로 이동"
-                                                                            >
-                                                                                <ArrowDown size={14} />
-                                                                            </button>
-                                                                            <button
-                                                                                type="button"
-                                                                                onClick={() => {
-                                                                                    const lastCategoryItem = categoryItems[categoryItems.length - 1] || items[0];
-                                                                                    const activeInCategory = activeEditingItem && activeEditingItem.main_category === category
-                                                                                        ? activeEditingItem
-                                                                                        : null;
-                                                                                    const targetItem = activeInCategory || lastCategoryItem;
-                                                                                    if (targetItem) {
-                                                                                        handleAddItem({
-                                                                                            ...targetItem,
-                                                                                            main_category: category,
-                                                                                            process: category === targetItem.main_category ? targetItem.process : "",
-                                                                                            sub_process: category === targetItem.main_category ? (targetItem.sub_process || "") : ""
-                                                                                        });
-                                                                                    }
-                                                                                    setOpenCategoryMenu(null);
-                                                                                }}
-                                                                                className="flex h-8 w-8 items-center justify-center rounded-md border border-[var(--navy-accent)] bg-[var(--navy-accent)] text-white transition hover:bg-[var(--navy-accent-hover)]"
-                                                                                title="항목 추가"
-                                                                                aria-label="항목 추가"
-                                                                            >
-                                                                                <Plus size={13} />
-                                                                            </button>
-                                                                            <button
-                                                                                type="button"
-                                                                                onClick={() => {
-                                                                                    handleDeleteCategory(category, categoryItems);
-                                                                                    setOpenCategoryMenu(null);
-                                                                                }}
-                                                                                className="flex h-8 w-8 items-center justify-center rounded-md border border-red-500/40 text-red-200 transition hover:bg-red-500/10"
-                                                                                title="대공종 삭제"
-                                                                                aria-label="대공종 삭제"
-                                                                            >
-                                                                                <Trash2 size={13} />
-                                                                            </button>
-                                                                            <button
-                                                                                type="button"
-                                                                                onClick={() => setOpenCategoryMenu((prev) => (prev === category ? null : category))}
-                                                                                className="flex h-8 w-8 items-center justify-center rounded-md border border-[var(--navy-border)] text-[var(--navy-text)] transition hover:bg-[var(--navy-surface-3)]"
-                                                                                title="더보기"
-                                                                                aria-label="더보기"
-                                                                            >
-                                                                                <MoreVertical size={13} />
-                                                                            </button>
-                                                                            {openCategoryMenu === category && (
-                                                                                <div className="absolute right-0 top-[calc(100%+6px)] z-[60] min-w-[172px] rounded-lg border border-[var(--navy-border-soft)] bg-[var(--navy-surface)] p-1 shadow-2xl">
-                                                                                    <button
-                                                                                        type="button"
-                                                                                        onClick={() => {
-                                                                                            const lastCategoryItem = categoryItems[categoryItems.length - 1] || items[0];
-                                                                                            if (lastCategoryItem) {
-                                                                                                handleOpenImport({
-                                                                                                    ...lastCategoryItem,
-                                                                                                    main_category: category
-                                                                                                });
-                                                                                            }
-                                                                                            setOpenCategoryMenu(null);
-                                                                                        }}
-                                                                                        className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-[var(--navy-text)] transition hover:bg-[var(--navy-surface-3)]"
-                                                                                    >
-                                                                                        <RefreshCw size={12} />
-                                                                                        표준품셈 선택
-                                                                                    </button>
-                                                                                    <button
-                                                                                        type="button"
-                                                                                        onClick={() => {
-                                                                                            const lastCategoryItem = categoryItems[categoryItems.length - 1] || items[0];
-                                                                                            setEvidenceTargetParent(lastCategoryItem || null);
-                                                                                            setEvidenceModalOpen(true);
-                                                                                            setOpenCategoryMenu(null);
-                                                                                        }}
-                                                                                        className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-[var(--navy-text)] transition hover:bg-[var(--navy-surface-3)]"
-                                                                                    >
-                                                                                        <SlidersHorizontal size={12} />
-                                                                                        근거 데이터 반영
-                                                                                    </button>
-                                                                                    {String(category).includes("골조") && (
-                                                                                        <button
-                                                                                            type="button"
-                                                                                            onClick={() => {
-                                                                                                handleOpenFloorBatchModal(category, categoryItems);
-                                                                                                setOpenCategoryMenu(null);
-                                                                                            }}
-                                                                                            className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-[var(--navy-text)] transition hover:bg-[var(--navy-surface-3)]"
-                                                                                        >
-                                                                                            <Layers3 size={12} />
-                                                                                            층별 공정 생성
-                                                                                        </button>
-                                                                                    )}
-                                                                                </div>
-                                                                            )}
-                                                                        </div>
-                                                                    </div>
-                                                                </div>
-                                                            </td>
-                                                        </tr>
-                                                    );
-                                                })()}
-                                                {categoryItems.map((item, rowIndex) => (
-                                                    <ScheduleTableRow
-                                                        key={item.id}
-                                                        item={item}
-                                                        isSelected={selectedItemIds.includes(item.id)}
-                                                        onToggleSelect={toggleSelectItem}
-                                                        onStartSelectionDrag={startSelectionDrag}
-                                                        onDragSelectionEnter={dragSelectItem}
-                                                        rowClassName={rowIndex % 2 === 0 ? "bg-[var(--navy-bg)]" : "bg-[var(--navy-surface)]"}
-                                                        operatingRates={operatingRates}
-                                                        workDayType={workDayType}
-                                                        isLinked={item.link_module_type && item.link_module_type !== 'NONE'}
-                                                        handleChange={handleChange}
-                                                        handleGroupFieldChange={handleGroupFieldChange}
-                                                        handleDeleteItem={handleDeleteItem}
-                                                        onOpenRowClassEdit={handleOpenRowClassEdit}
-                                                        handleAddItem={handleAddItem}
-                                                        onActivateItem={handleActivateItem}
-                                                        handleOpenImport={handleOpenImport}
-                                                        spanInfo={spanInfoMap[item.id] || {
-                                                            isProcessFirst: true,
-                                                            isSubProcessFirst: true,
-                                                            processRowSpan: 1,
-                                                            subProcessRowSpan: 1,
-                                                            processGroupIds: [item.id],
-                                                            subProcessGroupIds: [item.id]
-                                                        }}
-                                                        standardItems={standardItems}
-                                                        onApplyStandard={handleApplyStandardToRow}
-                                                        isDragActive={Boolean(activeId)}
-                                                        isPartOfDraggingGroup={Boolean(activeId) && dragMovingItemSet.has(item.id)}
-                                                        isDropTarget={dropTargetId === item.id}
-                                                        dropPosition={dropTargetId === item.id ? dropPosition : null}
-                                                        isDropInvalid={isDropInvalid && dropTargetId === item.id}
-                                                    />
-                                                ))}
-                                            </React.Fragment>
-                                        ))
+                                            <ScheduleCategorySection
+                                                key={category}
+                                                forPrint={forPrint}
+                                                category={category}
+                                                categoryItems={categoryItems}
+                                                allCategoryItems={categoryItemsMap.get(category) || categoryItems}
+                                                categoryIndex={categoryIndex}
+                                                categoryEntriesLength={categoryEntries.length}
+                                                categoryRenameTarget={categoryRenameTarget}
+                                                categoryRenameValue={categoryRenameValue}
+                                                setCategoryRenameValue={setCategoryRenameValue}
+                                                handleCommitCategoryRename={handleCommitCategoryRename}
+                                                handleCancelCategoryRename={handleCancelCategoryRename}
+                                                handleStartCategoryRename={handleStartCategoryRename}
+                                                isFilterActive={isFilterActive}
+                                                hasSearchKeyword={hasSearchKeyword}
+                                                operatingRates={operatingRates}
+                                                handleCategoryRunRateChange={handleCategoryRunRateChange}
+                                                openCategoryMenu={openCategoryMenu}
+                                                setOpenCategoryMenu={setOpenCategoryMenu}
+                                                categoryMenuRef={categoryMenuRef}
+                                                categoryMenuPosition={categoryMenuPosition}
+                                                categoryMenuDropdownRef={categoryMenuDropdownRef}
+                                                handleMoveCategory={handleMoveCategory}
+                                                activeEditingItem={activeEditingItem}
+                                                fallbackItem={items[0]}
+                                                handleAddItem={handleAddItem}
+                                                handleOpenImport={handleOpenImport}
+                                                handleOpenEvidence={(targetItem) => {
+                                                    setEvidenceTargetParent(targetItem || null);
+                                                    setEvidenceModalOpen(true);
+                                                }}
+                                                handleOpenFloorBatchModal={handleOpenFloorBatchModal}
+                                                handleDeleteCategory={handleDeleteCategory}
+                                                selectedItemIds={selectedItemIds}
+                                                toggleSelectItem={toggleSelectItem}
+                                                startSelectionDrag={startSelectionDrag}
+                                                dragSelectItem={dragSelectItem}
+                                                workDayType={workDayType}
+                                                handleChange={handleChange}
+                                                handleGroupFieldChange={handleGroupFieldChange}
+                                                handleDeleteItem={handleDeleteItem}
+                                                handleOpenRowClassEdit={handleOpenRowClassEdit}
+                                                handleActivateItem={handleActivateItem}
+                                                spanInfoMap={spanInfoMap}
+                                                standardItems={standardItems}
+                                                handleApplyStandardToRow={handleApplyStandardToRow}
+                                                activeId={activeId}
+                                                dragMovingItemSet={dragMovingItemSet}
+                                                dropTargetId={dropTargetId}
+                                                dropPosition={dropPosition}
+                                                isDropInvalid={isDropInvalid}
+                                                activeEditingItemId={activeEditingItemId}
+                                            />
+                                        )),
+                                        ...(Object.keys(groupedItems).length === 0
+                                            ? [(
+                                                <tr key="empty-filter-result">
+                                                    <td colSpan="19" className="px-4 py-8 text-center text-sm text-[var(--navy-text-muted)]">
+                                                        검색/필터 조건에 맞는 항목이 없습니다.
+                                                    </td>
+                                                </tr>
+                                            )]
+                                            : [])
                                     ];
                                 })()}
                             </tbody>
@@ -1724,7 +1717,7 @@ export default function ScheduleMasterList() {
             )}
             {!forPrint && showHorizontalHint && hasHorizontalOverflow && (
                 <div className="ui-hint absolute right-3 top-3 z-30 flex items-center gap-2">
-                    <span>좌우 이동: Shift + 휠 또는 하단 스크롤바 사용</span>
+                    <span>좌우 이동: Shift + 휠 또는 하단 스크롤바 사용, 좌측 2열은 고정됩니다.</span>
                     <button
                         type="button"
                         className="rounded p-0.5 text-[var(--navy-text)] hover:bg-[rgb(75_85_99/0.25)]"
@@ -1751,12 +1744,7 @@ export default function ScheduleMasterList() {
                     onRedo={runRedo}
                     onSnapshotOpen={() => setSnapshotModalOpen(true)}
                     startDate={startDate}
-                    onStartDateChange={(val) => {
-                        setStartDate(val);
-                        import("../api/cpe/project").then(({ updateProject }) =>
-                            updateProject(projectId, { start_date: val })
-                        );
-                    }}
+                    onStartDateChange={handleStartDateChange}
                     workDayType={workDayType}
                     onWorkDayTypeChange={setStoreWorkDayType}
                     onSave={handleSaveAll}
@@ -1775,7 +1763,6 @@ export default function ScheduleMasterList() {
             {/* Content Section (Fills remaining height) */}
             <div
                 className="flex-1 min-h-0 w-full max-w-[2400px] mx-auto p-6 pt-2 overflow-hidden flex flex-col"
-                style={{ zoom: viewMode === "table" ? 0.85 : 1 }}
             >
                 {viewMode === "gantt" ? (
                     <ScheduleGanttPanel
