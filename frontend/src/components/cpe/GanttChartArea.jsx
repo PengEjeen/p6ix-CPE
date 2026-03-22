@@ -434,7 +434,6 @@ const GanttChartArea = ({
 
         if (onSelectSubtask) onSelectSubtask(null, e);
         if (onSelectionChange) onSelectionChange([]);
-        return;
 
         const rect = chartAreaRef.current?.getBoundingClientRect();
         if (!rect) return;
@@ -634,10 +633,6 @@ const GanttChartArea = ({
 
                 {itemsWithTiming.map((item, index) => {
                     const { redStart: redS, redEnd: redE, parallelSegments } = getEffectiveRedRange(item);
-                    const containedGrey = (containedCpMap.get(item.id) || []).map((entry) => ({
-                        start: entry.meta.redStart,
-                        end: entry.meta.redEnd
-                    }));
 
                     return (
                         <SmartGanttBar
@@ -664,7 +659,7 @@ const GanttChartArea = ({
                             linkDragActive={!!linkDrag}
                             aiPreview={aiPreviewMap.get(item.id)}
                             aiActive={aiActiveItemId === item.id}
-                            greySegments={[...parallelSegments, ...containedGrey]}
+                            greySegments={parallelSegments}
                             getBarSnapCandidate={getBarSnapCandidate}
                             dataChartRow
                             readOnly={readOnly}

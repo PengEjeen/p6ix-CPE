@@ -244,13 +244,13 @@ export default function GanttChart({
                 }
             }
             if (target) {
-                target.parallel_rate = parallelState.application_rate;
+                target.parallel_rate = Math.max(0, Math.min(100, parseFloat((100 - parallelState.application_rate).toFixed(1))));
                 target.application_rate = parallelState.application_rate;
                 target.parallel_segments = parallelState.parallel_segments;
             } else {
                 updates.push({
                     id,
-                    parallel_rate: parallelState.application_rate,
+                    parallel_rate: Math.max(0, Math.min(100, parseFloat((100 - parallelState.application_rate).toFixed(1)))),
                     application_rate: parallelState.application_rate,
                     parallel_segments: parallelState.parallel_segments
                 });
@@ -503,18 +503,25 @@ export default function GanttChart({
 
     const handleBarDragPreview = useCallback((draggedId, newStartDay) => {
         if (!canEdit) return;
-        if (Array.isArray(selectedItemIds) && selectedItemIds.length > 1) return;
-        if (draggedId && newStartDay !== null && newStartDay !== undefined) {
-            moveTaskBars([{ id: draggedId, newStartDay }]);
-        }
         const isSelected = Array.isArray(selectedItemIds) && selectedItemIds.includes(draggedId);
         const targetIds = (isSelected && selectedItemIds.length > 1) ? selectedItemIds : null;
-        if (!targetIds) return;
+        if (!targetIds) {
+            if (draggedId && newStartDay !== null && newStartDay !== undefined) {
+                moveTaskBars([{ id: draggedId, newStartDay }]);
+            }
+            return;
+        }
 
-        if (!dragPreviewRef.current) {
+        if (
+            !dragPreviewRef.current
+            || dragPreviewRef.current.draggedId !== draggedId
+            || !Array.isArray(dragPreviewRef.current.targetIds)
+            || dragPreviewRef.current.targetIds.length !== targetIds.length
+            || dragPreviewRef.current.targetIds.some((id, idx) => id !== targetIds[idx])
+        ) {
             dragPreviewRef.current = {
                 draggedId,
-                targetIds,
+                targetIds: [...targetIds],
                 ...buildDragPreviewState(targetIds, itemsWithTiming, subTasks)
             };
         }
@@ -740,6 +747,7 @@ export default function GanttChart({
         const dragDelta = newStartDay - currentStartDay;
 
         if (activeSelection.length > 1) {
+            dragPreviewRef.current = null;
             return;
         }
 
@@ -791,6 +799,7 @@ export default function GanttChart({
                 totalOverlaps: overlappingTasks.length,
                 draggedItemId: itemId,
                 newStartDay: newStartDay,
+                originalStartDay: currentStartDay,
                 dragDelta: dragDelta
             };
 
@@ -826,6 +835,19 @@ export default function GanttChart({
             }
         }
     }, [canEdit, items, itemsWithTiming, moveTaskBars, selectedItemIds, shiftSubTasksForItem]);
+
+    const handleOverlapClose = useCallback(() => {
+        if (!overlapPopover) {
+            setOverlapPopover(null);
+            return;
+        }
+
+        const { draggedItemId, originalStartDay } = overlapPopover;
+        if (draggedItemId && Number.isFinite(originalStartDay)) {
+            moveTaskBars([{ id: draggedItemId, newStartDay: originalStartDay }]);
+        }
+        setOverlapPopover(null);
+    }, [moveTaskBars, overlapPopover]);
 
     const handleBarResize = useCallback((itemId, newDuration, x, y) => {
         if (!canEdit) return;
@@ -1023,7 +1045,7 @@ export default function GanttChart({
                 {/* Overlap Resolution Popup (Drag Only) */}
                 <OverlapResolvePopover
                     data={canEdit ? overlapPopover : null}
-                    onClose={() => setOverlapPopover(null)}
+                    onClose={handleOverlapClose}
                     onSelectCurrentAsCP={() => {
                         if (!overlapPopover) return;
 
@@ -1078,6 +1100,7 @@ export default function GanttChart({
                             shiftSubTasksForItem(draggedItemId, overlapPopover.dragDelta);
                         }
                         setOverlapPopover(null);
+                        dragPreviewRef.current = null;
                     }}
                     onSelectOtherAsCP={() => {
                         if (!overlapPopover) return;
@@ -1144,6 +1167,7 @@ export default function GanttChart({
                             shiftSubTasksForItem(draggedItemId, overlapPopover.dragDelta);
                         }
                         setOverlapPopover(null);
+                        dragPreviewRef.current = null;
                     }}
                 />
 

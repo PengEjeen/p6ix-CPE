@@ -525,18 +525,24 @@ const ScheduleTableRow = ({
             <td className="border-r border-gray-700 p-1">
                 <div className="relative">
                     <input
-                        className={`${editableInputBaseClass} p-1 pr-5 text-right text-base font-semibold ${item.cp_checked === false ? "bg-[#1f1f2b] text-gray-500 cursor-not-allowed" : ""}`}
+                        className={`${editableInputBaseClass} p-1 pr-5 text-right text-base font-semibold ${item.cp_checked === false ? "bg-[#1f1f2b] text-gray-300" : ""}`}
                         type="number"
                         min="0"
                         max="100"
                         step="0.1"
                         value={item.cp_checked === false ? 100 : (item.parallel_rate ?? item.application_rate ?? 100)}
-                        onChange={(e) => handleChange(item.id, 'parallel_rate', e.target.value)}
-                        onFocus={() => rememberFieldOrigin('parallel_rate', item.parallel_rate ?? item.application_rate ?? 100)}
+                        onChange={(e) => {
+                            if (item.cp_checked === false) {
+                                handleChange(item.id, 'cp_checked', true);
+                            }
+                            handleChange(item.id, 'parallel_rate', e.target.value);
+                        }}
+                        onFocus={() => {
+                            rememberFieldOrigin('parallel_rate', item.parallel_rate ?? item.application_rate ?? 100);
+                        }}
                         onBlur={() => clearFieldOrigin('parallel_rate')}
                         onKeyDown={(e) => handleEscRevert(e, 'parallel_rate')}
-                        disabled={item.cp_checked === false}
-                        title={item.cp_checked === false ? "CP 미체크 시 병행률은 100%로 고정됩니다." : undefined}
+                        title={item.cp_checked === false ? "입력 시 CP 체크가 자동 활성화됩니다." : undefined}
                     />
                     <span className="absolute right-1.5 top-1/2 -translate-y-1/2 text-xs text-gray-400 pointer-events-none">%</span>
                 </div>

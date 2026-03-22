@@ -10,6 +10,17 @@ const clampRate = (value, fallback = 100) => {
     return Math.min(100, Math.max(0, parseFloat(parsed.toFixed(1))));
 };
 
+const displayParallelRateFromApplication = (applicationRate, cpChecked = true) => {
+    if (!cpChecked) return 100;
+    const normalizedApplication = clampRate(applicationRate, 100);
+    return clampRate(100 - normalizedApplication, 0);
+};
+
+const applicationRateFromDisplayParallel = (parallelRate) => {
+    const normalizedParallel = clampRate(parallelRate, 0);
+    return clampRate(100 - normalizedParallel, 100);
+};
+
 const normalizeCpState = (item) => {
     const cpChecked = item?.cp_checked !== false;
     if (!cpChecked) {
@@ -24,12 +35,15 @@ const normalizeCpState = (item) => {
         };
     }
 
-    const normalizedRate = clampRate(item?.parallel_rate ?? item?.application_rate, 100);
+    const normalizedApplicationRate = clampRate(
+        item?.application_rate ?? item?.parallel_rate,
+        100
+    );
     return {
         ...item,
         cp_checked: true,
-        parallel_rate: normalizedRate,
-        application_rate: normalizedRate
+        parallel_rate: displayParallelRateFromApplication(normalizedApplicationRate, true),
+        application_rate: normalizedApplicationRate
     };
 };
 
@@ -132,6 +146,16 @@ export const useScheduleStore = create(
                         state.items[index].parallel_rate = 100;
                         state.items[index].application_rate = 100;
                     }
+                    if (state.items[index].cp_checked !== false && field === 'parallel_rate') {
+                        const nextDisplayRate = clampRate(value, 0);
+                        state.items[index].parallel_rate = nextDisplayRate;
+                        state.items[index].application_rate = applicationRateFromDisplayParallel(nextDisplayRate);
+                    }
+                    if (state.items[index].cp_checked !== false && field === 'application_rate') {
+                        const nextApplicationRate = clampRate(value, 100);
+                        state.items[index].application_rate = nextApplicationRate;
+                        state.items[index].parallel_rate = displayParallelRateFromApplication(nextApplicationRate, true);
+                    }
 
                     // Auto-calculate after update
                     state.items[index] = calculateItem(
@@ -142,13 +166,15 @@ export const useScheduleStore = create(
 
                     if ((field === 'application_rate' || field === 'parallel_rate') && state.items[index].cp_checked !== false) {
                         const duration = parseFloat(state.items[index]?.calendar_days) || 0;
-                        const inputRate = parseFloat(value);
-                        const rightAlignedSegments = buildRightAlignedParallelSegments(duration, inputRate);
+                        const inputApplicationRate = field === 'parallel_rate'
+                            ? applicationRateFromDisplayParallel(value)
+                            : clampRate(value, 100);
+                        const rightAlignedSegments = buildRightAlignedParallelSegments(duration, inputApplicationRate);
                         const parallelState = buildParallelStateFromSegments(duration, rightAlignedSegments);
                         state.items[index].parallel_segments = parallelState.parallel_segments;
                         state.items[index].front_parallel_days = parallelState.front_parallel_days;
                         state.items[index].back_parallel_days = parallelState.back_parallel_days;
-                        state.items[index].parallel_rate = parallelState.application_rate;
+                        state.items[index].parallel_rate = displayParallelRateFromApplication(parallelState.application_rate, true);
                         state.items[index].application_rate = parallelState.application_rate;
                     } else if (field === 'cp_checked' && state.items[index].cp_checked === false) {
                         state.items[index].parallel_segments = [];
@@ -183,6 +209,16 @@ export const useScheduleStore = create(
                         state.items[index].parallel_rate = 100;
                         state.items[index].application_rate = 100;
                     }
+                    if (state.items[index].cp_checked !== false && field === 'parallel_rate') {
+                        const nextDisplayRate = clampRate(value, 0);
+                        state.items[index].parallel_rate = nextDisplayRate;
+                        state.items[index].application_rate = applicationRateFromDisplayParallel(nextDisplayRate);
+                    }
+                    if (state.items[index].cp_checked !== false && field === 'application_rate') {
+                        const nextApplicationRate = clampRate(value, 100);
+                        state.items[index].application_rate = nextApplicationRate;
+                        state.items[index].parallel_rate = displayParallelRateFromApplication(nextApplicationRate, true);
+                    }
 
                     state.items[index] = calculateItem(
                         state.items[index],
@@ -192,13 +228,15 @@ export const useScheduleStore = create(
 
                     if ((field === 'application_rate' || field === 'parallel_rate') && state.items[index].cp_checked !== false) {
                         const duration = parseFloat(state.items[index]?.calendar_days) || 0;
-                        const inputRate = parseFloat(value);
-                        const rightAlignedSegments = buildRightAlignedParallelSegments(duration, inputRate);
+                        const inputApplicationRate = field === 'parallel_rate'
+                            ? applicationRateFromDisplayParallel(value)
+                            : clampRate(value, 100);
+                        const rightAlignedSegments = buildRightAlignedParallelSegments(duration, inputApplicationRate);
                         const parallelState = buildParallelStateFromSegments(duration, rightAlignedSegments);
                         state.items[index].parallel_segments = parallelState.parallel_segments;
                         state.items[index].front_parallel_days = parallelState.front_parallel_days;
                         state.items[index].back_parallel_days = parallelState.back_parallel_days;
-                        state.items[index].parallel_rate = parallelState.application_rate;
+                        state.items[index].parallel_rate = displayParallelRateFromApplication(parallelState.application_rate, true);
                         state.items[index].application_rate = parallelState.application_rate;
                     } else if (field === 'cp_checked' && state.items[index].cp_checked === false) {
                         state.items[index].parallel_segments = [];
@@ -381,7 +419,7 @@ export const useScheduleStore = create(
                                     parallel_segments: [],
                                     front_parallel_days: 0,
                                     back_parallel_days: 0,
-                                    parallel_rate: 100,
+                                    parallel_rate: 0,
                                     application_rate: 100
                                 }
                                 : item
@@ -406,7 +444,7 @@ export const useScheduleStore = create(
                                 parallel_segments: parallelState.parallel_segments,
                                 front_parallel_days: nextFront,
                                 back_parallel_days: nextBack,
-                                parallel_rate: parallelState.application_rate,
+                                parallel_rate: displayParallelRateFromApplication(parallelState.application_rate, true),
                                 application_rate: parallelState.application_rate
                             }
                             : item
@@ -490,25 +528,28 @@ export const useScheduleStore = create(
                             }
 
                             const explicitRate = parseFloat(update.parallel_rate ?? update.application_rate);
-                            if (Number.isFinite(explicitRate)) {
-                                state.items[idx].parallel_rate = Math.min(100, Math.max(0, parseFloat(explicitRate.toFixed(1))));
-                                state.items[idx].application_rate = Math.min(100, Math.max(0, parseFloat(explicitRate.toFixed(1))));
+                            const explicitApplicationRate = parseFloat(update.application_rate);
+                            if (Number.isFinite(explicitApplicationRate)) {
+                                const nextApplicationRate = clampRate(explicitApplicationRate, 100);
+                                state.items[idx].application_rate = nextApplicationRate;
+                                state.items[idx].parallel_rate = displayParallelRateFromApplication(nextApplicationRate, true);
+                            } else if (Number.isFinite(explicitRate)) {
+                                const nextDisplayRate = clampRate(explicitRate, 0);
+                                state.items[idx].parallel_rate = nextDisplayRate;
+                                state.items[idx].application_rate = applicationRateFromDisplayParallel(nextDisplayRate);
                             } else if (derivedFromSegments !== null) {
-                                state.items[idx].parallel_rate = derivedFromSegments;
                                 state.items[idx].application_rate = derivedFromSegments;
+                                state.items[idx].parallel_rate = displayParallelRateFromApplication(derivedFromSegments, true);
                             } else {
                                 const nextFront = parseFloat(state.items[idx].front_parallel_days) || 0;
                                 const nextBack = parseFloat(state.items[idx].back_parallel_days) || 0;
-                                state.items[idx].parallel_rate = deriveParallelRateFromParallel(
+                                const derivedApplicationRate = deriveParallelRateFromParallel(
                                     state.items[idx],
                                     nextFront,
                                     nextBack
                                 );
-                                state.items[idx].application_rate = deriveParallelRateFromParallel(
-                                    state.items[idx],
-                                    nextFront,
-                                    nextBack
-                                );
+                                state.items[idx].application_rate = derivedApplicationRate;
+                                state.items[idx].parallel_rate = displayParallelRateFromApplication(derivedApplicationRate, true);
                             }
                         }
                     });

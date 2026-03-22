@@ -617,7 +617,7 @@ export default function ScheduleMasterList() {
             operating_rate_type: parent.operating_rate_type || "EARTH",
             operating_rate_value: parent.operating_rate_value || 0,
             cp_checked: true,
-            parallel_rate: 100,
+            parallel_rate: 0,
             application_rate: 100,
             reflection_rate: 100
         };
@@ -692,8 +692,8 @@ export default function ScheduleMasterList() {
             operating_rate_type: targetItem ? targetItem.operating_rate_type : "EARTH",
             operating_rate_value: 0,
             cp_checked: true,
-            parallel_rate: targetItem?.parallel_rate ?? targetItem?.application_rate ?? 100,
-            application_rate: targetItem?.parallel_rate ?? targetItem?.application_rate ?? 100,
+            parallel_rate: targetItem?.parallel_rate ?? (targetItem?.cp_checked === false ? 100 : 0),
+            application_rate: targetItem?.application_rate ?? targetItem?.parallel_rate ?? 100,
             reflection_rate: targetItem?.reflection_rate ?? 100
         };
 
@@ -745,7 +745,7 @@ export default function ScheduleMasterList() {
             operating_rate_type: "EARTH",
             operating_rate_value: 0,
             cp_checked: true,
-            parallel_rate: 100,
+            parallel_rate: 0,
             application_rate: 100,
             reflection_rate: 100
         };
@@ -843,7 +843,7 @@ export default function ScheduleMasterList() {
                 note: noteText,
                 remarks: noteText,
                 cp_checked: true,
-                parallel_rate: 100,
+                parallel_rate: 0,
                 application_rate: 100,
                 reflection_rate: 100
             };
@@ -1317,8 +1317,10 @@ export default function ScheduleMasterList() {
                     operating_rate_value: sourceRow.operating_rate_value ?? 0,
                     standard_code: sourceRow.standard_code || "",
                     cp_checked: sourceRow.cp_checked !== false,
-                    parallel_rate: sourceRow.parallel_rate ?? sourceRow.application_rate ?? 100,
-                    application_rate: sourceRow.parallel_rate ?? sourceRow.application_rate ?? 100,
+                    parallel_rate: sourceRow.cp_checked === false
+                        ? 100
+                        : (sourceRow.parallel_rate ?? (100 - (sourceRow.application_rate ?? 100))),
+                    application_rate: sourceRow.application_rate ?? sourceRow.parallel_rate ?? 100,
                     reflection_rate: sourceRow.reflection_rate ?? 100,
                     front_parallel_days: sourceRow.front_parallel_days ?? 0,
                     back_parallel_days: sourceRow.back_parallel_days ?? 0,
@@ -1353,6 +1355,8 @@ export default function ScheduleMasterList() {
     useEffect(() => {
         const handleTableHotkeys = (e) => {
             if (viewMode !== "table") return;
+            const isTableContextActive = isTablePointerInside || isTableFocusInside || Boolean(activeEditingItemId);
+            if (!isTableContextActive) return;
             const target = e.target;
 
             const isTypingTarget = (() => {
@@ -1384,7 +1388,7 @@ export default function ScheduleMasterList() {
 
         window.addEventListener('keydown', handleTableHotkeys);
         return () => window.removeEventListener('keydown', handleTableHotkeys);
-    }, [handleDeleteSelectedItems, selectedCount, viewMode, visibleItemIds]);
+    }, [activeEditingItemId, handleDeleteSelectedItems, isTableFocusInside, isTablePointerInside, selectedCount, viewMode, visibleItemIds]);
 
     const handleTableBlurCapture = useCallback(() => {
         window.setTimeout(() => {

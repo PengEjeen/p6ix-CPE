@@ -85,6 +85,10 @@ export const getParallelSegmentsFromItem = (item, durationOverride = null) => {
             toNumber(item?.durationDays, toNumber(item?.calendar_days, 0))
         )
     );
+    if (item?.cp_checked === false) {
+        if (duration <= EPS) return [];
+        return normalizeParallelSegments([{ start: 0, end: duration }], duration);
+    }
 
     const fieldSegments = normalizeParallelSegments(parseSegmentsField(item?.parallel_segments), duration);
     if (fieldSegments.length > 0) return fieldSegments;

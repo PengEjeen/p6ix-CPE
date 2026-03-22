@@ -24,12 +24,12 @@ export default function ScheduleMasterTableToolbarRow({
         <tr className={`bg-[var(--navy-bg)] ${forPrint ? "no-print" : ""}`}>
             <td
                 colSpan="19"
-                className={`px-4 py-3 ${forPrint ? "" : "sticky z-[40] bg-[var(--navy-bg)] border-b border-[var(--navy-border-soft)]"}`}
-                style={forPrint ? undefined : { top: `${tableHeaderHeight + 12}px` }}
+                className={`px-4 py-3 ${forPrint ? "" : "sticky z-[6] bg-[var(--navy-bg)] border-b border-[var(--navy-border-soft)]"}`}
+                style={forPrint ? undefined : { top: `${tableHeaderHeight}px` }}
             >
-                <div className="sticky left-0 right-0 z-[41]">
+                <div className="sticky left-0 right-0 z-[7]">
                     <div className="flex w-full min-w-max items-center gap-2 rounded-lg border border-[var(--navy-border-soft)] bg-[var(--navy-surface)] px-2 py-1.5 shadow-sm">
-                        <div className="sticky left-0 z-[42] -ml-2 flex items-center gap-2 border-r border-[var(--navy-border-soft)] bg-[var(--navy-surface)] pl-2 pr-2">
+                        <div className="sticky left-0 z-[8] -ml-2 flex items-center gap-2 border-r border-[var(--navy-border-soft)] bg-[var(--navy-surface)] pl-2 pr-2">
                             <span className="inline-flex items-center rounded-md border border-[var(--navy-border-soft)] bg-[var(--navy-surface-2)] px-2 py-0.5 text-[11px] font-semibold text-[var(--navy-text)]">
                                 대공종 추가
                             </span>
@@ -49,7 +49,7 @@ export default function ScheduleMasterTableToolbarRow({
                             </button>
                         </div>
 
-                        <div className="sticky left-[320px] z-[41] flex items-center gap-2 border-r border-[var(--navy-border-soft)] bg-[var(--navy-surface)] pr-2">
+                        <div className="sticky left-[320px] z-[7] flex items-center gap-2 border-r border-[var(--navy-border-soft)] bg-[var(--navy-surface)] pr-2">
                             <div className="relative w-72 min-w-[220px] max-w-[420px]">
                                 <Search size={14} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--navy-text-muted)]" />
                                 <input
@@ -94,7 +94,7 @@ export default function ScheduleMasterTableToolbarRow({
                             </span>
                         )}
 
-                        <div className="sticky right-0 z-[42] -mr-2 ml-auto flex items-center gap-2 border-l border-[var(--navy-border-soft)] bg-[var(--navy-surface)] pl-2 pr-2">
+                        <div className="sticky right-0 z-[8] -mr-2 ml-auto flex items-center gap-2 border-l border-[var(--navy-border-soft)] bg-[var(--navy-surface)] pl-2 pr-2">
                             <span className="inline-flex items-center rounded-full border border-[var(--navy-border-soft)] bg-[var(--navy-surface-2)] px-2 py-1 text-[11px] text-[var(--navy-text-muted)]">
                                 표시 행: {visibleItemCount} / 전체 {totalItemCount}
                             </span>

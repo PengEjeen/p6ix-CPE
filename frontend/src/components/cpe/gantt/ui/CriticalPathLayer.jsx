@@ -59,16 +59,6 @@ export default function CriticalPathLayer({
         return hasParallelMarker || isFullyParallel;
     };
 
-    const containedItemIds = new Set();
-    if (containedCpMap) {
-        containedCpMap.forEach((list) => {
-            if (!Array.isArray(list)) return;
-            list.forEach((entry) => {
-                if (entry?.item?.id) containedItemIds.add(entry.item.id);
-            });
-        });
-    }
-
     return (
         <svg className="absolute inset-0 pointer-events-none z-10" style={{ width: "100%", height: itemsWithTiming.length * rowH }}>
             <defs>
@@ -84,23 +74,13 @@ export default function CriticalPathLayer({
 
                 const pxFactor = pixelsPerUnit / dateScale;
 
-                const { redStart, redEnd: baseRedEnd, hasCriticalSegment } = getEffectiveRedRange(item);
-                const contained = containedCpMap?.get(item.id) || [];
-                const firstContainedStart = contained.length > 0
-                    ? Math.min(...contained.map((entry) => entry?.meta?.redStart ?? Infinity))
-                    : Infinity;
-                const logicalRedEnd = Number.isFinite(firstContainedStart)
-                    ? Math.max(redStart, Math.min(baseRedEnd, firstContainedStart))
-                    : baseRedEnd;
+                const { redStart, redEnd, hasCriticalSegment } = getEffectiveRedRange(item);
 
                 // RELAXED: Treat any positive length as critical segment
-                const hasLogicalCriticalSegment = logicalRedEnd > redStart;
+                const hasLogicalCriticalSegment = redEnd > redStart;
                 const isParallelTask = isParallelItem(item) || !hasCriticalSegment || !hasLogicalCriticalSegment;
 
                 if (isParallelTask) return null;
-
-                // Contained CP item links are drawn by the outer item's detour (down/up).
-                if (containedItemIds.has(item.id)) return null;
 
                 // Find next CP task only in lower rows (next process order).
                 let targetIndex = -1;
@@ -111,17 +91,14 @@ export default function CriticalPathLayer({
                 // Only scan tasks below current row.
                 for (let j = i + 1; j < itemsWithTiming.length; j++) {
                     const candidateItem = itemsWithTiming[j];
-                    if (containedItemIds.has(candidateItem.id)) continue;
-
                     const { redStart: candidateRedStart, hasCriticalSegment: candidateHasCritical } = getEffectiveRedRange(candidateItem);
 
                     // Skip parallel tasks and tasks without critical segments
                     if (!isParallelItem(candidateItem) && candidateHasCritical) {
                         // Only connect to tasks that start after current task ends (forward only in time)
-                        // USE logicalRedEnd here to find correct topological successor
-                        if (candidateRedStart >= logicalRedEnd) {
-                            // Calculate distance on x-axis between current logicalRedEnd and candidate redStart
-                            const distance = candidateRedStart - logicalRedEnd;
+                        if (candidateRedStart >= redEnd) {
+                            // Calculate distance on x-axis between current redEnd and candidate redStart
+                            const distance = candidateRedStart - redEnd;
                             const rowDelta = j - i;
 
                             // 1) 최소 x축 거리 우선
@@ -136,19 +113,17 @@ export default function CriticalPathLayer({
                     }
                 }
 
-                const containedForItem = containedCpMap?.get(item.id) || [];
-
                 let cpPath = null;
                 if (targetItem) {
                     const { redStart: targetRedStart } = getEffectiveRedRange(targetItem);
-                    const startX = logicalRedEnd * pxFactor;
+                    const startX = redEnd * pxFactor;
                     const startY = (i * rowH) + rowCenter;
                     const endX = targetRedStart * pxFactor;
                     const endY = (targetIndex * rowH) + rowCenter;
                     cpPath = `M ${startX} ${startY} L ${endX} ${startY} L ${endX} ${endY}`;
                 }
 
-                if (!cpPath && containedForItem.length === 0) return null;
+                if (!cpPath) return null;
 
                 return (
                     <g key={`cp-${i}`}>
@@ -163,34 +138,6 @@ export default function CriticalPathLayer({
                                 className="opacity-100 mix-blend-multiply transition-all duration-300"
                             />
                         )}
-                        {containedForItem.map((entry) => {
-                            const innerIndex = itemIndexById.get(entry.item.id)?.index;
-                            if (innerIndex === undefined) return null;
-                            const downX = entry.meta.redStart * pxFactor;
-                            const upX = entry.meta.redEnd * pxFactor;
-                            const outerY = (i * rowH) + rowCenter;
-                            const innerY = (innerIndex * rowH) + rowCenter;
-                            return (
-                                <g key={`cp-detour-${item.id}-${entry.item.id}`}>
-                                    <path
-                                        d={`M ${downX} ${outerY} L ${downX} ${innerY}`}
-                                        fill="none"
-                                        stroke="#ef4444"
-                                        strokeWidth="2.5"
-                                        strokeDasharray="4 3"
-                                        markerEnd="url(#arrowhead-red)"
-                                    />
-                                    <path
-                                        d={`M ${upX} ${innerY} L ${upX} ${outerY}`}
-                                        fill="none"
-                                        stroke="#ef4444"
-                                        strokeWidth="2.5"
-                                        strokeDasharray="4 3"
-                                        markerEnd="url(#arrowhead-red)"
-                                    />
-                                </g>
-                            );
-                        })}
                     </g>
                 );
             })}
