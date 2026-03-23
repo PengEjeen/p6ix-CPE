@@ -17,6 +17,7 @@ import PileBasisList from "./pages/PileBasisList";
 import BoredPileBasisList from "./pages/BoredPileBasisList";
 import ScheduleMasterList from "./pages/ScheduleMasterList";
 import UserGuide from "./pages/UserGuide";
+import RequireAuth from "./routes/RequireAuth";
 import { ConfirmProvider } from "./contexts/ConfirmContext";
 import { ThemeProvider } from "./contexts/ThemeContext";
 
@@ -30,7 +31,14 @@ const router = createBrowserRouter(
     <>
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
-      <Route path="/guide" element={<UserGuide />} />
+      <Route
+        path="/guide"
+        element={
+          <RequireAuth>
+            <UserGuide />
+          </RequireAuth>
+        }
+      />
       <Route element={<Layout />}>
         <Route path="/" element={<Home />} />
         <Route path="/profile" element={<UserProfile />} />

@@ -368,44 +368,36 @@ export default function TotalCalc() {
                 <SaveButton onSave={handleSaveAll} saving={saving} />
             </div>
 
-            <div className="bg-[#22222d] border border-gray-700 rounded-xl p-4">
+            <div className="ui-toolbar p-4">
                 <div className="flex flex-wrap items-center gap-3">
                     <input
                         type="text"
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
                         placeholder="대분류, 공정, 세부공종, 표준품셈 목차, 규격 검색"
-                        className="min-w-[280px] flex-1 bg-[#181825] border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-100 focus:outline-none focus:ring-1 focus:ring-blue-500/50 focus:border-blue-500/50"
+                        className="ui-input min-w-[280px] flex-1 py-2"
                     />
-                    <span className="text-xs text-gray-400">
+                    <span className="text-xs text-[var(--navy-text-muted)]">
                         전체 {rowsWithDerived.length}건 · 현재 {filteredRows.length}건
                     </span>
-                    <div className="inline-flex rounded-lg border border-gray-700 overflow-hidden">
+                    <div className="ui-tab-group">
                         <button
                             type="button"
                             onClick={() => setTableViewMode("compact")}
-                            className={`px-3 py-1.5 text-xs font-semibold ${
-                                tableViewMode === "compact"
-                                    ? "bg-blue-600 text-white"
-                                    : "bg-[#181825] text-gray-300 hover:bg-[#222233]"
-                            }`}
+                            className={`ui-tab ${tableViewMode === "compact" ? "ui-tab-active" : ""}`}
                         >
                             간단 보기
                         </button>
                         <button
                             type="button"
                             onClick={() => setTableViewMode("full")}
-                            className={`px-3 py-1.5 text-xs font-semibold border-l border-gray-700 ${
-                                tableViewMode === "full"
-                                    ? "bg-blue-600 text-white"
-                                    : "bg-[#181825] text-gray-300 hover:bg-[#222233]"
-                            }`}
+                            className={`ui-tab ${tableViewMode === "full" ? "ui-tab-active" : ""}`}
                         >
                             전체 보기
                         </button>
                     </div>
                 </div>
-                <p className="mt-2 text-[11px] text-gray-500">
+                <p className="mt-2 text-[11px] text-[var(--navy-text-muted)]">
                     간단 보기에서는 핵심 컬럼만 표시되어 가로 스크롤을 줄일 수 있습니다.
                 </p>
             </div>

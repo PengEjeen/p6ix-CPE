@@ -24,6 +24,9 @@ function Layout() {
   const [isMobile, setIsMobile] = useState(false);
   const [isSidebarScrolling, setIsSidebarScrolling] = useState(false);
   const [isMainScrolling, setIsMainScrolling] = useState(false);
+  const [authStatus, setAuthStatus] = useState("checking");
+  const guidePrevThemeRef = useRef(null);
+  const isGuideMode = searchParams.get("guide") === "true";
 
   const handleSidebarScroll = useCallback(() => {
     setIsSidebarScrolling(true);
@@ -46,29 +49,56 @@ function Layout() {
   const userRef = useRef(null);
 
   useEffect(() => {
+    if (!isGuideMode) return undefined;
+
+    const root = document.documentElement;
+    const prevTheme = root.getAttribute("data-theme");
+    guidePrevThemeRef.current = prevTheme;
+
+    if (prevTheme !== "navy") {
+      root.setAttribute("data-theme", "navy");
+    }
+
+    return () => {
+      if (guidePrevThemeRef.current) {
+        root.setAttribute("data-theme", guidePrevThemeRef.current);
+      } else {
+        root.removeAttribute("data-theme");
+      }
+    };
+  }, [isGuideMode]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const finish = (next) => {
+      if (!cancelled) setAuthStatus(next);
+    };
+
     const checkAuth = async () => {
       if (USE_SESSION_AUTH) {
         const storedUser = JSON.parse(localStorage.getItem("user") || "{}");
         try {
           const res = await api.get("sso/session/");
           if (res.data?.authenticated && res.data?.user?.id) {
+            if (cancelled) return;
             setUser(res.data.user);
             localStorage.setItem("user", JSON.stringify(res.data.user));
+            finish("ok");
             return;
           }
-          // 세션 확인 성공 + 비인증 응답인 경우에만 로그인 화면으로 이동
           localStorage.removeItem("user");
-          navigate("/login");
+          finish("deny");
           return;
         } catch (err) {
           console.error("세션 확인 실패:", err);
-          // 일시적인 네트워크/API 오류일 수 있으므로, 기존 로그인 사용자 정보가 있으면 유지
           if (storedUser?.id) {
+            if (cancelled) return;
             setUser(storedUser);
+            finish("ok");
             return;
           }
           localStorage.removeItem("user");
-          navigate("/login");
+          finish("deny");
           return;
         }
       }
@@ -76,14 +106,20 @@ function Layout() {
       const access = localStorage.getItem("access");
       const storedUser = JSON.parse(localStorage.getItem("user") || "{}");
       if (!access || !storedUser?.id) {
-        navigate("/login");
+        finish("deny");
         return;
       }
+      if (cancelled) return;
       setUser(storedUser);
+      finish("ok");
     };
 
     checkAuth();
-  }, [USE_SESSION_AUTH, location.pathname, navigate]);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [USE_SESSION_AUTH, location.pathname]);
 
   useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth < 1024);
@@ -138,11 +174,19 @@ function Layout() {
     return !isUuid(match[1]);
   })();
 
+  if (authStatus === "checking") {
+    return <div className="h-screen w-full bg-[#1e1e2f]" />;
+  }
+
+  if (authStatus !== "ok") {
+    return <Navigate to="/login" replace />;
+  }
+
   if (invalidProjectPath) {
     return <Navigate to="/" replace />;
   }
 
-  if (searchParams.get("guide") === "true") {
+  if (isGuideMode) {
     return (
       <div className="h-screen w-full bg-[#1e1e2f] text-white flex flex-col p-0 m-0 overflow-auto">
         <Outlet />
@@ -175,7 +219,7 @@ function Layout() {
               <>
                 <button
                   onClick={() => navigate("/")}
-                  className="flex items-center gap-2 px-2 py-2 rounded hover:bg-[#3b3b4f] transition"
+                  className="flex items-center gap-2 px-2 py-2 rounded hover:bg-[var(--navy-surface-3)] transition"
                 >
                   <img
                     src={getCompanyLogoSrc(theme)}

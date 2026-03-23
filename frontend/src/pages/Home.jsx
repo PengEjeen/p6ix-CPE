@@ -299,6 +299,10 @@ export default function Home() {
     navigate(getProjectEntryPath(p));
   }, [navigate]);
 
+  const openGuide = useCallback(() => {
+    navigate("/guide");
+  }, [navigate]);
+
 
   const closeCreate = useCallback(() => {
     if (isCreating) return;
@@ -404,6 +408,7 @@ export default function Home() {
           ftueTotal={ftueTotal}
           ftueApartment={ftueApartment}
           onOpenCreate={openCreateWithType}
+          onOpenGuide={openGuide}
           onBack={showFtueGuide ? () => setShowFtueGuide(false) : null}
         />
       ) : (
@@ -431,6 +436,7 @@ export default function Home() {
           onOpen={openCreate}
           onOpenProject={openProjectFromHome}
           onTogglePinned={togglePinned}
+          onOpenGuide={openGuide}
           onOpenMenu={(pos, id) => { setMenuPosition(pos); setMenuOpenId(id); }}
           onShowFtueGuide={() => {
             // localStorage에서 직접 최신 상태 읽기 (resetFtue 직후 async batching 우회)
@@ -592,7 +598,7 @@ export default function Home() {
 // ─── [A] 신규 유저 뷰 ─────────────────────────────────────────────────────────
 // 프로젝트 0개 → 환영 + 선택형 시작 가이드 중심
 
-function NewUserView({ ftueTotal, ftueApartment, onOpenCreate, onBack }) {
+function NewUserView({ ftueTotal, ftueApartment, onOpenCreate, onOpenGuide, onBack }) {
   const [activeType, setActiveType] = useState("TOTAL");
   const ftueState = activeType === "TOTAL" ? ftueTotal : ftueApartment;
   const stepDefs = FTUE_STEPS[activeType];
@@ -613,13 +619,23 @@ function NewUserView({ ftueTotal, ftueApartment, onOpenCreate, onBack }) {
       transition={{ duration: 0.4, ease: "easeOut" }}
       className="max-w-2xl mx-auto space-y-8 pt-4"
     >
-      {/* Back button — 복귀 유저가 가이드로 진입한 경우만 표시 */}
-      {onBack && (
-        <button type="button" onClick={onBack}
-          className="inline-flex items-center gap-1.5 text-sm text-[var(--navy-text-muted)] hover:text-[var(--navy-text)] transition">
-          ← 홈으로 돌아가기
+      <div className={`flex items-center gap-3 ${onBack ? "justify-between" : "justify-end"}`}>
+        {/* Back button — 복귀 유저가 가이드로 진입한 경우만 표시 */}
+        {onBack && (
+          <button type="button" onClick={onBack}
+            className="inline-flex items-center gap-1.5 text-sm text-[var(--navy-text-muted)] hover:text-[var(--navy-text)] transition">
+            ← 홈으로 돌아가기
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={onOpenGuide}
+          className="inline-flex items-center gap-1.5 rounded-xl border border-[var(--navy-border-soft)] bg-[var(--navy-surface)] px-3.5 py-2 text-xs font-bold text-[var(--navy-text)] hover:bg-[var(--navy-surface-2)] transition"
+        >
+          <BookOpen size={13} />
+          사용자 가이드
         </button>
-      )}
+      </div>
       {/* Welcome */}
       <div className="text-center space-y-2">
         <div className="inline-flex items-center gap-2 rounded-full border border-blue-500/30 bg-blue-500/10 px-3 py-1 text-xs font-semibold text-blue-400 mb-2">
@@ -739,19 +755,23 @@ function ReturningUserView({
   pinnedSet, pinnedIds, search, setSearch, typeFilter, setTypeFilter,
   sortKey, setSortKey, showCount, setShowCount, listRef,
   ftueTotal, ftueApartment, ftueAllComplete, ftueAllHidden,
-  onOpenCreate, onOpen, onOpenProject, onTogglePinned, onOpenMenu, onShowFtueGuide,
+  onOpenCreate, onOpen, onOpenProject, onTogglePinned, onOpenMenu, onShowFtueGuide, onOpenGuide,
 }) {
   return (
     <div className="space-y-6">
 
       {/* ── Top bar: Search + new button ──────────────────────────────────── */}
-      <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center gap-3">
         <div className="relative flex-1 max-w-sm">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--navy-text-muted)]" />
           <input value={search} onChange={(e) => setSearch(e.target.value)}
             placeholder="프로젝트 검색..."
             className="w-full rounded-xl border border-[var(--navy-border-soft)] bg-[var(--navy-surface)] pl-9 pr-4 py-2.5 text-sm text-[var(--navy-text)] placeholder-[var(--navy-text-muted)] focus:outline-none focus:ring-2 focus:ring-blue-500/30 transition" />
         </div>
+        <button type="button" onClick={onOpenGuide}
+          className="inline-flex items-center gap-2 rounded-xl border border-[var(--navy-border-soft)] bg-[var(--navy-surface)] px-4 py-2.5 text-sm font-bold text-[var(--navy-text)] hover:bg-[var(--navy-surface-2)] transition">
+          <BookOpen size={15} />사용자 가이드
+        </button>
         <button type="button" onClick={onOpen}
           className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-500 px-4 py-2.5 text-sm font-extrabold text-white hover:from-blue-500 hover:to-indigo-400 transition shadow-md shadow-blue-500/20">
           <Plus size={15} />새 프로젝트

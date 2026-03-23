@@ -298,9 +298,9 @@ function Projects() {
       <div className="mb-4 space-y-3">
         <button
           onClick={() => navigate("/")}
-          className="w-full text-base px-3 py-2 bg-[#334155] hover:bg-[#3f5570] text-gray-100 rounded-lg transition font-medium flex items-center justify-center gap-2"
+          className="ui-btn-primary w-full text-base px-3 py-2 font-medium flex items-center justify-center gap-2"
         >
-          <FiHome className="text-gray-100" size={18} />
+          <FiHome size={18} />
           홈
         </button>
 

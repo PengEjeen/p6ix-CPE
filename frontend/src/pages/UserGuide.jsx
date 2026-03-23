@@ -357,6 +357,7 @@ export default function UserGuide() {
   const [activeId, setActiveId] = useState(toc[0]?.id);
   const contentRef = useRef(null);
   const sectionRefs = useRef({});
+  const prevThemeRef = useRef(null);
 
   const registerSectionRef = useCallback((id, el) => {
     sectionRefs.current[id] = el;
@@ -377,6 +378,26 @@ export default function UserGuide() {
     }, 100);
     return () => observer.disconnect();
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // 사용자 가이드는 공통 테마 매핑 영향에서 분리한다.
+  // (화이트 테마에서 text-gray 계열이 강제로 어두워지는 문제 방지)
+  useEffect(() => {
+    const root = document.documentElement;
+    const prevTheme = root.getAttribute("data-theme");
+    prevThemeRef.current = prevTheme;
+
+    if (prevTheme !== "navy") {
+      root.setAttribute("data-theme", "navy");
+    }
+
+    return () => {
+      if (prevThemeRef.current) {
+        root.setAttribute("data-theme", prevThemeRef.current);
+      } else {
+        root.removeAttribute("data-theme");
+      }
+    };
   }, []);
 
   // ── 마크다운 컴포넌트 ────────────────────────────────────────────────
