@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { useNavigate, useLocation, useParams } from "react-router-dom";
+import { useNavigate, useLocation, useParams, useSearchParams } from "react-router-dom";
 import { detailProject } from "../../api/cpe/project";
 import { exportScheduleReport } from "../../api/cpe_all/construction_schedule";
 import toast from "react-hot-toast";
@@ -18,6 +18,7 @@ function Header() {
   const navigate = useNavigate();
   const location = useLocation();
   const { id } = useParams();
+  const [searchParams] = useSearchParams();
   const [openGroupKey, setOpenGroupKey] = useState(null);
   const [project, setProject] = useState(null);
   const [isExporting, setIsExporting] = useState(false);
@@ -101,18 +102,18 @@ function Header() {
           path: `/projects/${id}/total-calc`,
         },
         {
-          name: "CIP 생산성 근거",
-          desc: "CIP 공법 생산성 산출 근거",
+          name: "CIP 생산성 관리",
+          desc: "CIP 공법 생산성 산출 관리",
           path: `/projects/${id}/cip-basis`,
         },
         {
-          name: "기성말뚝 생산성 근거",
-          desc: "기성말뚝 기초 생산성 산출 근거",
+          name: "기성말뚝 생산성 관리",
+          desc: "기성말뚝 기초 생산성 산출 관리",
           path: `/projects/${id}/pile-basis`,
         },
         {
-          name: "현장타설말뚝 생산성 근거",
-          desc: "현장타설말뚝 생산성 산출 근거",
+          name: "현장타설말뚝 생산성 관리",
+          desc: "현장타설말뚝 생산성 산출 관리",
           path: `/projects/${id}/bored-pile-basis`,
         },
       ],
@@ -179,8 +180,11 @@ function Header() {
     }
   };
 
-  // 여기서 렌더 제한 (Hook 이후에 return)
+  // 렌더 제한 (Hook 이후 return)
   if (!id || !isUuid(id)) return null;
+
+  // 가이드 iframe 모드: 헤더 전체 숨김
+  if (searchParams.get("guide") === "true") return null;
 
   return (
     <>

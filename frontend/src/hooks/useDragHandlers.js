@@ -46,18 +46,20 @@ export const useDragHandlers = (items, reorderItems, selectedItemIds = []) => {
         }
 
         const selectedSet = new Set(selectedItemIds);
-        const shouldMoveGroup = selectedSet.has(active.id) && selectedSet.size > 1;
+        const activeCategorySelectedItems = items.filter(
+            (item) => selectedSet.has(item.id) && item.main_category === activeItem.main_category
+        );
+        const shouldMoveGroup = selectedSet.has(active.id) && activeCategorySelectedItems.length > 1;
 
         if (shouldMoveGroup) {
-            const movingItems = items.filter((item) => selectedSet.has(item.id));
-            const hasDifferentCategory = movingItems.some(
-                (item) => item.main_category !== activeItem.main_category
-            );
-            if (hasDifferentCategory) {
-                toast.error('선택 일괄 이동은 같은 대공종 항목만 가능합니다.');
-                return;
+            const excludedCount = selectedSet.size - activeCategorySelectedItems.length;
+            if (excludedCount > 0) {
+                toast('다른 대공종 선택은 제외하고 같은 대공종만 이동합니다.', {
+                    icon: 'ℹ️',
+                });
             }
 
+            const movingItems = activeCategorySelectedItems;
             const movingIds = new Set(movingItems.map((item) => item.id));
             if (movingIds.has(over.id)) {
                 return;

@@ -59,6 +59,25 @@ const deriveParallelRateFromParallel = (item, frontDays, backDays) => {
     return parseFloat(rate.toFixed(1));
 };
 
+const clearLegacyParallelMarkers = (item) => {
+    if (!item || typeof item !== "object") return;
+    if (String(item.remarks || "").trim() === "병행작업") {
+        item.remarks = "";
+    }
+    if (Object.prototype.hasOwnProperty.call(item, "_parallelGroup")) {
+        item._parallelGroup = null;
+    }
+    if (Object.prototype.hasOwnProperty.call(item, "parallelGroup")) {
+        item.parallelGroup = null;
+    }
+    if (Object.prototype.hasOwnProperty.call(item, "parallel_group")) {
+        item.parallel_group = null;
+    }
+    if (item.is_parallelism === true) {
+        item.is_parallelism = false;
+    }
+};
+
 /**
  * Schedule Store
  * - Manages the list of schedule items
@@ -406,6 +425,7 @@ export const useScheduleStore = create(
                             parallel_rate: 100,
                             application_rate: 100
                         };
+                        clearLegacyParallelMarkers(state.items[index]);
                         return;
                     }
 
@@ -425,6 +445,7 @@ export const useScheduleStore = create(
                                 : item
                         );
                         state.items = newItems;
+                        clearLegacyParallelMarkers(state.items[index]);
                         return;
                     }
 
@@ -451,6 +472,13 @@ export const useScheduleStore = create(
                     );
 
                     state.items = newItems;
+                    const nextItem = state.items[index];
+                    const hasSegments = Array.isArray(nextItem?.parallel_segments) && nextItem.parallel_segments.length > 0;
+                    const normalizedFront = parseFloat(nextItem?.front_parallel_days) || 0;
+                    const normalizedBack = parseFloat(nextItem?.back_parallel_days) || 0;
+                    if (!hasSegments && normalizedFront <= 0 && normalizedBack <= 0) {
+                        clearLegacyParallelMarkers(nextItem);
+                    }
                 });
             },
 
@@ -485,7 +513,7 @@ export const useScheduleStore = create(
 
                 // 1. Move Task
                 if (draggedId && newStartDay !== null && newStartDay !== undefined) {
-                    const idx = state.items.findIndex(i => i.id === draggedId);
+                    const idx = state.items.findIndex(i => String(i.id) === String(draggedId));
                     if (idx !== -1) {
                         state.items[idx]._startDay = newStartDay;
                     }
@@ -494,7 +522,7 @@ export const useScheduleStore = create(
                 // 2. Update Parallel Periods
                 if (parallelUpdates && parallelUpdates.length > 0) {
                     parallelUpdates.forEach(update => {
-                        const idx = state.items.findIndex(i => i.id === update.id);
+                        const idx = state.items.findIndex(i => String(i.id) === String(update.id));
                         if (idx !== -1) {
                             if (state.items[idx]?.cp_checked === false) {
                                 state.items[idx].parallel_segments = [];
@@ -502,6 +530,7 @@ export const useScheduleStore = create(
                                 state.items[idx].back_parallel_days = 0;
                                 state.items[idx].parallel_rate = 100;
                                 state.items[idx].application_rate = 100;
+                                clearLegacyParallelMarkers(state.items[idx]);
                                 return;
                             }
                             // If explicit value provided (including 0), set it.
@@ -527,6 +556,22 @@ export const useScheduleStore = create(
                                 derivedFromSegments = parallelState.application_rate;
                             }
 
+                            const normalizedFront = Math.max(0, parseFloat(state.items[idx].front_parallel_days) || 0);
+                            const normalizedBack = Math.max(0, parseFloat(state.items[idx].back_parallel_days) || 0);
+                            const updateSegments = update.parallel_segments;
+                            const hasNoSegments = (
+                                updateSegments === undefined
+                                || (Array.isArray(updateSegments) && updateSegments.length === 0)
+                            );
+                            // Rule: when overlap is released, parallel rate must return to 0.
+                            if (normalizedFront <= 0 && normalizedBack <= 0 && hasNoSegments) {
+                                state.items[idx].parallel_segments = [];
+                                state.items[idx].application_rate = 100;
+                                state.items[idx].parallel_rate = 0;
+                                clearLegacyParallelMarkers(state.items[idx]);
+                                return;
+                            }
+
                             const explicitRate = parseFloat(update.parallel_rate ?? update.application_rate);
                             const explicitApplicationRate = parseFloat(update.application_rate);
                             if (Number.isFinite(explicitApplicationRate)) {
@@ -550,6 +595,13 @@ export const useScheduleStore = create(
                                 );
                                 state.items[idx].application_rate = derivedApplicationRate;
                                 state.items[idx].parallel_rate = displayParallelRateFromApplication(derivedApplicationRate, true);
+                            }
+
+                            const hasSegments = Array.isArray(state.items[idx].parallel_segments) && state.items[idx].parallel_segments.length > 0;
+                            const nextFront = parseFloat(state.items[idx].front_parallel_days) || 0;
+                            const nextBack = parseFloat(state.items[idx].back_parallel_days) || 0;
+                            if (!hasSegments && nextFront <= 0 && nextBack <= 0) {
+                                clearLegacyParallelMarkers(state.items[idx]);
                             }
                         }
                     });

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback, useMemo } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import {
   fetchProjects,
   createProjects,
@@ -11,6 +11,7 @@ import { createPortal } from "react-dom";
 import { Loader2, MoreVertical, Pin, PinOff } from "lucide-react";
 import { useConfirm } from "../../../contexts/ConfirmContext";
 import { loadPinnedProjectIds, PINNED_PROJECTS_EVENT, savePinnedProjectIds } from "../../../utils/pinnedProjects";
+import { emitProjectsChanged, PROJECTS_CHANGED_EVENT, PROJECT_EVENT_TYPES } from "../../../utils/projectEvents";
 
 const getProjectEntryPath = (project) => {
   if (!project?.id) return "/";
@@ -36,6 +37,7 @@ function Projects() {
   const [isScrolling, setIsScrolling] = useState(false);
   const [pinnedIds, setPinnedIds] = useState(() => loadPinnedProjectIds());
   const descRef = useRef(null);
+  const deletedProjectIdsRef = useRef(new Set());
 
   const handleScroll = useCallback(() => {
     setIsScrolling(true);
@@ -45,22 +47,30 @@ function Projects() {
     }, 1000);
   }, []);
   const navigate = useNavigate();
+  const location = useLocation();
   const { alert, confirm } = useConfirm();
+  const filterDeletedProjects = useCallback((items) => {
+    const source = Array.isArray(items) ? items : [];
+    return source.filter((p) => !deletedProjectIdsRef.current.has(String(p?.id)));
+  }, []);
+  const refreshProjects = useCallback(async () => {
+    const data = await fetchProjects();
+    const loaded = data?.results || data || [];
+    setProjects(filterDeletedProjects(loaded));
+  }, [filterDeletedProjects]);
 
   // === 프로젝트 목록 불러오기 ===
   useEffect(() => {
-    const loadProjects = async () => {
+    (async () => {
       try {
-        const data = await fetchProjects();
-        setProjects(data.results || data);
+        await refreshProjects();
       } catch (error) {
         console.error("프로젝트 목록 불러오기 실패:", error);
       } finally {
         setLoading(false);
       }
-    };
-    loadProjects();
-  }, []);
+    })();
+  }, [refreshProjects]);
 
   useEffect(() => {
     const handlePinnedChange = (event) => {
@@ -70,6 +80,40 @@ function Projects() {
     };
     window.addEventListener(PINNED_PROJECTS_EVENT, handlePinnedChange);
     return () => window.removeEventListener(PINNED_PROJECTS_EVENT, handlePinnedChange);
+  }, []);
+
+  useEffect(() => {
+    const handleProjectsChanged = (event) => {
+      const { type, project, projectId } = event?.detail || {};
+      if (type === PROJECT_EVENT_TYPES.CREATED && project?.id) {
+        const sid = String(project.id);
+        deletedProjectIdsRef.current.delete(sid);
+        setProjects((prev) => {
+          const source = Array.isArray(prev) ? prev : [];
+          const rest = source.filter((p) => String(p?.id) !== sid);
+          return [project, ...rest];
+        });
+        return;
+      }
+
+      if (type === PROJECT_EVENT_TYPES.UPDATED && project?.id) {
+        const sid = String(project.id);
+        if (deletedProjectIdsRef.current.has(sid)) return;
+        setProjects((prev) =>
+          (Array.isArray(prev) ? prev : []).map((p) => (String(p?.id) === sid ? { ...p, ...project } : p))
+        );
+        return;
+      }
+
+      if (type === PROJECT_EVENT_TYPES.DELETED && projectId != null) {
+        const sid = String(projectId);
+        deletedProjectIdsRef.current.add(sid);
+        setProjects((prev) => (Array.isArray(prev) ? prev : []).filter((p) => String(p?.id) !== sid));
+      }
+    };
+
+    window.addEventListener(PROJECTS_CHANGED_EVENT, handleProjectsChanged);
+    return () => window.removeEventListener(PROJECTS_CHANGED_EVENT, handleProjectsChanged);
   }, []);
 
   const isPinned = useCallback((projectId) => pinnedIds.includes(String(projectId)), [pinnedIds]);
@@ -151,7 +195,8 @@ function Projects() {
         description: String(description || "").trim(),
         calc_type: createType,
       });
-      setProjects((prev) => [...prev, res]);
+      setProjects((prev) => [res, ...(Array.isArray(prev) ? prev : [])]);
+      emitProjectsChanged({ type: PROJECT_EVENT_TYPES.CREATED, project: res });
       closeCreateModal();
       navigate(getProjectEntryPath(res));
     } catch (error) {
@@ -164,14 +209,25 @@ function Projects() {
 
   // === 삭제 ===
   const handleDelete = async (id) => {
+    setMenuOpenId(null);
     const ok = await confirm("정말 삭제하시겠습니까?");
     if (!ok) return;
     try {
       await deleteProject(id);
-      setProjects((prev) => prev.filter((p) => p.id !== id));
-      navigate(`/`)
+      const sid = String(id);
+      deletedProjectIdsRef.current.add(sid);
+      setProjects((prev) => (Array.isArray(prev) ? prev : []).filter((p) => String(p?.id) !== sid));
+      const nextPinned = pinnedIds.filter((x) => x !== sid);
+      setPinnedIds(savePinnedProjectIds(nextPinned));
+      emitProjectsChanged({ type: PROJECT_EVENT_TYPES.DELETED, projectId: sid });
+
+      const currentProjectId = /^\/projects\/([^/?#]+)/.exec(location.pathname)?.[1];
+      if (currentProjectId && String(currentProjectId) === sid) {
+        navigate("/");
+      }
     } catch (error) {
       console.error("삭제 실패:", error);
+      await alert("프로젝트 삭제에 실패했습니다. 잠시 후 다시 시도해 주세요.");
     }
   };
 
@@ -192,6 +248,10 @@ function Projects() {
       setProjects((prev) =>
         prev.map((p) => (p.id === id ? { ...p, ...updated } : p))
       );
+      emitProjectsChanged({
+        type: PROJECT_EVENT_TYPES.UPDATED,
+        project: { id, ...updated },
+      });
     } catch (error) {
       console.error("이름 수정 실패:", error);
     } finally {
@@ -219,6 +279,10 @@ function Projects() {
           p.id === descModal.id ? { ...p, ...updated } : p
         )
       );
+      emitProjectsChanged({
+        type: PROJECT_EVENT_TYPES.UPDATED,
+        project: { id: descModal.id, ...updated },
+      });
       setDescModal(null);
     } catch (error) {
       console.error("설명 수정 실패:", error);

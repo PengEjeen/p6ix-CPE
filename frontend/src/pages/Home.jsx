@@ -39,6 +39,11 @@ import {
   savePinnedProjectIds,
 } from "../utils/pinnedProjects";
 import {
+  emitProjectsChanged,
+  PROJECT_EVENT_TYPES,
+  PROJECTS_CHANGED_EVENT,
+} from "../utils/projectEvents";
+import {
   FTUE_CHANGED_EVENT,
   FTUE_STEP_IDS,
   getFtueProgress,
@@ -103,6 +108,7 @@ export default function Home() {
   const navigate = useNavigate();
   const { alert, confirm } = useConfirm();
   const listRef = useRef(null);
+  const deletedProjectIdsRef = useRef(new Set());
 
   const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -128,6 +134,10 @@ export default function Home() {
 
   const [ftueTotal, setFtueTotal] = useState(() => loadFtue("TOTAL"));
   const [ftueApartment, setFtueApartment] = useState(() => loadFtue("APARTMENT"));
+  const filterDeletedProjects = useCallback((items) => {
+    const source = Array.isArray(items) ? items : [];
+    return source.filter((p) => !deletedProjectIdsRef.current.has(String(p?.id)));
+  }, []);
 
   // ── Data ─────────────────────────────────────────────────────────────────
 
@@ -137,7 +147,7 @@ export default function Home() {
       try {
         const data = await fetchProjects();
         const loaded = data?.results || data || [];
-        setProjects(loaded);
+        setProjects(filterDeletedProjects(loaded));
         initFtue("TOTAL", loaded, FTUE_STEP_IDS.TOTAL);
         initFtue("APARTMENT", loaded, FTUE_STEP_IDS.APARTMENT);
         setFtueTotal(loadFtue("TOTAL"));
@@ -168,6 +178,46 @@ export default function Home() {
     window.addEventListener(FTUE_CHANGED_EVENT, h);
     window.addEventListener("storage", h);
     return () => { window.removeEventListener(FTUE_CHANGED_EVENT, h); window.removeEventListener("storage", h); };
+  }, []);
+
+  useEffect(() => {
+    const handleProjectsChanged = (event) => {
+      const { type, project, projectId } = event?.detail || {};
+
+      if (type === PROJECT_EVENT_TYPES.CREATED && project?.id) {
+        const sid = String(project.id);
+        deletedProjectIdsRef.current.delete(sid);
+        setProjects((prev) => {
+          const source = Array.isArray(prev) ? prev : [];
+          const rest = source.filter((p) => String(p?.id) !== sid);
+          return [project, ...rest];
+        });
+        return;
+      }
+
+      if (type === PROJECT_EVENT_TYPES.UPDATED && project?.id) {
+        const sid = String(project.id);
+        if (deletedProjectIdsRef.current.has(sid)) return;
+        setProjects((prev) =>
+          (Array.isArray(prev) ? prev : []).map((p) => (String(p?.id) === sid ? { ...p, ...project } : p))
+        );
+        return;
+      }
+
+      if (type === PROJECT_EVENT_TYPES.DELETED && projectId != null) {
+        const sid = String(projectId);
+        deletedProjectIdsRef.current.add(sid);
+        setProjects((prev) => (Array.isArray(prev) ? prev : []).filter((p) => String(p?.id) !== sid));
+        setLastOpenedId((prev) => {
+          if (String(prev || "") !== sid) return prev;
+          try { localStorage.removeItem(LAST_OPENED_KEY); } catch { /* */ }
+          return null;
+        });
+      }
+    };
+
+    window.addEventListener(PROJECTS_CHANGED_EVENT, handleProjectsChanged);
+    return () => window.removeEventListener(PROJECTS_CHANGED_EVENT, handleProjectsChanged);
   }, []);
 
   // ── Derived ──────────────────────────────────────────────────────────────
@@ -277,7 +327,9 @@ export default function Home() {
         description: String(createDescription || "").trim(),
         calc_type: createType,
       });
+      deletedProjectIdsRef.current.delete(String(res?.id));
       setProjects((prev) => [res, ...(Array.isArray(prev) ? prev : [])]);
+      emitProjectsChanged({ type: PROJECT_EVENT_TYPES.CREATED, project: res });
       if (createType === "TOTAL" || createType === "APARTMENT")
         markFtueDone(createType, "create_project", FTUE_STEP_IDS[createType]);
       closeCreate();
@@ -301,9 +353,12 @@ export default function Home() {
     if (!await confirm("정말 삭제하시겠습니까?")) return;
     try {
       await deleteProject(p.id);
-      setProjects((prev) => (Array.isArray(prev) ? prev.filter((x) => x.id !== p.id) : []));
+      const sid = String(p.id);
+      deletedProjectIdsRef.current.add(sid);
+      setProjects((prev) => (Array.isArray(prev) ? prev.filter((x) => String(x?.id) !== sid) : []));
       setMenuOpenId(null);
-      persistPinned(pinnedIds.filter((x) => x !== String(p.id)));
+      persistPinned(pinnedIds.filter((x) => x !== sid));
+      emitProjectsChanged({ type: PROJECT_EVENT_TYPES.DELETED, projectId: p.id });
     } catch (e) {
       console.error("프로젝트 삭제 실패:", e);
       await alert("프로젝트 삭제에 실패했습니다.");
@@ -317,6 +372,10 @@ export default function Home() {
     try {
       const updated = await updateProject(editModal.id, { title, description: String(editModal.description || "").trim() });
       setProjects((prev) => (Array.isArray(prev) ? prev : []).map((p) => p.id === editModal.id ? { ...p, ...updated } : p));
+      emitProjectsChanged({
+        type: PROJECT_EVENT_TYPES.UPDATED,
+        project: { id: editModal.id, ...updated },
+      });
       setEditModal(null);
     } catch (e) {
       console.error("프로젝트 수정 실패:", e);

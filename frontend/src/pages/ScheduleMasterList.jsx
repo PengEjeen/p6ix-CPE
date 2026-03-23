@@ -23,7 +23,7 @@ import { useConfirm } from "../contexts/ConfirmContext";
 import { useAIScheduleOptimizer } from "../hooks/useAIScheduleOptimizer";
 import { useScheduleData } from "../hooks/useScheduleData";
 import { useDragHandlers } from "../hooks/useDragHandlers";
-import { calculateTotalCalendarDays, calculateTotalCalendarMonths } from "../utils/scheduleCalculations";
+import { calculateTotalCalendarDays, calculateTotalCalendarMonths, getCategoryManualTotalDays } from "../utils/scheduleCalculations";
 import { calculateGanttItems } from "../components/cpe/ganttUtils";
 import { fetchProductivities } from "../api/cpe_all/productivity";
 
@@ -797,6 +797,26 @@ export default function ScheduleMasterList() {
         }
     };
 
+    const handleCategoryTotalDaysChange = useCallback((category, nextValue) => {
+        const targetCategory = String(category || "기타");
+        const categoryRows = items.filter((item) => String(item?.main_category || "기타") === targetCategory);
+        if (categoryRows.length === 0) return;
+
+        const nextParsed = parseFloat(nextValue);
+        const normalizedNext = Number.isFinite(nextParsed) && nextParsed >= 0
+            ? parseFloat(nextParsed.toFixed(1))
+            : null;
+        const currentManualDays = getCategoryManualTotalDays(categoryRows);
+
+        if (currentManualDays === normalizedNext) return;
+
+        updateItemsField(
+            categoryRows.map((item) => item.id),
+            "category_total_days",
+            normalizedNext
+        );
+    }, [items, updateItemsField]);
+
     // --- Gantt to Store Connection ---
     const handleGanttResize = (itemId, newCalendarDays, mode = 'crew') => {
         if (mode === 'prod') {
@@ -1500,10 +1520,14 @@ export default function ScheduleMasterList() {
     const activeItem = activeId ? items.find((i) => i.id === activeId) : null;
     const dragMovingItemIds = (() => {
         if (!activeId) return [];
+        const activeItemForDrag = items.find((item) => item.id === activeId);
+        if (!activeItemForDrag) return [];
         const selectedSet = new Set(selectedItemIds);
         const activeSelected = selectedSet.has(activeId);
         if (activeSelected && selectedSet.size > 1) {
-            return items.filter((item) => selectedSet.has(item.id)).map((item) => item.id);
+            return items
+                .filter((item) => selectedSet.has(item.id) && item.main_category === activeItemForDrag.main_category)
+                .map((item) => item.id);
         }
         return [activeId];
     })();
@@ -1592,7 +1616,7 @@ export default function ScheduleMasterList() {
                                 <th className="sticky top-0 bg-[var(--navy-surface)] border-r border-[var(--navy-border-soft)] px-2 py-2 z-10">단위 작업량</th>
                                 <th className="sticky top-0 bg-[var(--navy-surface)] border-r border-[var(--navy-border-soft)] px-2 py-2 z-10">투입조</th>
                                 <th className="sticky top-0 bg-[var(--navy-surface)] border-r border-[var(--navy-border-soft)] px-2 py-2 z-10">생산량/일</th>
-                                <th className="sticky top-0 bg-[var(--navy-surface)] border-r border-[var(--navy-border-soft)] px-2 py-2 z-10">CP 체크</th>
+                                <th className="sticky top-0 bg-[var(--navy-surface)] border-r border-[var(--navy-border-soft)] px-2 py-2 z-10">CP</th>
                                 <th className="sticky top-0 bg-[var(--navy-surface)] border-r border-[var(--navy-border-soft)] px-2 py-2 z-10">병행률(%)</th>
                                 <th className="sticky top-0 bg-[var(--navy-surface)] border-r border-[var(--navy-border-soft)] px-2 py-2 z-10">반영률(%)</th>
                                 <th className="sticky top-0 bg-[var(--navy-surface)] border-r border-[var(--navy-border-soft)] px-2 py-2 z-10">작업기간 W/D</th>
@@ -1649,6 +1673,7 @@ export default function ScheduleMasterList() {
                                                 hasSearchKeyword={hasSearchKeyword}
                                                 operatingRates={operatingRates}
                                                 handleCategoryRunRateChange={handleCategoryRunRateChange}
+                                                handleCategoryTotalDaysChange={handleCategoryTotalDaysChange}
                                                 openCategoryMenu={openCategoryMenu}
                                                 setOpenCategoryMenu={setOpenCategoryMenu}
                                                 categoryMenuRef={categoryMenuRef}

@@ -108,6 +108,7 @@ const GanttSidebar = ({ groupedItems, expandedCategories, setExpandedCategories,
                                                     const isSelected = Array.isArray(selectedItemIds) && selectedItemIds.includes(item.id);
                                                     const aiPreview = aiPreviewMap.get(item.id);
                                                     const isAiActive = aiActiveItemId === item.id;
+                                                    const isSingleTotalRollup = item?._singleTotalRollup === true;
 
                                                     return (
                                                         <motion.div
@@ -130,20 +131,36 @@ const GanttSidebar = ({ groupedItems, expandedCategories, setExpandedCategories,
                                                             <div className="absolute left-6 top-1/2 w-3 h-px bg-gray-200" />
 
                                                             <div className="flex-1 min-w-0 pr-3">
-                                                                <div className="flex items-center gap-1.5 mb-0.5">
-                                                                    <FileText size={12} className={isSelected ? 'text-blue-500' : 'text-gray-400'} />
-                                                                    <div className={`text-xs font-semibold truncate transition-colors ${isSelected ? 'text-blue-900' : 'text-slate-500'}`}>
-                                                                        {item.process}
+                                                                {isSingleTotalRollup ? (
+                                                                    <div className="flex items-center gap-2">
+                                                                        <Layers size={12} className={isSelected ? 'text-blue-500' : 'text-gray-400'} />
+                                                                        <div className={`text-base font-bold truncate ${isSelected ? 'text-blue-700' : 'text-slate-700'}`}>
+                                                                            {item.main_category}
+                                                                        </div>
+                                                                        {aiPreview && (
+                                                                            <span className={`text-[9px] px-1.5 py-0.5 rounded-full border ${isAiActive ? 'border-blue-500 text-blue-600' : 'border-gray-300 text-gray-500'}`}>
+                                                                                AI
+                                                                            </span>
+                                                                        )}
                                                                     </div>
-                                                                    {aiPreview && (
-                                                                        <span className={`text-[9px] px-1.5 py-0.5 rounded-full border ${isAiActive ? 'border-blue-500 text-blue-600' : 'border-gray-300 text-gray-500'}`}>
-                                                                            AI
-                                                                        </span>
-                                                                    )}
-                                                                </div>
-                                                                <div className={`text-base font-bold truncate ${isSelected ? 'text-blue-700' : 'text-slate-700'}`}>
-                                                                    {item.work_type}
-                                                                </div>
+                                                                ) : (
+                                                                    <>
+                                                                        <div className="flex items-center gap-1.5 mb-0.5">
+                                                                            <FileText size={12} className={isSelected ? 'text-blue-500' : 'text-gray-400'} />
+                                                                            <div className={`text-xs font-semibold truncate transition-colors ${isSelected ? 'text-blue-900' : 'text-slate-500'}`}>
+                                                                                {item.process}
+                                                                            </div>
+                                                                            {aiPreview && (
+                                                                                <span className={`text-[9px] px-1.5 py-0.5 rounded-full border ${isAiActive ? 'border-blue-500 text-blue-600' : 'border-gray-300 text-gray-500'}`}>
+                                                                                    AI
+                                                                                </span>
+                                                                            )}
+                                                                        </div>
+                                                                        <div className={`text-base font-bold truncate ${isSelected ? 'text-blue-700' : 'text-slate-700'}`}>
+                                                                            {item.work_type}
+                                                                        </div>
+                                                                    </>
+                                                                )}
                                                             </div>
 
                                                             <div className="text-right flex-shrink-0">

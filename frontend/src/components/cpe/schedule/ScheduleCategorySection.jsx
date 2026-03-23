@@ -1,7 +1,12 @@
-import React from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { ArrowDown, ArrowUp, Layers3, MoreVertical, Plus, RefreshCw, SlidersHorizontal, Trash2 } from "lucide-react";
-import { calculateTotalCalendarDays, calculateTotalCalendarMonths } from "../../../utils/scheduleCalculations";
+import {
+    calculateTotalCalendarDays,
+    calculateTotalCalendarMonths,
+    getCategoryManualTotalDays,
+    isSingleTotalInputCategory
+} from "../../../utils/scheduleCalculations";
 import ScheduleTableRow from "./ScheduleTableRow";
 
 export default function ScheduleCategorySection({
@@ -21,6 +26,7 @@ export default function ScheduleCategorySection({
     hasSearchKeyword,
     operatingRates,
     handleCategoryRunRateChange,
+    handleCategoryTotalDaysChange,
     openCategoryMenu,
     setOpenCategoryMenu,
     categoryMenuRef,
@@ -56,11 +62,50 @@ export default function ScheduleCategorySection({
 }) {
     const categoryCalDays = calculateTotalCalendarDays(allCategoryItems);
     const categoryCalMonths = calculateTotalCalendarMonths(categoryCalDays);
+    const isSingleInputCategory = useMemo(
+        () => isSingleTotalInputCategory(category),
+        [category]
+    );
+    const manualCategoryTotal = useMemo(
+        () => getCategoryManualTotalDays(allCategoryItems),
+        [allCategoryItems]
+    );
+    const [categoryTotalInput, setCategoryTotalInput] = useState(
+        manualCategoryTotal !== null ? String(manualCategoryTotal) : ""
+    );
     const visibleCategoryCount = categoryItems.length;
     const totalCategoryCount = allCategoryItems.length;
     const canGenerateFloorBatch = /골조|RC|철근콘크리트/i.test(String(category));
     const categoryRate = operatingRates.find((rate) => rate.main_category === category);
     const currentRunRate = categoryRate?.work_week_days || 6;
+
+    useEffect(() => {
+        if (manualCategoryTotal === null) {
+            setCategoryTotalInput("");
+            return;
+        }
+        setCategoryTotalInput(String(manualCategoryTotal));
+    }, [manualCategoryTotal, category]);
+
+    const commitCategoryTotalDays = useCallback(() => {
+        if (!isSingleInputCategory || !handleCategoryTotalDaysChange) return;
+
+        const rawValue = String(categoryTotalInput || "").trim();
+        if (!rawValue) {
+            handleCategoryTotalDaysChange(category, null);
+            return;
+        }
+
+        const parsedValue = parseFloat(rawValue);
+        if (!Number.isFinite(parsedValue) || parsedValue < 0) {
+            setCategoryTotalInput(manualCategoryTotal !== null ? String(manualCategoryTotal) : "");
+            return;
+        }
+
+        const normalizedValue = parseFloat(parsedValue.toFixed(1));
+        handleCategoryTotalDaysChange(category, normalizedValue);
+        setCategoryTotalInput(String(normalizedValue));
+    }, [category, categoryTotalInput, handleCategoryTotalDaysChange, isSingleInputCategory, manualCategoryTotal]);
 
     return (
         <React.Fragment>
@@ -129,9 +174,40 @@ export default function ScheduleCategorySection({
                                     검색 결과
                                 </span>
                             )}
-                            <span className="text-xs ui-accent-text bg-[rgb(59_59_79/0.22)] px-2 py-0.5 rounded-full border border-[rgb(75_85_99/0.45)] font-semibold">
-                                {categoryCalDays}일 ({categoryCalMonths}개월)
-                            </span>
+                            {isSingleInputCategory && !forPrint ? (
+                                <div className="flex items-center gap-2 rounded-full border border-[rgb(75_85_99/0.45)] bg-[rgb(59_59_79/0.22)] px-2 py-1">
+                                    <span className="text-[10px] font-bold uppercase tracking-widest text-[var(--navy-text-muted)]">
+                                        전체기간
+                                    </span>
+                                    <input
+                                        type="number"
+                                        min="0"
+                                        step="0.1"
+                                        value={categoryTotalInput}
+                                        onChange={(e) => setCategoryTotalInput(e.target.value)}
+                                        onBlur={commitCategoryTotalDays}
+                                        onKeyDown={(e) => {
+                                            if (e.key === "Enter") {
+                                                e.preventDefault();
+                                                commitCategoryTotalDays();
+                                            } else if (e.key === "Escape") {
+                                                e.preventDefault();
+                                                setCategoryTotalInput(manualCategoryTotal !== null ? String(manualCategoryTotal) : "");
+                                            }
+                                        }}
+                                        placeholder="일수"
+                                        className="ui-input h-7 w-20 py-0 px-2 text-xs"
+                                        aria-label={`${category} 전체기간 입력`}
+                                    />
+                                    <span className="text-xs ui-accent-text font-semibold">
+                                        {categoryCalDays}일 ({categoryCalMonths}개월)
+                                    </span>
+                                </div>
+                            ) : (
+                                <span className="text-xs ui-accent-text bg-[rgb(59_59_79/0.22)] px-2 py-0.5 rounded-full border border-[rgb(75_85_99/0.45)] font-semibold">
+                                    {categoryCalDays}일 ({categoryCalMonths}개월)
+                                </span>
+                            )}
                             <div className="flex items-center gap-2 ml-4">
                                 <label className="text-[10px] font-bold text-[var(--navy-text-muted)] uppercase tracking-widest">주간 가동</label>
                                 <select

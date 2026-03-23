@@ -100,8 +100,13 @@ const GanttChartArea = ({
         const taskEnd = taskStart + durationDays;
         const customRedStart = Number(item?.cp_red_start);
         const customRedEnd = Number(item?.cp_red_end);
+        const useCustomRedRange = (
+            typeof item?._hasCriticalSegment === "boolean"
+            && Number.isFinite(customRedStart)
+            && Number.isFinite(customRedEnd)
+        );
 
-        if (Number.isFinite(customRedStart) && Number.isFinite(customRedEnd)) {
+        if (useCustomRedRange) {
             const redStart = Math.max(taskStart, Math.min(taskEnd, customRedStart));
             const redEnd = Math.max(redStart, Math.min(taskEnd, customRedEnd));
             const hasCriticalSegment = typeof item?._hasCriticalSegment === "boolean"

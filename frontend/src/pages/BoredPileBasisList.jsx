@@ -527,7 +527,7 @@ export default function BoredPileBasisList() {
         <div className="p-6 text-gray-200 space-y-6 h-full flex flex-col">
             <div className="flex justify-between items-start">
                 <PageHeader
-                    title="현장타설말뚝(Bored Pile) 생산성 근거"
+                    title="현장타설말뚝(Bored Pile) 생산성 관리"
                     description="RCD, 요동식, 전회전식 공법별 생산성 분석 및 기준 데이터입니다."
                 />
                 <div className="flex gap-4 items-center">

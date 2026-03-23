@@ -973,7 +973,7 @@ export default function PileBasisList() {
         <div className="p-6 text-gray-200 space-y-6 h-full flex flex-col">
             <div className="flex justify-between items-start">
                 <PageHeader
-                    title="기성말뚝 기초 생산성 근거"
+                    title="기성말뚝 기초 생산성 관리"
                     description="기성말뚝 기초의 생산성 분석을 위한 기준 데이터 및 산출 내역입니다."
                 />
                 <SaveButton onSave={handleSaveAll} saving={saving} />

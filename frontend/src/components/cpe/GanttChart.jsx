@@ -23,6 +23,41 @@ const GANTT_VIEW_MODE = {
     WORK_TYPE: "work_type"
 };
 
+const OVERLAP_KEY_SEP = "::";
+const OVERLAP_EPS = 1e-3;
+const makeOverlapKey = (a, b) => `${String(a)}${OVERLAP_KEY_SEP}${String(b)}`;
+const parseOverlapKey = (key) => {
+    const text = String(key ?? "");
+    const sepIndex = text.indexOf(OVERLAP_KEY_SEP);
+    if (sepIndex < 0) {
+        const legacy = text.split("-");
+        if (legacy.length === 2) return [legacy[0], legacy[1]];
+        return [null, null];
+    }
+    return [text.slice(0, sepIndex), text.slice(sepIndex + OVERLAP_KEY_SEP.length)];
+};
+const collectOverlapCounterparts = (overlapMap, taskId) => {
+    const normalizedId = String(taskId);
+    const counterparts = new Set();
+    overlapMap.forEach((_value, key) => {
+        const [leftId, rightId] = parseOverlapKey(key);
+        if (leftId === normalizedId && rightId) counterparts.add(rightId);
+        if (rightId === normalizedId && leftId) counterparts.add(leftId);
+    });
+    return counterparts;
+};
+const removeOverlapKeysForTask = (overlapMap, taskId) => {
+    const normalizedId = String(taskId);
+    const keysToDelete = [];
+    overlapMap.forEach((_value, key) => {
+        const [leftId, rightId] = parseOverlapKey(key);
+        if (leftId === normalizedId || rightId === normalizedId) {
+            keysToDelete.push(key);
+        }
+    });
+    keysToDelete.forEach((key) => overlapMap.delete(key));
+};
+
 const toViewId = (prefix, value) => `${prefix}-${encodeURIComponent(String(value || "-"))}`;
 
 const getCriticalMeta = (item) => {
@@ -238,20 +273,22 @@ export default function GanttChart({
 
             let target = null;
             for (let i = updates.length - 1; i >= 0; i -= 1) {
-                if (updates[i]?.id === id) {
+                if (String(updates[i]?.id) === String(id)) {
                     target = updates[i];
                     break;
                 }
             }
+            const parallelRate = Math.max(
+                0,
+                Math.min(100, parseFloat((100 - parallelState.application_rate).toFixed(1)))
+            );
             if (target) {
-                target.parallel_rate = Math.max(0, Math.min(100, parseFloat((100 - parallelState.application_rate).toFixed(1))));
-                target.application_rate = parallelState.application_rate;
+                target.parallel_rate = parallelRate;
                 target.parallel_segments = parallelState.parallel_segments;
             } else {
                 updates.push({
                     id,
-                    parallel_rate: Math.max(0, Math.min(100, parseFloat((100 - parallelState.application_rate).toFixed(1)))),
-                    application_rate: parallelState.application_rate,
+                    parallel_rate: parallelRate,
                     parallel_segments: parallelState.parallel_segments
                 });
             }
@@ -332,14 +369,26 @@ export default function GanttChart({
         return calculateGanttItems(items);
     }, [items]);
 
+    const visibleBaseItemsWithTiming = useMemo(
+        () => baseItemsWithTiming.filter((item) => item?._singleTotalHidden !== true),
+        [baseItemsWithTiming]
+    );
+
     const { items: itemsWithTiming, itemToViewId } = useMemo(() => {
-        return buildAggregatedViewData(baseItemsWithTiming, ganttViewMode);
-    }, [baseItemsWithTiming, ganttViewMode]);
+        return buildAggregatedViewData(visibleBaseItemsWithTiming, ganttViewMode);
+    }, [visibleBaseItemsWithTiming, ganttViewMode]);
+
+    const visibleBaseItemIdSet = useMemo(
+        () => new Set(visibleBaseItemsWithTiming.map((item) => item.id)),
+        [visibleBaseItemsWithTiming]
+    );
 
     const visibleLinks = useMemo(() => {
-        if (ganttViewMode === GANTT_VIEW_MODE.WORK_TYPE) return links;
+        if (ganttViewMode === GANTT_VIEW_MODE.WORK_TYPE) {
+            return links.filter((link) => visibleBaseItemIdSet.has(link.from) && visibleBaseItemIdSet.has(link.to));
+        }
         return buildAggregatedLinks(links, itemToViewId);
-    }, [ganttViewMode, links, itemToViewId]);
+    }, [ganttViewMode, links, itemToViewId, visibleBaseItemIdSet]);
 
     const handleItemClick = useCallback((itemId, source, event) => {
         const isMulti = event?.shiftKey || event?.metaKey || event?.ctrlKey;
@@ -767,6 +816,7 @@ export default function GanttChart({
                 const overlapStart = Math.max(newStartDay, otherStart);
                 const overlapEnd = Math.min(newEnd, otherEnd);
                 const overlapDays = overlapEnd - overlapStart;
+                if (overlapDays <= OVERLAP_EPS) return;
 
                 // Collect ALL overlaps, not just the first
                 overlappingTasks.push({
@@ -783,6 +833,13 @@ export default function GanttChart({
         });
 
         if (overlappingTasks.length > 0) {
+            const previousCounterparts = collectOverlapCounterparts(lastOverlapRef.current, itemId);
+            const nextCounterpartIds = new Set(overlappingTasks.map((task) => String(task.id)));
+            const staleOverlapTaskIds = Array.from(previousCounterparts).filter(
+                (counterpartId) => !nextCounterpartIds.has(String(counterpartId))
+            );
+            removeOverlapKeysForTask(lastOverlapRef.current, itemId);
+
             // Create multi-overlap data structure
             const overlapInfo = {
                 visible: true,
@@ -800,31 +857,32 @@ export default function GanttChart({
                 draggedItemId: itemId,
                 newStartDay: newStartDay,
                 originalStartDay: currentStartDay,
-                dragDelta: dragDelta
+                dragDelta: dragDelta,
+                staleOverlapTaskIds
             };
 
             setOverlapPopover(overlapInfo);
-            // Store all overlapping task IDs for cleanup later
+            // Store both directions so cleanup works regardless of which task is dragged next.
             overlappingTasks.forEach(ot => {
-                lastOverlapRef.current.set(`${itemId}-${ot.id}`, ot.id);
+                lastOverlapRef.current.set(makeOverlapKey(itemId, ot.id), ot.id);
+                lastOverlapRef.current.set(makeOverlapKey(ot.id, itemId), itemId);
             });
         } else {
             // No overlaps - clear parallel days ONLY for this dragged task and its previous overlaps
 
-            // Atomic update for Undo/Redo consistency
-            const updates = [{ id: itemId, front: 0, back: 0 }];
-
-            // Clear ONLY the tasks that were previously overlapping with THIS specific task
-            const keysToDelete = [];
-            lastOverlapRef.current.forEach((value, key) => {
-                if (key.startsWith(`${itemId}-`)) {
-                    // Only clear if this task is no longer overlapping with anyone
-                    // Don't touch other tasks' overlap states
-                    updates.push({ id: value, front: 0, back: 0 });
-                    keysToDelete.push(key);
-                }
+            const targetsToClear = new Set([itemId]);
+            collectOverlapCounterparts(lastOverlapRef.current, itemId).forEach((counterpartId) => {
+                targetsToClear.add(counterpartId);
             });
-            keysToDelete.forEach(key => lastOverlapRef.current.delete(key));
+            removeOverlapKeysForTask(lastOverlapRef.current, itemId);
+
+            // Atomic update for Undo/Redo consistency
+            const updates = Array.from(targetsToClear).map((id) => ({
+                id,
+                front: 0,
+                back: 0,
+                parallel_segments: []
+            }));
 
             // IMPORTANT: Only call resolveDragOverlap if we actually have updates to apply
             if (updates.length > 0) {
@@ -833,6 +891,9 @@ export default function GanttChart({
             if (dragDelta) {
                 shiftSubTasksForItem(itemId, dragDelta);
             }
+            // Overlap fully released: clear pending resolution UI/state immediately.
+            setOverlapPopover(null);
+            dragPreviewRef.current = null;
         }
     }, [canEdit, items, itemsWithTiming, moveTaskBars, selectedItemIds, shiftSubTasksForItem]);
 
@@ -845,6 +906,7 @@ export default function GanttChart({
         const { draggedItemId, originalStartDay } = overlapPopover;
         if (draggedItemId && Number.isFinite(originalStartDay)) {
             moveTaskBars([{ id: draggedItemId, newStartDay: originalStartDay }]);
+            removeOverlapKeysForTask(lastOverlapRef.current, draggedItemId);
         }
         setOverlapPopover(null);
     }, [moveTaskBars, overlapPopover]);
@@ -1061,9 +1123,15 @@ export default function GanttChart({
                         const parallelSegments = new Map();
                         const taskWindowById = new Map();
                         taskWindowById.set(currentTask.id, { start: currentStart, end: currentEnd });
+                        const staleOverlapTaskIds = Array.isArray(overlapPopover.staleOverlapTaskIds)
+                            ? overlapPopover.staleOverlapTaskIds
+                            : [];
 
                         // Clear current task's parallel days (it becomes full CP)
                         updates.push({ id: currentTask.id, front: 0, back: 0 });
+                        staleOverlapTaskIds.forEach((id) => {
+                            updates.push({ id, front: 0, back: 0, parallel_segments: [] });
+                        });
 
                         // Process each overlapping task
                         overlappingTasks.forEach((overlappingTask) => {
@@ -1117,10 +1185,16 @@ export default function GanttChart({
                         const parallelSegments = new Map();
                         const taskWindowById = new Map();
                         taskWindowById.set(currentTask.id, { start: currentStart, end: currentEnd });
+                        const staleOverlapTaskIds = Array.isArray(overlapPopover.staleOverlapTaskIds)
+                            ? overlapPopover.staleOverlapTaskIds
+                            : [];
 
                         // Track max parallel days for current task
                         let maxFrontParallel = 0;
                         let maxBackParallel = 0;
+                        staleOverlapTaskIds.forEach((id) => {
+                            updates.push({ id, front: 0, back: 0, parallel_segments: [] });
+                        });
 
                         // Process each overlapping task
                         overlappingTasks.forEach((overlappingTask) => {

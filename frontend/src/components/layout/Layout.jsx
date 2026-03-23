@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef, useCallback } from "react";
-import { Navigate, Outlet, useLocation, useNavigate } from "react-router-dom";
+import { Navigate, Outlet, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import Header from "./Header";
 import Projects from "./tools/Projects";
 import {
@@ -17,6 +17,7 @@ function Layout() {
     String(import.meta.env.VITE_USE_SESSION_AUTH).toLowerCase() === "true";
   const navigate = useNavigate();
   const location = useLocation();
+  const [searchParams] = useSearchParams();
   const { theme } = useTheme();
   const [menuOpen, setMenuOpen] = useState(true);
   const [userOpen, setUserOpen] = useState(false);
@@ -139,6 +140,14 @@ function Layout() {
 
   if (invalidProjectPath) {
     return <Navigate to="/" replace />;
+  }
+
+  if (searchParams.get("guide") === "true") {
+    return (
+      <div className="h-screen w-full bg-[#1e1e2f] text-white flex flex-col p-0 m-0 overflow-auto">
+        <Outlet />
+      </div>
+    );
   }
 
   return (

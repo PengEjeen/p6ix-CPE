@@ -270,120 +270,120 @@ export default function OperatingRate() {
     try {
       if (!silent) setLoading(true);
 
-        const [weightData, scheduleData, workCondData] = await Promise.all([
-          detailOperatingRate(projectId),
-          fetchScheduleItems(projectId),
-          detailWorkCondition(projectId),
-        ]);
+      const [weightData, scheduleData, workCondData] = await Promise.all([
+        detailOperatingRate(projectId),
+        fetchScheduleItems(projectId),
+        detailWorkCondition(projectId),
+      ]);
 
-        const scheduleItems = scheduleData?.items || [];
-        const existing = Array.isArray(weightData) ? weightData : [];
+      const scheduleItems = scheduleData?.items || [];
+      const existing = Array.isArray(weightData) ? weightData : [];
 
-        const existingMap = new Map();
-        existing.forEach((row) => {
-          const key = String(row?.main_category || "").trim();
-          if (key) existingMap.set(key, row);
-        });
+      const existingMap = new Map();
+      existing.forEach((row) => {
+        const key = String(row?.main_category || "").trim();
+        if (key) existingMap.set(key, row);
+      });
 
-        const mainOrder = [];
-        const processByMain = new Map();
+      const mainOrder = [];
+      const processByMain = new Map();
 
-        const addMain = (mainCategory) => {
-          const main = String(mainCategory || "기타").trim() || "기타";
-          if (!mainOrder.includes(main)) {
-            mainOrder.push(main);
-            processByMain.set(main, []);
-          }
-          return main;
-        };
-
-        const addProcess = (mainCategory, processName) => {
-          const main = addMain(mainCategory);
-          const process = String(processName || "").trim();
-          if (!process) return;
-          const list = processByMain.get(main) || [];
-          if (!list.includes(process)) {
-            list.push(process);
-            processByMain.set(main, list);
-          }
-        };
-
-        scheduleItems.forEach((item) => {
-          const main = addMain(item.main_category || "기타");
-          addProcess(main, item.process || "");
-        });
-
-        existing.forEach((row) => {
-          const parsed = parseOperatingRateKey(row.main_category);
-          const main = addMain(parsed.mainCategory || row.main_category || "기타");
-          if (parsed.isProcessKey && parsed.process) {
-            addProcess(main, parsed.process);
-          }
-        });
-
-        const mergedColumns = [];
-
-        mainOrder.forEach((mainCategory) => {
-          const mainKey = makeMainOperatingRateKey(mainCategory);
-          const existingMain = existingMap.get(mainKey);
-          const mainColumn = createWeightColumn({
-            level: "main",
-            mainCategory,
-            process: "",
-            rowKey: mainKey,
-            source: existingMain,
-          });
-          mergedColumns.push(mainColumn);
-
-          const processList = processByMain.get(mainCategory) || [];
-          processList.forEach((processName) => {
-            const processKey = makeProcessOperatingRateKey(mainCategory, processName);
-            const existingProcess = existingMap.get(processKey);
-            const inheritFromMain = resolveProcessInheritance(existingProcess, mainColumn);
-            const source = inheritFromMain ? mainColumn : existingProcess;
-
-            const processColumn = createWeightColumn({
-              level: "process",
-              mainCategory,
-              process: processName,
-              rowKey: processKey,
-              source,
-              inheritFromMain,
-            });
-
-            if (existingProcess?.id) {
-              processColumn.id = existingProcess.id;
-            }
-            processColumn.type = inheritFromMain ? PROCESS_INHERIT_TYPE : PROCESS_SPLIT_TYPE;
-
-            mergedColumns.push(processColumn);
-          });
-        });
-
-        const defaultExpanded = {};
-        mainOrder.forEach((mainCategory) => {
-          const hasCustomProcess = mergedColumns.some(
-            (column) =>
-              column.level === "process" &&
-              column.parent_key === mainCategory &&
-              !column.inherit_from_main
-          );
-          defaultExpanded[mainCategory] = hasCustomProcess;
-        });
-
-        setWorkTypes(mergedColumns);
-        setExpandedMainCategories(defaultExpanded);
-
-        const workCond = workCondData?.data || workCondData;
-        if (workCond) {
-          const weekDays = Number(workCond.earthwork_type);
-          setGlobalSettings((prev) => ({
-            ...prev,
-            workWeekDays: Number.isNaN(weekDays) ? prev.workWeekDays : weekDays,
-            region: workCond.region || prev.region || "",
-            dataYears: workCond.data_years ? `${workCond.data_years}년` : "10년",
-          }));
+      const addMain = (mainCategory) => {
+        const main = String(mainCategory || "기타").trim() || "기타";
+        if (!mainOrder.includes(main)) {
+          mainOrder.push(main);
+          processByMain.set(main, []);
         }
+        return main;
+      };
+
+      const addProcess = (mainCategory, processName) => {
+        const main = addMain(mainCategory);
+        const process = String(processName || "").trim();
+        if (!process) return;
+        const list = processByMain.get(main) || [];
+        if (!list.includes(process)) {
+          list.push(process);
+          processByMain.set(main, list);
+        }
+      };
+
+      scheduleItems.forEach((item) => {
+        const main = addMain(item.main_category || "기타");
+        addProcess(main, item.process || "");
+      });
+
+      existing.forEach((row) => {
+        const parsed = parseOperatingRateKey(row.main_category);
+        const main = addMain(parsed.mainCategory || row.main_category || "기타");
+        if (parsed.isProcessKey && parsed.process) {
+          addProcess(main, parsed.process);
+        }
+      });
+
+      const mergedColumns = [];
+
+      mainOrder.forEach((mainCategory) => {
+        const mainKey = makeMainOperatingRateKey(mainCategory);
+        const existingMain = existingMap.get(mainKey);
+        const mainColumn = createWeightColumn({
+          level: "main",
+          mainCategory,
+          process: "",
+          rowKey: mainKey,
+          source: existingMain,
+        });
+        mergedColumns.push(mainColumn);
+
+        const processList = processByMain.get(mainCategory) || [];
+        processList.forEach((processName) => {
+          const processKey = makeProcessOperatingRateKey(mainCategory, processName);
+          const existingProcess = existingMap.get(processKey);
+          const inheritFromMain = resolveProcessInheritance(existingProcess, mainColumn);
+          const source = inheritFromMain ? mainColumn : existingProcess;
+
+          const processColumn = createWeightColumn({
+            level: "process",
+            mainCategory,
+            process: processName,
+            rowKey: processKey,
+            source,
+            inheritFromMain,
+          });
+
+          if (existingProcess?.id) {
+            processColumn.id = existingProcess.id;
+          }
+          processColumn.type = inheritFromMain ? PROCESS_INHERIT_TYPE : PROCESS_SPLIT_TYPE;
+
+          mergedColumns.push(processColumn);
+        });
+      });
+
+      const defaultExpanded = {};
+      mainOrder.forEach((mainCategory) => {
+        const hasCustomProcess = mergedColumns.some(
+          (column) =>
+            column.level === "process" &&
+            column.parent_key === mainCategory &&
+            !column.inherit_from_main
+        );
+        defaultExpanded[mainCategory] = hasCustomProcess;
+      });
+
+      setWorkTypes(mergedColumns);
+      setExpandedMainCategories(defaultExpanded);
+
+      const workCond = workCondData?.data || workCondData;
+      if (workCond) {
+        const weekDays = Number(workCond.earthwork_type);
+        setGlobalSettings((prev) => ({
+          ...prev,
+          workWeekDays: Number.isNaN(weekDays) ? prev.workWeekDays : weekDays,
+          region: workCond.region || prev.region || "",
+          dataYears: workCond.data_years ? `${workCond.data_years}년` : "10년",
+        }));
+      }
     } catch (error) {
       console.error("가동률 불러오기 실패:", error);
       if (!silent) {

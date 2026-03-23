@@ -1,6 +1,8 @@
 import React from "react";
 import { deriveParallelMeta, getParallelSegmentsFromItem } from "../../../../utils/parallelSegments";
 
+const EPS = 1e-6;
+
 export default function CriticalPathLayer({
     itemsWithTiming,
     pixelsPerUnit,
@@ -17,7 +19,12 @@ export default function CriticalPathLayer({
         const taskEnd = taskStart + durationDays;
         const customRedStart = Number(item?.cp_red_start);
         const customRedEnd = Number(item?.cp_red_end);
-        if (Number.isFinite(customRedStart) && Number.isFinite(customRedEnd)) {
+        const useCustomRedRange = (
+            typeof item?._hasCriticalSegment === "boolean"
+            && Number.isFinite(customRedStart)
+            && Number.isFinite(customRedEnd)
+        );
+        if (useCustomRedRange) {
             const redStart = Math.max(taskStart, Math.min(taskEnd, customRedStart));
             const redEnd = Math.max(redStart, Math.min(taskEnd, customRedEnd));
             const hasCriticalSegment = typeof item?._hasCriticalSegment === "boolean"
@@ -59,6 +66,16 @@ export default function CriticalPathLayer({
         return hasParallelMarker || isFullyParallel;
     };
 
+    const containedItemIds = new Set();
+    if (containedCpMap) {
+        containedCpMap.forEach((list) => {
+            if (!Array.isArray(list)) return;
+            list.forEach((entry) => {
+                if (entry?.item?.id) containedItemIds.add(entry.item.id);
+            });
+        });
+    }
+
     return (
         <svg className="absolute inset-0 pointer-events-none z-10" style={{ width: "100%", height: itemsWithTiming.length * rowH }}>
             <defs>
@@ -74,35 +91,47 @@ export default function CriticalPathLayer({
 
                 const pxFactor = pixelsPerUnit / dateScale;
 
-                const { redStart, redEnd, hasCriticalSegment } = getEffectiveRedRange(item);
+                const { redStart, redEnd: baseRedEnd, hasCriticalSegment } = getEffectiveRedRange(item);
+                const contained = containedCpMap?.get(item.id) || [];
+                const firstContainedStart = contained.length > 0
+                    ? Math.min(...contained.map((entry) => entry?.meta?.redStart ?? Infinity))
+                    : Infinity;
+                const logicalRedEnd = Number.isFinite(firstContainedStart)
+                    ? Math.max(redStart, Math.min(baseRedEnd, firstContainedStart))
+                    : baseRedEnd;
 
                 // RELAXED: Treat any positive length as critical segment
-                const hasLogicalCriticalSegment = redEnd > redStart;
+                const hasLogicalCriticalSegment = logicalRedEnd > redStart;
                 const isParallelTask = isParallelItem(item) || !hasCriticalSegment || !hasLogicalCriticalSegment;
 
                 if (isParallelTask) return null;
 
-                // Find next CP task only in lower rows (next process order).
+                // Contained CP item links are drawn by the outer item's detour (down/up).
+                if (containedItemIds.has(item.id)) return null;
+
+                // Find next CP task by x-axis distance, regardless of row direction.
                 let targetIndex = -1;
                 let targetItem = null;
                 let minDistance = Infinity;
                 let bestRowDelta = Infinity;
 
-                // Only scan tasks below current row.
-                for (let j = i + 1; j < itemsWithTiming.length; j++) {
+                for (let j = 0; j < itemsWithTiming.length; j++) {
+                    if (j === i) continue;
                     const candidateItem = itemsWithTiming[j];
+                    if (containedItemIds.has(candidateItem.id)) continue;
                     const { redStart: candidateRedStart, hasCriticalSegment: candidateHasCritical } = getEffectiveRedRange(candidateItem);
 
                     // Skip parallel tasks and tasks without critical segments
                     if (!isParallelItem(candidateItem) && candidateHasCritical) {
                         // Only connect to tasks that start after current task ends (forward only in time)
-                        if (candidateRedStart >= redEnd) {
-                            // Calculate distance on x-axis between current redEnd and candidate redStart
-                            const distance = candidateRedStart - redEnd;
-                            const rowDelta = j - i;
+                        // USE logicalRedEnd here to find correct topological successor
+                        if (candidateRedStart >= logicalRedEnd) {
+                            // Calculate distance on x-axis between current logicalRedEnd and candidate redStart
+                            const distance = candidateRedStart - logicalRedEnd;
+                            const rowDelta = Math.abs(j - i);
 
                             // 1) 최소 x축 거리 우선
-                            // 2) 같은 거리면 더 가까운 아래 행 우선
+                            // 2) 같은 거리면 더 가까운 행 우선
                             if (distance < minDistance || (distance === minDistance && rowDelta < bestRowDelta)) {
                                 minDistance = distance;
                                 bestRowDelta = rowDelta;
@@ -113,17 +142,19 @@ export default function CriticalPathLayer({
                     }
                 }
 
+                const containedForItem = containedCpMap?.get(item.id) || [];
+
                 let cpPath = null;
                 if (targetItem) {
                     const { redStart: targetRedStart } = getEffectiveRedRange(targetItem);
-                    const startX = redEnd * pxFactor;
+                    const startX = logicalRedEnd * pxFactor;
                     const startY = (i * rowH) + rowCenter;
                     const endX = targetRedStart * pxFactor;
                     const endY = (targetIndex * rowH) + rowCenter;
                     cpPath = `M ${startX} ${startY} L ${endX} ${startY} L ${endX} ${endY}`;
                 }
 
-                if (!cpPath) return null;
+                if (!cpPath && containedForItem.length === 0) return null;
 
                 return (
                     <g key={`cp-${i}`}>
@@ -138,6 +169,35 @@ export default function CriticalPathLayer({
                                 className="opacity-100 mix-blend-multiply transition-all duration-300"
                             />
                         )}
+                        {containedForItem.map((entry) => {
+                            const innerIndex = itemIndexById.get(entry.item.id)?.index;
+                            if (innerIndex === undefined) return null;
+                            if (!entry?.meta || (entry.meta.redEnd - entry.meta.redStart) <= EPS) return null;
+                            const downX = entry.meta.redStart * pxFactor;
+                            const upX = entry.meta.redEnd * pxFactor;
+                            const outerY = (i * rowH) + rowCenter;
+                            const innerY = (innerIndex * rowH) + rowCenter;
+                            return (
+                                <g key={`cp-detour-${item.id}-${entry.item.id}`}>
+                                    <path
+                                        d={`M ${downX} ${outerY} L ${downX} ${innerY}`}
+                                        fill="none"
+                                        stroke="#ef4444"
+                                        strokeWidth="2.5"
+                                        strokeDasharray="4 3"
+                                        markerEnd="url(#arrowhead-red)"
+                                    />
+                                    <path
+                                        d={`M ${upX} ${innerY} L ${upX} ${outerY}`}
+                                        fill="none"
+                                        stroke="#ef4444"
+                                        strokeWidth="2.5"
+                                        strokeDasharray="4 3"
+                                        markerEnd="url(#arrowhead-red)"
+                                    />
+                                </g>
+                            );
+                        })}
                     </g>
                 );
             })}

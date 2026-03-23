@@ -1,4 +1,5 @@
 import { deriveParallelMeta, getParallelSegmentsFromItem } from "../../utils/parallelSegments";
+import { getCategoryManualTotalDays, isSingleTotalInputCategory } from "../../utils/scheduleCalculations";
 
 // --- Design Tokens ---
 export const TOKENS = {
@@ -104,6 +105,25 @@ export const calculateGanttItems = (items) => {
     const result = [];
     const groups = new Map();
     const loads = new Map();
+    const categoryItemsMap = new Map();
+    const consumedSingleTotalCategories = new Set();
+
+    items.forEach((item) => {
+        const category = String(item?.main_category || "기타");
+        if (!categoryItemsMap.has(category)) {
+            categoryItemsMap.set(category, []);
+        }
+        categoryItemsMap.get(category).push(item);
+    });
+
+    const categoryManualMeta = new Map();
+    categoryItemsMap.forEach((categoryItems, category) => {
+        const manualDays = getCategoryManualTotalDays(categoryItems);
+        categoryManualMeta.set(category, {
+            singleInput: isSingleTotalInputCategory(category),
+            manualDays
+        });
+    });
 
     // Track the cumulative CRITICAL PATH end across all tasks
     let cumulativeCPEnd = 0;
@@ -111,10 +131,32 @@ export const calculateGanttItems = (items) => {
     for (let i = 0; i < items.length; i++) {
         const originalItem = items[i];
         const item = { ...originalItem };
+        const category = String(item?.main_category || "기타");
+        const categoryMeta = categoryManualMeta.get(category);
+        const useSingleTotal = Boolean(categoryMeta?.singleInput && categoryMeta?.manualDays !== null);
+        const alreadyConsumed = consumedSingleTotalCategories.has(category);
 
-        const duration = parseFloat(item.calendar_days) || 0;
-        const crew = parseFloat(item.crew_size) || 0;
-        const relativeParallelSegments = getParallelSegmentsFromItem(item, duration);
+        let duration = parseFloat(item.calendar_days) || 0;
+        let hideBar = false;
+
+        if (useSingleTotal && alreadyConsumed) {
+            duration = 0;
+            hideBar = true;
+        } else if (useSingleTotal) {
+            duration = parseFloat(categoryMeta.manualDays) || 0;
+            consumedSingleTotalCategories.add(category);
+        }
+
+        const effectiveItem = useSingleTotal
+            ? {
+                ...item,
+                parallel_segments: [],
+                front_parallel_days: 0,
+                back_parallel_days: 0
+            }
+            : item;
+        const crew = parseFloat(effectiveItem.crew_size) || 0;
+        const relativeParallelSegments = getParallelSegmentsFromItem(effectiveItem, duration);
         const parallelMeta = deriveParallelMeta(duration, relativeParallelSegments);
         const frontParallel = parallelMeta.frontParallelDays;
         const backParallel = parallelMeta.backParallelDays;
@@ -147,7 +189,17 @@ export const calculateGanttItems = (items) => {
             loads.set(d, (loads.get(d) || 0) + crew);
         }
 
-        result.push({ ...item, startDay, durationDays: duration });
+        result.push({
+            ...effectiveItem,
+            calendar_days: duration,
+            startDay,
+            durationDays: duration,
+            process: useSingleTotal ? category : effectiveItem.process,
+            sub_process: useSingleTotal ? "" : effectiveItem.sub_process,
+            work_type: useSingleTotal ? category : effectiveItem.work_type,
+            _singleTotalRollup: useSingleTotal,
+            _singleTotalHidden: hideBar
+        });
 
         if (item._parallelGroup) {
             if (!groups.has(item._parallelGroup)) groups.set(item._parallelGroup, []);

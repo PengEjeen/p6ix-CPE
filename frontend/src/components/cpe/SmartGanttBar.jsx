@@ -51,6 +51,9 @@ const SmartGanttBar = ({
     const color = getCategoryColor(item.main_category);
     // Mock progress for visual if not present
     const progress = item.progress || Math.min(100, Math.random() * 100);
+    const barLabel = item?._singleTotalRollup
+        ? String(item?.main_category || item?.work_type || "")
+        : `${item.process} - ${item.work_type}`;
 
     // --- Drag Logic ---
     const handleBarDrag = (e) => {
@@ -185,7 +188,7 @@ const SmartGanttBar = ({
                     width: 'max-content'
                 }}
             >
-                {item.process} - {item.work_type}
+                {barLabel}
             </div>
 
             {/* Ghost Bar (Reference) */}
