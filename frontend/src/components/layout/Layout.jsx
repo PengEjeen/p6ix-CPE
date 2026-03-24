@@ -78,7 +78,6 @@ function Layout() {
 
     const checkAuth = async () => {
       if (USE_SESSION_AUTH) {
-        const storedUser = JSON.parse(localStorage.getItem("user") || "{}");
         try {
           const res = await api.get("sso/session/");
           if (res.data?.authenticated && res.data?.user?.id) {
@@ -93,12 +92,8 @@ function Layout() {
           return;
         } catch (err) {
           console.error("세션 확인 실패:", err);
-          if (storedUser?.id) {
-            if (cancelled) return;
-            setUser(storedUser);
-            finish("ok");
-            return;
-          }
+          localStorage.removeItem("access");
+          localStorage.removeItem("refresh");
           localStorage.removeItem("user");
           finish("deny");
           return;
