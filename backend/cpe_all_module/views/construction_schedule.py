@@ -1,3 +1,4 @@
+import logging
 from rest_framework import viewsets, status, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -7,7 +8,6 @@ from django.shortcuts import get_object_or_404
 from datetime import date as date_cls
 import io
 import xlsxwriter
-import traceback
 from ..models.construction_schedule_models import ConstructionScheduleItem
 from ..serializers.construction_schedule_serializers import ConstructionScheduleItemSerializer
 from cpe_module.models.operating_rate_models import WorkScheduleWeight
@@ -28,6 +28,9 @@ from cpe_all_module.utils.word.construction_schedule import (
     build_schedule_report_aux_data,
     build_schedule_report_docx,
 )
+
+logger = logging.getLogger(__name__)
+
 
 class ConstructionScheduleItemViewSet(viewsets.ModelViewSet):
     queryset = ConstructionScheduleItem.objects.all()
@@ -75,10 +78,9 @@ class ConstructionScheduleItemViewSet(viewsets.ModelViewSet):
         serializer.save()
         
     def update(self, request, *args, **kwargs):
-        # Log update request for debugging
-        print("Update Request Data keys:", request.data.keys())
+        logger.debug("Schedule update request keys: %s", list(request.data.keys()))
         if 'data' in request.data:
-            print("Items count:", len(request.data['data']))
+            logger.debug("Schedule update items count: %s", len(request.data['data']))
         return super().update(request, *args, **kwargs)
 
     @action(detail=False, methods=['post'])
@@ -176,9 +178,9 @@ class ConstructionScheduleItemViewSet(viewsets.ModelViewSet):
             response["Content-Disposition"] = f'attachment; filename=\"{filename}\"'
             return response
         except Exception as exc:
-            traceback.print_exc()
+            logger.exception("export-report failed for project_id=%s", request.query_params.get('project_id'))
             return Response(
-                {"error": f"export-report failed: {exc}"},
+                {"error": "export-report failed"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
@@ -193,9 +195,9 @@ class ConstructionScheduleItemViewSet(viewsets.ModelViewSet):
             if not container or not container.data:
                 return Response({"error": "schedule data not found"}, status=status.HTTP_404_NOT_FOUND)
 
-            print(f"[export-excel] project_id={project_id}")
-            print(f"[export-excel] xlsxwriter_version={getattr(xlsxwriter, '__version__', 'unknown')}")
-            print(f"[export-excel] xlsxwriter_path={getattr(xlsxwriter, '__file__', 'unknown')}")
+            logger.debug("[export-excel] project_id=%s", project_id)
+            logger.debug("[export-excel] xlsxwriter_version=%s", getattr(xlsxwriter, "__version__", "unknown"))
+            logger.debug("[export-excel] xlsxwriter_path=%s", getattr(xlsxwriter, "__file__", "unknown"))
 
             raw_data = container.data
             items, sub_tasks, links = extract_schedule_payload(raw_data)
@@ -224,7 +226,7 @@ class ConstructionScheduleItemViewSet(viewsets.ModelViewSet):
             # ---- Sheet 2: Gantt (shape-based, Excel-editable) ----
             start_date = project.start_date if project.start_date else date_cls.today()
             gantt_meta = write_gantt_sheet(wb, items, sub_tasks, links, project_name, start_date)
-            print(f"[export-excel] gantt_shapes_count={len(gantt_meta['shapes'])}")
+            logger.debug("[export-excel] gantt_shapes_count=%s", len(gantt_meta['shapes']))
 
             wb.close()
             output.seek(0)
@@ -241,8 +243,8 @@ class ConstructionScheduleItemViewSet(viewsets.ModelViewSet):
             response["Content-Disposition"] = f'attachment; filename=\"{filename}\"'
             return response
         except Exception as exc:
-            traceback.print_exc()
+            logger.exception("export-excel failed for project_id=%s", request.query_params.get('project_id'))
             return Response(
-                {"error": f"export-excel failed: {exc}"},
+                {"error": "export-excel failed"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )

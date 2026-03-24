@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import api from "../api/axios";
+import { getAuthToken } from "../utils/authTokens";
 import { getCompanyLogoSrc } from "../utils/brandAssets";
 
 function Login() {
@@ -63,7 +64,7 @@ function Login() {
           console.error("세션 확인 실패:", err);
         }
       } else {
-        const access = localStorage.getItem("access");
+        const access = getAuthToken("access");
         const user = localStorage.getItem("user");
         if (access && user) {
           navigate("/");

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Navigate } from "react-router-dom";
 import api from "../api/axios";
+import { getAuthToken } from "../utils/authTokens";
 
 const USE_SESSION_AUTH =
   String(import.meta.env.VITE_USE_SESSION_AUTH).toLowerCase() === "true";
@@ -40,7 +41,7 @@ export default function RequireAuth({ children }) {
         }
       }
 
-      const access = localStorage.getItem("access");
+      const access = getAuthToken("access");
       const storedUser = JSON.parse(localStorage.getItem("user") || "{}");
       finish(access && storedUser?.id ? "ok" : "deny");
     };

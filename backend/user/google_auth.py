@@ -1,18 +1,24 @@
-from rest_framework.views import APIView
-from rest_framework.response import Response
-from rest_framework import status, permissions
-from rest_framework_simplejwt.tokens import RefreshToken
-from django.contrib.auth import get_user_model
-from django.conf import settings
-from google.oauth2 import id_token
-from google.auth.transport import requests
+import logging
 import os
 
+from django.contrib.auth import get_user_model
+from django.conf import settings
+from google.auth.transport import requests
+from google.oauth2 import id_token
+from rest_framework import status, permissions
+from rest_framework.throttling import ScopedRateThrottle
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework_simplejwt.tokens import RefreshToken
+
 User = get_user_model()
+logger = logging.getLogger(__name__)
 
 
 class GoogleLoginView(APIView):
     permission_classes = [permissions.AllowAny]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "auth"
 
     def post(self, request):
         id_token_str = request.data.get('id_token')
@@ -89,13 +95,15 @@ class GoogleLoginView(APIView):
 
         except ValueError as e:
             # 토큰 검증 실패
+            logger.warning("Google token validation failed: %s", e)
             return Response(
-                {'error': f'Invalid token: {str(e)}'},
+                {'error': 'invalid_google_token'},
                 status=status.HTTP_401_UNAUTHORIZED
             )
         except Exception as e:
+            logger.exception("Google authentication failed: %s", e)
             return Response(
-                {'error': f'Authentication failed: {str(e)}'},
+                {'error': 'google_authentication_failed'},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 

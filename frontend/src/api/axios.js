@@ -1,4 +1,10 @@
 import axios from "axios";
+import {
+  clearAuthTokens,
+  getAuthToken,
+  getRefreshToken,
+  setAuthToken,
+} from "../utils/authTokens";
 
 // 개발 환경에서는 Vite /api 프록시 사용, 배포 환경에서는 .env 설정 사용
 const isDev = import.meta.env.DEV;
@@ -57,7 +63,7 @@ api.interceptors.request.use((config) => {
   const shouldExclude = excludedPaths.some((p) => url.includes(p));
 
   if (!USE_SESSION_AUTH) {
-    const token = localStorage.getItem("access");
+    const token = getAuthToken("access");
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
@@ -90,7 +96,7 @@ function processQueue(error, token = null) {
   queue = [];
 }
 function setAccessToken(access) {
-  localStorage.setItem("access", access);
+  setAuthToken("access", access);
   api.defaults.headers.common.Authorization = `Bearer ${access}`;
 }
 
@@ -100,8 +106,7 @@ function forceLogout() {
     return;
   }
 
-  localStorage.removeItem("access");
-  localStorage.removeItem("refresh");
+  clearAuthTokens();
   localStorage.removeItem("user");
 
   const appBase = import.meta.env.BASE_URL || "/";
@@ -154,7 +159,7 @@ api.interceptors.response.use(
       isRefreshing = true;
 
       try {
-        const refresh = localStorage.getItem("refresh");
+        const refresh = getRefreshToken();
         if (!refresh) {
           forceLogout();
           return Promise.reject(error);
@@ -170,7 +175,7 @@ api.interceptors.response.use(
 
         setAccessToken(newAccess);
         if (newRefresh) {
-          localStorage.setItem("refresh", newRefresh);
+          setAuthToken("refresh", newRefresh);
         }
         processQueue(null, newAccess);
 

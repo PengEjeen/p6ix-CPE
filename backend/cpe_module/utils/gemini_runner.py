@@ -1,3 +1,4 @@
+import logging
 import yaml
 from pathlib import Path
 from google import genai
@@ -6,6 +7,7 @@ from cpe_module.models.quotation_models import Quotation
 import environ 
 
 env = environ.Env()
+logger = logging.getLogger(__name__)
 
 BASE_DIR = Path(__file__).resolve().parents[2]
 for env_path in (BASE_DIR / "backend" / ".env", BASE_DIR / ".env"):
@@ -173,7 +175,8 @@ def gemini_runner(
         return result_text
 
     except Exception as e:
-        return f"(AI 분석 중 오류 발생: {e})"
+        logger.exception("gemini_runner failed: %s", e)
+        return "(AI 분석 중 오류 발생)"
 
 
 def gantt_ai_log_runner(payload: dict) -> str:
@@ -200,4 +203,5 @@ def gantt_ai_log_runner(payload: dict) -> str:
         result_text = response.text or "(AI 요약 실패: 응답 없음)"
         return result_text
     except Exception as e:
-        return f"(AI 요약 중 오류 발생: {e})"
+        logger.exception("gantt_ai_log_runner failed: %s", e)
+        return "(AI 요약 중 오류 발생)"

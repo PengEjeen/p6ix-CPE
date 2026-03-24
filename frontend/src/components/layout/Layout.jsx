@@ -9,6 +9,7 @@ import {
 } from "react-icons/fi";
 import isUuid from "../../utils/isUuid";
 import { useTheme } from "../../contexts/ThemeContext";
+import { clearAuthTokens, getAuthToken, getRefreshToken } from "../../utils/authTokens";
 import { getCompanyLogoSrc } from "../../utils/brandAssets";
 import api from "../../api/axios";
 
@@ -103,7 +104,7 @@ function Layout() {
         }
       }
 
-      const access = localStorage.getItem("access");
+      const access = getAuthToken("access");
       const storedUser = JSON.parse(localStorage.getItem("user") || "{}");
       if (!access || !storedUser?.id) {
         finish("deny");
@@ -134,8 +135,7 @@ function Layout() {
 
   const handleLogout = async () => {
     if (USE_SESSION_AUTH) {
-      localStorage.removeItem("access");
-      localStorage.removeItem("refresh");
+      clearAuthTokens();
       localStorage.removeItem("user");
 
       const appBase = import.meta.env.BASE_URL || "/";
@@ -153,13 +153,12 @@ function Layout() {
 
     try {
       await api.post("users/logout/", {
-        refresh: localStorage.getItem("refresh"),
+        refresh: getRefreshToken(),
       });
     } catch (err) {
       console.error("로그아웃 요청 실패:", err);
     }
-    localStorage.removeItem("access");
-    localStorage.removeItem("refresh");
+    clearAuthTokens();
     localStorage.removeItem("user");
     navigate("/login");
   };
