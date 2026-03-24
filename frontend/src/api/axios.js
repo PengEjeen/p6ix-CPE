@@ -5,7 +5,7 @@ import {
   getRefreshToken,
   setAuthToken,
 } from "../utils/authTokens";
-import { resolveApiBase } from "../utils/runtimePaths";
+import { resolveApiBase, resolveAppBase } from "../utils/runtimePaths";
 
 // 개발 환경에서는 Vite /api 프록시 사용, 배포 환경에서는 .env 설정 사용
 const isDev = import.meta.env.DEV;
@@ -108,7 +108,7 @@ function forceLogout() {
   clearAuthTokens();
   localStorage.removeItem("user");
 
-  const appBase = import.meta.env.BASE_URL || "/";
+  const appBase = resolveAppBase();
   const loginPath = `${appBase.endsWith("/") ? appBase : `${appBase}/`}login`;
   window.location.href = loginPath;
 }

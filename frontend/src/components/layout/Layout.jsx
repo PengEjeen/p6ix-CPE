@@ -11,7 +11,7 @@ import isUuid from "../../utils/isUuid";
 import { useTheme } from "../../contexts/ThemeContext";
 import { clearAuthTokens, getAuthToken, getRefreshToken } from "../../utils/authTokens";
 import { getCompanyLogoSrc } from "../../utils/brandAssets";
-import { resolveApiBase } from "../../utils/runtimePaths";
+import { resolveApiBase, resolveAppBase } from "../../utils/runtimePaths";
 import api from "../../api/axios";
 
 function Layout() {
@@ -139,7 +139,7 @@ function Layout() {
       clearAuthTokens();
       localStorage.removeItem("user");
 
-      const appBase = import.meta.env.BASE_URL || "/";
+      const appBase = resolveAppBase();
       const normalizedAppBase = appBase.endsWith("/") ? appBase : `${appBase}/`;
       const nextUrl = `${window.location.origin}${normalizedAppBase}login`;
 

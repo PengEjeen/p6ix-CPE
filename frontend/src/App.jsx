@@ -20,11 +20,9 @@ import UserGuide from "./pages/UserGuide";
 import RequireAuth from "./routes/RequireAuth";
 import { ConfirmProvider } from "./contexts/ConfirmContext";
 import { ThemeProvider } from "./contexts/ThemeContext";
+import { resolveAppBase } from "./utils/runtimePaths";
 
-const routerBasename =
-  import.meta.env.BASE_URL === "/"
-    ? "/"
-    : import.meta.env.BASE_URL.replace(/\/$/, "");
+const routerBasename = resolveAppBase();
 
 const router = createBrowserRouter(
   createRoutesFromElements(
