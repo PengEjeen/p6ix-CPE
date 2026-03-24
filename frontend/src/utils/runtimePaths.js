@@ -21,10 +21,16 @@ function normalizePath(value, fallback = "/") {
 }
 
 export function resolveApiBase() {
-  const configured = String(import.meta.env.VITE_API_BASE || "").trim();
-  if (configured) return normalizePath(configured, "/api");
-
   const appBase = normalizePath(import.meta.env.BASE_URL || "/", "/");
+  const configured = String(import.meta.env.VITE_API_BASE || "").trim();
+  if (configured) {
+    const normalizedConfigured = normalizePath(configured, "/api");
+    if (normalizedConfigured === "/api" && appBase !== "/") {
+      return `${appBase}/api`;
+    }
+    return normalizedConfigured;
+  }
+
   if (appBase === "/") return "/api";
   return `${appBase}/api`;
 }
