@@ -76,6 +76,7 @@ jobs:
           DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
           DB_HOST: ${{ secrets.DB_HOST }}
           DB_PORT: ${{ secrets.DB_PORT }}
+          SECURE_SSL_REDIRECT: "False"
         run: |
           set -euo pipefail
           SECRET_KEY="${SECRET_KEY:-ci-secret-key}" python manage.py test 2>&1 | tee /tmp/django-test.log
