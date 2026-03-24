@@ -1,6 +1,7 @@
 const ABSOLUTE_URL_RE = /^https?:\/\//i;
 const APP_ROUTE_ROOTS = new Set(["login", "register", "guide", "profile", "projects"]);
 const APP_BASE_STORAGE_KEY = "p6ix_app_base";
+const KNOWN_P6IX_HOSTS = new Set(["www.p6ix.co.kr", "p6ix.co.kr"]);
 
 function normalizePath(value, fallback = "/") {
   const raw = String(value || "").trim();
@@ -73,6 +74,13 @@ function persistAppBase(path) {
   }
 }
 
+function inferKnownDeploymentBase() {
+  if (typeof window === "undefined") return "/";
+  const hostname = String(window.location.hostname || "").toLowerCase();
+  if (KNOWN_P6IX_HOSTS.has(hostname)) return "/p6ix-cpe";
+  return "/";
+}
+
 export function resolveAppBase() {
   const appBase = normalizePath(import.meta.env.BASE_URL || "/", "/");
   if (appBase !== "/") {
@@ -90,6 +98,12 @@ export function resolveAppBase() {
   if (locationBase !== "/") {
     persistAppBase(locationBase);
     return locationBase;
+  }
+
+  const knownBase = inferKnownDeploymentBase();
+  if (knownBase !== "/") {
+    persistAppBase(knownBase);
+    return knownBase;
   }
 
   return readStoredAppBase();

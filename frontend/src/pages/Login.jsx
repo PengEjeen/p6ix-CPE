@@ -31,6 +31,11 @@ function Login() {
       candidates.push(`${apiBase}sso/login/?next=${encodeURIComponent(nextPath)}`);
     };
 
+    const hostname = String(window.location.hostname || "").toLowerCase();
+    if (hostname === "www.p6ix.co.kr" || hostname === "p6ix.co.kr") {
+      pushCandidate("/p6ix-cpe/api");
+    }
+
     const pathSegments = window.location.pathname.split("/").filter(Boolean);
     const firstSegment = pathSegments[0];
     if (

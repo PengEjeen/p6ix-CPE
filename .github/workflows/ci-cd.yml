@@ -29,14 +29,26 @@ jobs:
       - name: Build frontend
         working-directory: frontend
         env:
-          VITE_API_BASE: ${{ vars.VITE_API_BASE }}
+          VITE_API_BASE: ${{ vars.VITE_API_BASE || '/p6ix-cpe/api' }}
           VITE_PERSIST_LOGIN: ${{ vars.VITE_PERSIST_LOGIN }}
           VITE_USE_SESSION_AUTH: ${{ vars.VITE_USE_SESSION_AUTH }}
           VITE_KEYCLOAK_ENABLED: ${{ vars.VITE_KEYCLOAK_ENABLED }}
           VITE_SSO_NEXT_PATH: ${{ vars.VITE_SSO_NEXT_PATH }}
           VITE_SSO_PROVIDER: ${{ vars.VITE_SSO_PROVIDER }}
-          VITE_APP_BASE: ${{ vars.VITE_APP_BASE }}
+          VITE_APP_BASE: ${{ vars.VITE_APP_BASE || '/p6ix-cpe/' }}
         run: npm run build
+
+      - name: Verify frontend SSO API base in bundle
+        working-directory: frontend
+        run: |
+          set -euo pipefail
+          test -f dist/index.html
+          if ! grep -R --line-number "/p6ix-cpe/api" dist/assets/index-*.js > /tmp/frontend-path-check.log; then
+            echo "Expected '/p6ix-cpe/api' not found in built bundle."
+            echo "Build args may not be applied as expected."
+            exit 1
+          fi
+          sed -n '1,5p' /tmp/frontend-path-check.log
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -88,13 +100,13 @@ jobs:
       - name: Build Docker image (validation)
         run: |
           docker build \
-            --build-arg VITE_API_BASE="${{ vars.VITE_API_BASE }}" \
+            --build-arg VITE_API_BASE="${{ vars.VITE_API_BASE || '/p6ix-cpe/api' }}" \
             --build-arg VITE_PERSIST_LOGIN="${{ vars.VITE_PERSIST_LOGIN }}" \
             --build-arg VITE_USE_SESSION_AUTH="${{ vars.VITE_USE_SESSION_AUTH }}" \
             --build-arg VITE_KEYCLOAK_ENABLED="${{ vars.VITE_KEYCLOAK_ENABLED }}" \
             --build-arg VITE_SSO_NEXT_PATH="${{ vars.VITE_SSO_NEXT_PATH }}" \
             --build-arg VITE_SSO_PROVIDER="${{ vars.VITE_SSO_PROVIDER }}" \
-            --build-arg VITE_APP_BASE="${{ vars.VITE_APP_BASE }}" \
+            --build-arg VITE_APP_BASE="${{ vars.VITE_APP_BASE || '/p6ix-cpe/' }}" \
             -t p6ix_cpe:ci .
 
   cd:
@@ -135,12 +147,12 @@ jobs:
           file: Dockerfile
           push: true
           build-args: |
-            VITE_API_BASE=${{ vars.VITE_API_BASE }}
+            VITE_API_BASE=${{ vars.VITE_API_BASE || '/p6ix-cpe/api' }}
             VITE_PERSIST_LOGIN=${{ vars.VITE_PERSIST_LOGIN }}
             VITE_USE_SESSION_AUTH=${{ vars.VITE_USE_SESSION_AUTH }}
             VITE_KEYCLOAK_ENABLED=${{ vars.VITE_KEYCLOAK_ENABLED }}
             VITE_SSO_NEXT_PATH=${{ vars.VITE_SSO_NEXT_PATH }}
             VITE_SSO_PROVIDER=${{ vars.VITE_SSO_PROVIDER }}
-            VITE_APP_BASE=${{ vars.VITE_APP_BASE }}
+            VITE_APP_BASE=${{ vars.VITE_APP_BASE || '/p6ix-cpe/' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
