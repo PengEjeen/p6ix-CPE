@@ -56,8 +56,9 @@ jobs:
           GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
           KAKAO_CLIENT_ID: ${{ secrets.KAKAO_CLIENT_ID }}
           WEATHER_API_KEY: ${{ secrets.WEATHER_API_KEY }}
-          DB_NAME: ""
-        run: SECRET_KEY="${SECRET_KEY:-ci-secret-key}" python manage.py check
+        run: |
+          DB_NAME="" DB_USER="" DB_PASSWORD="" DB_HOST="" DB_PORT="" \
+          SECRET_KEY="${SECRET_KEY:-ci-secret-key}" python manage.py check
 
       - name: Django tests
         working-directory: backend
@@ -67,9 +68,9 @@ jobs:
           GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
           KAKAO_CLIENT_ID: ${{ secrets.KAKAO_CLIENT_ID }}
           WEATHER_API_KEY: ${{ secrets.WEATHER_API_KEY }}
-          DB_NAME: ""
         run: |
           set -euo pipefail
+          DB_NAME="" DB_USER="" DB_PASSWORD="" DB_HOST="" DB_PORT="" \
           SECRET_KEY="${SECRET_KEY:-ci-secret-key}" python manage.py test 2>&1 | tee /tmp/django-test.log
           if grep -q "Ran 0 tests" /tmp/django-test.log; then
             echo "No tests were discovered. Failing CI."
