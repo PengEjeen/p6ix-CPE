@@ -17,16 +17,50 @@ function Login() {
   const useSessionAuth =
     String(import.meta.env.VITE_USE_SESSION_AUTH).toLowerCase() === "true";
 
-  const ssoLoginUrl = useMemo(() => {
-    const rawBase = import.meta.env.DEV ? "/api" : resolveApiBase();
-
-    const normalized = rawBase.endsWith("/") ? rawBase : `${rawBase}/`;
+  const ssoLoginUrls = useMemo(() => {
     const appBase = resolveAppBase();
     const normalizedAppBase = appBase.endsWith("/") ? appBase : `${appBase}/`;
     const defaultNext = `${window.location.origin}${normalizedAppBase}`;
     const nextPath = import.meta.env.VITE_SSO_NEXT_PATH || defaultNext;
-    return `${normalized}sso/login/?next=${encodeURIComponent(nextPath)}`;
+
+    const candidates = [];
+    const pushCandidate = (rawBase) => {
+      const normalized = String(rawBase || "").trim();
+      if (!normalized) return;
+      const apiBase = normalized.endsWith("/") ? normalized : `${normalized}/`;
+      candidates.push(`${apiBase}sso/login/?next=${encodeURIComponent(nextPath)}`);
+    };
+
+    const pathSegments = window.location.pathname.split("/").filter(Boolean);
+    const firstSegment = pathSegments[0];
+    if (
+      firstSegment &&
+      !["login", "register", "guide", "profile", "projects", "api"].includes(firstSegment)
+    ) {
+      pushCandidate(`/${firstSegment}/api`);
+    }
+
+    pushCandidate(import.meta.env.DEV ? "/api" : resolveApiBase());
+    pushCandidate("/api");
+    return Array.from(new Set(candidates));
   }, []);
+
+  const resolveReachableSsoUrl = useCallback(async () => {
+    for (const url of ssoLoginUrls) {
+      try {
+        const response = await fetch(url, {
+          method: "GET",
+          credentials: "include",
+          redirect: "manual",
+          cache: "no-store",
+        });
+        if (response.status !== 404) return url;
+      } catch {
+        // try next candidate
+      }
+    }
+    return ssoLoginUrls[0];
+  }, [ssoLoginUrls]);
 
   const mapSsoError = (code) => {
     const mapping = {
@@ -39,12 +73,13 @@ function Login() {
     return mapping[code] || "로그인에 실패했습니다.";
   };
 
-  const handleKeycloakLogin = useCallback(() => {
+  const handleKeycloakLogin = useCallback(async () => {
     if (!keycloakEnabled) return;
     setIsKeycloakLoading(true);
     setErrorMsg("");
-    window.location.assign(ssoLoginUrl);
-  }, [keycloakEnabled, ssoLoginUrl]);
+    const loginUrl = await resolveReachableSsoUrl();
+    if (loginUrl) window.location.assign(loginUrl);
+  }, [keycloakEnabled, resolveReachableSsoUrl]);
 
   useEffect(() => {
     const query = new URLSearchParams(window.location.search);

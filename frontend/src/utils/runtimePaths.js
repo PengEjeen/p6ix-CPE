@@ -1,5 +1,6 @@
 const ABSOLUTE_URL_RE = /^https?:\/\//i;
 const APP_ROUTE_ROOTS = new Set(["login", "register", "guide", "profile", "projects"]);
+const APP_BASE_STORAGE_KEY = "p6ix_app_base";
 
 function normalizePath(value, fallback = "/") {
   const raw = String(value || "").trim();
@@ -36,10 +37,62 @@ function inferAppBaseFromLocation() {
   return "/";
 }
 
+function inferAppBaseFromAssets() {
+  if (typeof document === "undefined" || typeof URL === "undefined") return "/";
+
+  const moduleScript = document.querySelector('script[type="module"][src]');
+  const stylesheet = document.querySelector('link[rel="stylesheet"][href]');
+  const candidateUrl = moduleScript?.getAttribute("src") || stylesheet?.getAttribute("href") || "";
+  if (!candidateUrl || !String(candidateUrl).includes("/assets/")) return "/";
+
+  try {
+    const pathname = new URL(candidateUrl, window.location.origin).pathname || "/";
+    const index = pathname.indexOf("/assets/");
+    if (index <= 0) return "/";
+    return normalizePath(pathname.slice(0, index), "/");
+  } catch {
+    return "/";
+  }
+}
+
+function readStoredAppBase() {
+  if (typeof window === "undefined") return "/";
+  try {
+    return normalizePath(window.localStorage.getItem(APP_BASE_STORAGE_KEY) || "", "/");
+  } catch {
+    return "/";
+  }
+}
+
+function persistAppBase(path) {
+  if (typeof window === "undefined" || !path || path === "/") return;
+  try {
+    window.localStorage.setItem(APP_BASE_STORAGE_KEY, path);
+  } catch {
+    // ignore storage failures
+  }
+}
+
 export function resolveAppBase() {
   const appBase = normalizePath(import.meta.env.BASE_URL || "/", "/");
-  if (appBase !== "/") return appBase;
-  return inferAppBaseFromLocation();
+  if (appBase !== "/") {
+    persistAppBase(appBase);
+    return appBase;
+  }
+
+  const assetBase = inferAppBaseFromAssets();
+  if (assetBase !== "/") {
+    persistAppBase(assetBase);
+    return assetBase;
+  }
+
+  const locationBase = inferAppBaseFromLocation();
+  if (locationBase !== "/") {
+    persistAppBase(locationBase);
+    return locationBase;
+  }
+
+  return readStoredAppBase();
 }
 
 export function resolveApiBase() {
