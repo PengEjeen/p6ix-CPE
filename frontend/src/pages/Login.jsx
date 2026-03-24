@@ -4,6 +4,7 @@ import { motion } from "framer-motion";
 import api from "../api/axios";
 import { getAuthToken } from "../utils/authTokens";
 import { getCompanyLogoSrc } from "../utils/brandAssets";
+import { resolveApiBase } from "../utils/runtimePaths";
 
 function Login() {
   const navigate = useNavigate();
@@ -17,9 +18,7 @@ function Login() {
     String(import.meta.env.VITE_USE_SESSION_AUTH).toLowerCase() === "true";
 
   const ssoLoginUrl = useMemo(() => {
-    const rawBase = import.meta.env.DEV
-      ? "/api"
-      : (import.meta.env.VITE_API_BASE || "/api");
+    const rawBase = import.meta.env.DEV ? "/api" : resolveApiBase();
 
     const normalized = rawBase.endsWith("/") ? rawBase : `${rawBase}/`;
     const appBase = import.meta.env.BASE_URL || "/";

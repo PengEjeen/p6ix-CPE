@@ -4,6 +4,13 @@ import path from 'node:path';
 
 const normalizePathPrefix = (value = "/") => {
     let path = String(value).trim();
+    if (/^https?:\/\//i.test(path)) {
+        try {
+            path = new URL(path).pathname || "/";
+        } catch {
+            path = "/";
+        }
+    }
     if (!path) return "/";
     if (!path.startsWith("/")) path = `/${path}`;
     path = path.replace(/\/+$/, "");

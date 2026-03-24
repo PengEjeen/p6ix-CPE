@@ -11,6 +11,7 @@ import isUuid from "../../utils/isUuid";
 import { useTheme } from "../../contexts/ThemeContext";
 import { clearAuthTokens, getAuthToken, getRefreshToken } from "../../utils/authTokens";
 import { getCompanyLogoSrc } from "../../utils/brandAssets";
+import { resolveApiBase } from "../../utils/runtimePaths";
 import api from "../../api/axios";
 
 function Layout() {
@@ -142,9 +143,7 @@ function Layout() {
       const normalizedAppBase = appBase.endsWith("/") ? appBase : `${appBase}/`;
       const nextUrl = `${window.location.origin}${normalizedAppBase}login`;
 
-      const apiBase = import.meta.env.DEV
-        ? "/api"
-        : (import.meta.env.VITE_API_BASE || "/api");
+      const apiBase = import.meta.env.DEV ? "/api" : resolveApiBase();
       const normalizedApiBase = apiBase.endsWith("/") ? apiBase : `${apiBase}/`;
       const logoutUrl = `${normalizedApiBase}sso/logout/?next=${encodeURIComponent(nextUrl)}`;
       window.location.assign(logoutUrl);

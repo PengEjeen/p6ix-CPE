@@ -5,12 +5,11 @@ import {
   getRefreshToken,
   setAuthToken,
 } from "../utils/authTokens";
+import { resolveApiBase } from "../utils/runtimePaths";
 
 // 개발 환경에서는 Vite /api 프록시 사용, 배포 환경에서는 .env 설정 사용
 const isDev = import.meta.env.DEV;
-const baseURL = isDev
-  ? "/api"
-  : (import.meta.env.VITE_API_BASE || "/api");
+const baseURL = isDev ? "/api" : resolveApiBase();
 
 const USE_SESSION_AUTH =
   String(import.meta.env.VITE_USE_SESSION_AUTH).toLowerCase() === "true";
