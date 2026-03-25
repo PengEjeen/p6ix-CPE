@@ -112,6 +112,19 @@ export default function ScheduleMasterTableToolbarRow({
                             </button>
                         </div>
                     </div>
+                    <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[11px]">
+                        <span className="inline-flex items-center rounded-full border border-blue-400/35 bg-blue-500/10 px-2 py-0.5 text-blue-200">
+                            선택: 체크박스 단일 선택, Shift+드래그 다중 선택, Ctrl/Cmd+A 현재 표시 행 전체 선택
+                        </span>
+                        <span className="inline-flex items-center rounded-full border border-amber-400/35 bg-amber-500/10 px-2 py-0.5 text-amber-200">
+                            삭제: 상단 버튼 또는 Delete 키
+                        </span>
+                        {selectedCount > 0 && (
+                            <span className="inline-flex items-center rounded-full border border-red-400/35 bg-red-500/10 px-2 py-0.5 text-red-200">
+                                현재 {selectedCount}개 선택됨
+                            </span>
+                        )}
+                    </div>
                 </div>
             </td>
         </tr>

@@ -12,7 +12,6 @@ import {
   Clock,
   Circle,
   FileText,
-  Layers,
   Loader2,
   Lock,
   MoreVertical,
@@ -22,7 +21,6 @@ import {
   Plus,
   Search,
   Trash2,
-  TrendingUp,
   Trophy,
   X,
 } from "lucide-react";
@@ -32,6 +30,8 @@ import {
   fetchProjects,
   updateProject,
 } from "../api/cpe/project";
+import { fetchScheduleItems } from "../api/cpe_all/construction_schedule";
+import { detailQuotation } from "../api/cpe/quotation";
 import { useConfirm } from "../contexts/ConfirmContext";
 import {
   loadPinnedProjectIds,
@@ -54,6 +54,11 @@ import {
   setFtueHidden,
 } from "../utils/ftue";
 import { FTUE_STEPS } from "../config/ftueSteps";
+import {
+  calculateTotalCalendarDays,
+  getCategoryManualTotalDays,
+  isSingleTotalInputCategory,
+} from "../utils/scheduleCalculations";
 
 // ─── 유틸 ────────────────────────────────────────────────────────────────────
 
@@ -95,6 +100,79 @@ const relTime = (date) => {
   return `${Math.floor(mo / 12)}년 전`;
 };
 
+const formatDaysLabel = (value) => {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return "-";
+  if (n === 0) return "0일";
+  if (n < 0) return "-";
+  const rounded = Math.round(n * 10) / 10;
+  if (Number.isInteger(rounded)) return `${rounded}일`;
+  return `${rounded.toFixed(1)}일`;
+};
+
+const buildDurationSummary = (items) => {
+  const list = Array.isArray(items) ? items : [];
+  if (!list.length) return { totalDays: 0, categories: [] };
+
+  const groupMap = new Map();
+  list.forEach((item) => {
+    const key = String(item?.main_category || "기타").trim() || "기타";
+    const bucket = groupMap.get(key) || [];
+    bucket.push(item);
+    groupMap.set(key, bucket);
+  });
+
+  const categories = [];
+  groupMap.forEach((groupItems, category) => {
+    const manual = getCategoryManualTotalDays(groupItems);
+    const useManual = isSingleTotalInputCategory(category) && manual !== null;
+    const days = useManual
+      ? manual
+      : groupItems.reduce((sum, item) => sum + (parseFloat(item?.calendar_days) || 0), 0);
+    if (days > 0) categories.push({ name: category, days: Math.round(days * 10) / 10 });
+  });
+
+  categories.sort((a, b) => b.days - a.days);
+  return {
+    totalDays: calculateTotalCalendarDays(list),
+    categories: categories.slice(0, 5),
+  };
+};
+
+const buildApartmentDurationSummary = (quotation) => {
+  const toNumber = (value) => {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : 0;
+  };
+
+  const earthwork = (
+    toNumber(quotation?.earth_retention)
+    + toNumber(quotation?.support)
+    + toNumber(quotation?.excavation)
+    + toNumber(quotation?.designated_work)
+  );
+  const framework = (
+    toNumber(quotation?.base_framework)
+    + toNumber(quotation?.basement_framework)
+    + toNumber(quotation?.ground_framework)
+  );
+  const others = (
+    toNumber(quotation?.preparation_period)
+    + toNumber(quotation?.finishing_work)
+    + toNumber(quotation?.additional_period)
+    + toNumber(quotation?.cleanup_period)
+  );
+
+  const categories = [
+    { name: "토공사", days: Math.round(earthwork * 10) / 10 },
+    { name: "골조공사", days: Math.round(framework * 10) / 10 },
+    { name: "기타기간", days: Math.round(others * 10) / 10 },
+  ];
+  const totalDays = Math.round((earthwork + framework + others) * 10) / 10;
+
+  return { totalDays, categories };
+};
+
 const loadLastOpenedId = () => {
   try { return localStorage.getItem(LAST_OPENED_KEY) || null; } catch { return null; }
 };
@@ -115,7 +193,7 @@ export default function Home() {
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState("ALL");
   const [sortKey, setSortKey] = useState("updated");
-  const [showCount, setShowCount] = useState(25);
+  const [currentPage, setCurrentPage] = useState(1);
 
   const [pinnedIds, setPinnedIds] = useState(loadPinnedProjectIds);
 
@@ -262,6 +340,10 @@ export default function Home() {
       .map(({ project }) => project);
   }, [allSorted, search, typeFilter, pinnedIds]);
 
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [search, typeFilter, sortKey]);
+
   const isEmpty = !loading && projects.length === 0;
 
   const lastOpenedProject = useMemo(() => {
@@ -403,7 +485,7 @@ export default function Home() {
         <div className="flex items-center justify-center h-64">
           <Loader2 size={24} className="animate-spin text-[var(--navy-text-muted)]" />
         </div>
-      ) : isEmpty || showFtueGuide ? (
+      ) : showFtueGuide ? (
         <NewUserView
           ftueTotal={ftueTotal}
           ftueApartment={ftueApartment}
@@ -425,8 +507,8 @@ export default function Home() {
           setTypeFilter={setTypeFilter}
           sortKey={sortKey}
           setSortKey={setSortKey}
-          showCount={showCount}
-          setShowCount={setShowCount}
+          currentPage={currentPage}
+          setCurrentPage={setCurrentPage}
           listRef={listRef}
           ftueTotal={ftueTotal}
           ftueApartment={ftueApartment}
@@ -617,7 +699,7 @@ function NewUserView({ ftueTotal, ftueApartment, onOpenCreate, onOpenGuide, onBa
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4, ease: "easeOut" }}
-      className="max-w-2xl mx-auto space-y-8 pt-4"
+      className="max-w-[1120px] mx-auto space-y-6 pt-2"
     >
       <div className={`flex items-center gap-3 ${onBack ? "justify-between" : "justify-end"}`}>
         {/* Back button — 복귀 유저가 가이드로 진입한 경우만 표시 */}
@@ -630,108 +712,108 @@ function NewUserView({ ftueTotal, ftueApartment, onOpenCreate, onOpenGuide, onBa
         <button
           type="button"
           onClick={onOpenGuide}
-          className="inline-flex items-center gap-1.5 rounded-xl border border-[var(--navy-border-soft)] bg-[var(--navy-surface)] px-3.5 py-2 text-xs font-bold text-[var(--navy-text)] hover:bg-[var(--navy-surface-2)] transition"
+          className="inline-flex min-h-10 items-center gap-1.5 rounded-xl border border-[var(--navy-border-soft)] bg-[var(--navy-surface)] px-4 py-2 text-sm font-bold text-[var(--navy-text)] hover:bg-[var(--navy-surface-2)] transition"
         >
           <BookOpen size={13} />
           사용자 가이드
         </button>
       </div>
       {/* Welcome */}
-      <div className="text-center space-y-2">
+      <div className="rounded-2xl border border-[var(--navy-border-soft)] bg-gradient-to-r from-[#0f1f35] via-[#10253f] to-[#16223b] p-6 md:p-8 text-center space-y-2">
         <div className="inline-flex items-center gap-2 rounded-full border border-blue-500/30 bg-blue-500/10 px-3 py-1 text-xs font-semibold text-blue-400 mb-2">
           공기산정툴에 오신 것을 환영합니다
         </div>
-        <h1 className="text-2xl md:text-3xl font-black text-[var(--navy-text)] leading-tight">
+        <h1 className="text-2xl md:text-4xl font-black text-white leading-tight">
           첫 프로젝트를 만들어<br />시작해 보세요
         </h1>
-        <p className="text-sm text-[var(--navy-text-muted)] leading-6">
+        <p className="text-sm md:text-base text-blue-100/80 leading-6">
           어떤 유형을 사용할지 먼저 선택하면<br />순서대로 안내해 드립니다.
         </p>
       </div>
 
-      {/* Type selector */}
-      <div className="grid grid-cols-2 gap-4">
-        {[
-          {
-            type: "TOTAL", icon: <TrendingUp size={20} />,
-            label: "전체 공기산정",
-            desc: "스케줄·간트 기반으로 전체 공기를 산정하고 보고서를 내보냅니다.",
-            color: "blue",
-          },
-          {
-            type: "APARTMENT", icon: <Building2 size={20} />,
-            label: "공기 계산",
-            desc: "개요·조건·세부공종 입력 중심으로 공기를 계산하고 결과를 확인합니다.",
-            color: "indigo",
-          },
-        ].map(({ type, icon, label, desc, color }) => (
-          <button key={type} type="button" onClick={() => setActiveType(type)}
-            className={`relative rounded-2xl border-2 p-5 text-left transition-all duration-200 ${activeType === type
-              ? color === "blue"
-                ? "border-blue-500 bg-blue-500/10 shadow-lg shadow-blue-500/10"
-                : "border-indigo-500 bg-indigo-500/10 shadow-lg shadow-indigo-500/10"
-              : "border-[var(--navy-border-soft)] bg-[var(--navy-surface)] hover:border-[var(--navy-text-muted)]"
-              }`}>
-            {activeType === type && (
-              <div className={`absolute top-3 right-3 rounded-full w-2 h-2 ${color === "blue" ? "bg-blue-400" : "bg-indigo-400"}`} />
-            )}
-            <div className={`mb-2 ${activeType === type ? color === "blue" ? "text-blue-400" : "text-indigo-400" : "text-[var(--navy-text-muted)]"}`}>
-              {icon}
-            </div>
-            <div className="font-black text-sm text-[var(--navy-text)] mb-1">{label}</div>
-            <div className="text-xs text-[var(--navy-text-muted)] leading-4">{desc}</div>
-          </button>
-        ))}
-      </div>
-
-      {/* FTUE checklist — prominent */}
-      <div className="rounded-2xl bg-[var(--navy-surface)] border border-[var(--navy-border-soft)] overflow-hidden">
-        <div className="px-5 py-4 border-b border-[var(--navy-border-soft)] flex items-center justify-between">
-          <div>
-            <div className="font-black text-sm text-[var(--navy-text)]">
-              {getCalcTypeLabel(activeType)} 시작 가이드
-            </div>
-            <div className="text-xs text-[var(--navy-text-muted)] mt-0.5">순서대로 따라하면 바로 사용할 수 있습니다</div>
-          </div>
-          <div className="text-xs font-bold text-[var(--navy-text-muted)]">{progress}%</div>
-        </div>
-        {/* Progress bar */}
-        <div className="h-1 bg-[var(--navy-surface-2)]">
-          <div className="h-full bg-gradient-to-r from-blue-500 to-indigo-400 transition-all duration-500"
-            style={{ width: `${progress}%` }} />
-        </div>
-        {/* Steps */}
-        <div className="divide-y divide-[var(--navy-border-soft)]">
-          {stepDefs.map((def, idx) => {
-            const done = Boolean(ftueState?.steps?.[def.id]);
-            const isActive = !done && idx === activeIdx;
-            const isLocked = !done && idx > activeIdx;
-            const action = getAction(def);
-            return (
-              <div key={def.id} className={`flex items-center gap-4 px-5 py-4 ${isActive ? "bg-blue-500/5" : ""}`}>
-                <div className={`shrink-0 w-7 h-7 rounded-full flex items-center justify-center text-xs font-black
-                  ${done ? "bg-emerald-500/20 text-emerald-400" : isActive ? "bg-blue-600 text-white" : "bg-[var(--navy-surface-2)] text-[var(--navy-text-muted)]"}`}>
-                  {done ? <CheckCircle2 size={14} /> : isLocked ? <Lock size={12} /> : idx + 1}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className={`text-sm font-bold ${done ? "line-through text-[var(--navy-text-muted)]" : isActive ? "text-[var(--navy-text)]" : "text-[var(--navy-text-muted)]"}`}>
-                    {def.title}
-                  </div>
-                  {isActive && <div className="text-xs text-[var(--navy-text-muted)] mt-0.5">{def.howTo}</div>}
-                </div>
-                {done ? (
-                  <span className="shrink-0 text-xs font-semibold text-emerald-400">완료</span>
-                ) : isActive && action ? (
-                  <button type="button" onClick={action}
-                    className="shrink-0 inline-flex items-center gap-1.5 rounded-xl bg-blue-600 px-3.5 py-1.5 text-xs font-bold text-white hover:bg-blue-500 transition">
-                    <PlayCircle size={13} />{def.actionLabel}
-                  </button>
-                ) : isLocked ? (
-                  <span className="shrink-0 text-[11px] text-[var(--navy-text-muted)]">잠김</span>
-                ) : null}
+      <div className="grid grid-cols-1 xl:grid-cols-[340px_minmax(0,1fr)] gap-5">
+        {/* Type selector */}
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-1 gap-4">
+          {[
+            {
+              type: "TOTAL", icon: <TrendingUp size={20} />,
+              label: "전체 공기산정",
+              desc: "스케줄·간트 기반으로 전체 공기를 산정하고 보고서를 내보냅니다.",
+              color: "blue",
+            },
+            {
+              type: "APARTMENT", icon: <Building2 size={20} />,
+              label: "공기 계산",
+              desc: "개요·조건·세부공종 입력 중심으로 공기를 계산하고 결과를 확인합니다.",
+              color: "indigo",
+            },
+          ].map(({ type, icon, label, desc, color }) => (
+            <button key={type} type="button" onClick={() => setActiveType(type)}
+              className={`relative rounded-2xl border p-5 text-left transition-all duration-200 ${activeType === type
+                ? color === "blue"
+                  ? "border-blue-500 bg-blue-500/10 shadow-lg shadow-blue-500/10"
+                  : "border-indigo-500 bg-indigo-500/10 shadow-lg shadow-indigo-500/10"
+                : "border-[var(--navy-border-soft)] bg-[var(--navy-surface)] hover:border-[var(--navy-text-muted)]"
+                }`}>
+              {activeType === type && (
+                <div className={`absolute top-3 right-3 rounded-full w-2 h-2 ${color === "blue" ? "bg-blue-400" : "bg-indigo-400"}`} />
+              )}
+              <div className={`mb-2 ${activeType === type ? color === "blue" ? "text-blue-400" : "text-indigo-400" : "text-[var(--navy-text-muted)]"}`}>
+                {icon}
               </div>
-            );
-          })}
+              <div className="font-black text-sm text-[var(--navy-text)] mb-1">{label}</div>
+              <div className="text-xs text-[var(--navy-text-muted)] leading-4">{desc}</div>
+            </button>
+          ))}
+        </div>
+
+        {/* FTUE checklist — prominent */}
+        <div className="rounded-2xl bg-[var(--navy-surface)] border border-[var(--navy-border-soft)] overflow-hidden">
+          <div className="px-5 py-4 border-b border-[var(--navy-border-soft)] flex items-center justify-between">
+            <div>
+              <div className="font-black text-sm text-[var(--navy-text)]">
+                {getCalcTypeLabel(activeType)} 시작 가이드
+              </div>
+              <div className="text-xs text-[var(--navy-text-muted)] mt-0.5">순서대로 따라하면 바로 사용할 수 있습니다</div>
+            </div>
+            <div className="text-xs font-bold text-[var(--navy-text-muted)]">{progress}%</div>
+          </div>
+          <div className="h-1 bg-[var(--navy-surface-2)]">
+            <div className="h-full bg-gradient-to-r from-blue-500 to-indigo-400 transition-all duration-500"
+              style={{ width: `${progress}%` }} />
+          </div>
+          <div className="divide-y divide-[var(--navy-border-soft)]">
+            {stepDefs.map((def, idx) => {
+              const done = Boolean(ftueState?.steps?.[def.id]);
+              const isActive = !done && idx === activeIdx;
+              const isLocked = !done && idx > activeIdx;
+              const action = getAction(def);
+              return (
+                <div key={def.id} className={`flex items-center gap-4 px-5 py-4 ${isActive ? "bg-blue-500/5" : ""}`}>
+                  <div className={`shrink-0 w-7 h-7 rounded-full flex items-center justify-center text-xs font-black
+                    ${done ? "bg-emerald-500/20 text-emerald-400" : isActive ? "bg-blue-600 text-white" : "bg-[var(--navy-surface-2)] text-[var(--navy-text-muted)]"}`}>
+                    {done ? <CheckCircle2 size={14} /> : isLocked ? <Lock size={12} /> : idx + 1}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className={`text-sm font-bold ${done ? "line-through text-[var(--navy-text-muted)]" : isActive ? "text-[var(--navy-text)]" : "text-[var(--navy-text-muted)]"}`}>
+                      {def.title}
+                    </div>
+                    {isActive && <div className="text-xs text-[var(--navy-text-muted)] mt-0.5">{def.howTo}</div>}
+                  </div>
+                  {done ? (
+                    <span className="shrink-0 text-xs font-semibold text-emerald-400">완료</span>
+                  ) : isActive && action ? (
+                    <button type="button" onClick={action}
+                      className="shrink-0 inline-flex min-h-9 items-center gap-1.5 rounded-xl bg-blue-600 px-3.5 py-1.5 text-xs font-bold text-white hover:bg-blue-500 transition">
+                      <PlayCircle size={13} />{def.actionLabel}
+                    </button>
+                  ) : isLocked ? (
+                    <span className="shrink-0 text-[11px] text-[var(--navy-text-muted)]">잠김</span>
+                  ) : null}
+                </div>
+              );
+            })}
+          </div>
         </div>
       </div>
 
@@ -753,111 +835,246 @@ function NewUserView({ ftueTotal, ftueApartment, onOpenCreate, onOpenGuide, onBa
 function ReturningUserView({
   projects, filteredProjects, heroMain, heroRecent,
   pinnedSet, pinnedIds, search, setSearch, typeFilter, setTypeFilter,
-  sortKey, setSortKey, showCount, setShowCount, listRef,
+  sortKey, setSortKey, currentPage, setCurrentPage, listRef,
   ftueTotal, ftueApartment, ftueAllComplete, ftueAllHidden,
   onOpenCreate, onOpen, onOpenProject, onTogglePinned, onOpenMenu, onShowFtueGuide, onOpenGuide,
 }) {
+  const pageSize = 25;
+  const projectMetrics = useMemo(() => {
+    const source = Array.isArray(projects) ? projects : [];
+    let totalCount = 0;
+    let apartmentCount = 0;
+    let recentTs = 0;
+
+    source.forEach((p) => {
+      if (p?.calc_type === "TOTAL") totalCount += 1;
+      if (p?.calc_type === "APARTMENT") apartmentCount += 1;
+      const ts = getLastUpdated(p)?.getTime() || 0;
+      if (ts > recentTs) recentTs = ts;
+    });
+
+    return {
+      total: source.length,
+      totalCount,
+      apartmentCount,
+      pinnedCount: pinnedIds.length,
+      latestLabel: recentTs ? relTime(new Date(recentTs)) : "업데이트 없음",
+    };
+  }, [projects, pinnedIds]);
+  const hasProjects = projectMetrics.total > 0;
+  const totalProjects = filteredProjects.length;
+  const totalPages = Math.max(1, Math.ceil(totalProjects / pageSize));
+  const safePage = Math.min(Math.max(currentPage, 1), totalPages);
+  const startIndex = (safePage - 1) * pageSize;
+  const endIndex = Math.min(startIndex + pageSize, totalProjects);
+  const pagedProjects = filteredProjects.slice(startIndex, endIndex);
+  const pageNumbers = useMemo(() => {
+    const maxVisible = 5;
+    let from = Math.max(1, safePage - Math.floor(maxVisible / 2));
+    let to = Math.min(totalPages, from + maxVisible - 1);
+    from = Math.max(1, to - maxVisible + 1);
+    const pages = [];
+    for (let p = from; p <= to; p += 1) pages.push(p);
+    return pages;
+  }, [safePage, totalPages]);
+
+  useEffect(() => {
+    if (safePage !== currentPage) setCurrentPage(safePage);
+  }, [currentPage, safePage, setCurrentPage]);
+
+  const featuredProject = heroMain || filteredProjects[0] || null;
+  const [featuredSummary, setFeaturedSummary] = useState({ loading: false, totalDays: 0, categories: [] });
+  const sideRecentProjects = (
+    (Array.isArray(heroRecent) ? heroRecent : [])
+      .filter((p) => String(p?.id || "") !== String(featuredProject?.id || ""))
+      .slice(0, 3)
+  );
+  const fallbackRecentProjects = (
+    (Array.isArray(filteredProjects) ? filteredProjects : [])
+      .filter((p) => String(p?.id || "") !== String(featuredProject?.id || ""))
+      .slice(0, 3)
+  );
+  const displayRecentProjects = sideRecentProjects.length ? sideRecentProjects : fallbackRecentProjects;
+
+  useEffect(() => {
+    const pid = featuredProject?.id;
+    if (!pid) {
+      setFeaturedSummary({ loading: false, totalDays: 0, categories: [] });
+      return;
+    }
+    let cancelled = false;
+    setFeaturedSummary((prev) => ({ ...prev, loading: true }));
+    (async () => {
+      try {
+        if (cancelled) return;
+        let summary = { totalDays: 0, categories: [] };
+        if (featuredProject?.calc_type === "TOTAL") {
+          const schedule = await fetchScheduleItems(pid);
+          summary = buildDurationSummary(schedule?.items || []);
+        } else {
+          const quotationRes = await detailQuotation(pid);
+          summary = buildApartmentDurationSummary(quotationRes?.data || {});
+        }
+        if (cancelled) return;
+        setFeaturedSummary({ loading: false, ...summary });
+      } catch (error) {
+        if (!cancelled) {
+          setFeaturedSummary({ loading: false, totalDays: 0, categories: [] });
+        }
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [featuredProject?.id, featuredProject?.calc_type]);
+
   return (
-    <div className="space-y-6">
-
-      {/* ── Top bar: Search + new button ──────────────────────────────────── */}
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="relative flex-1 max-w-sm">
-          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--navy-text-muted)]" />
-          <input value={search} onChange={(e) => setSearch(e.target.value)}
-            placeholder="프로젝트 검색..."
-            className="w-full rounded-xl border border-[var(--navy-border-soft)] bg-[var(--navy-surface)] pl-9 pr-4 py-2.5 text-sm text-[var(--navy-text)] placeholder-[var(--navy-text-muted)] focus:outline-none focus:ring-2 focus:ring-blue-500/30 transition" />
+    <div className="mp-page">
+      <header className="mp-header">
+        <div>
+          <h1 className="mp-title">메인 대시보드</h1>
         </div>
-        <button type="button" onClick={onOpenGuide}
-          className="inline-flex items-center gap-2 rounded-xl border border-[var(--navy-border-soft)] bg-[var(--navy-surface)] px-4 py-2.5 text-sm font-bold text-[var(--navy-text)] hover:bg-[var(--navy-surface-2)] transition">
-          <BookOpen size={15} />사용자 가이드
-        </button>
-        <button type="button" onClick={onOpen}
-          className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-500 px-4 py-2.5 text-sm font-extrabold text-white hover:from-blue-500 hover:to-indigo-400 transition shadow-md shadow-blue-500/20">
-          <Plus size={15} />새 프로젝트
-        </button>
-      </div>
+        <div className="mp-header-actions">
+          <button
+            type="button"
+            onClick={onOpenGuide}
+            className="mp-btn-guide"
+          >
+            사용자 가이드
+          </button>
+          <button
+            type="button"
+            onClick={onOpen}
+            className="mp-btn-create"
+          >
+            <Plus size={16} />
+            새 프로젝트
+          </button>
+        </div>
+      </header>
 
-      {/* ── Hero: Continue ────────────────────────────────────────────────── */}
-      {heroMain && (
-        <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
-          <div className="flex items-center gap-2 mb-3">
-            <span className="text-[11px] font-bold uppercase tracking-widest text-[var(--navy-text-muted)]">계속하기</span>
-          </div>
-          <div className="grid grid-cols-1 xl:grid-cols-[1fr_auto] gap-3 items-stretch">
-            {/* Main hero card */}
-            <button type="button" onClick={() => onOpenProject(heroMain)}
-              className="group relative rounded-2xl border-2 border-blue-500/20 bg-gradient-to-br from-blue-600/10 via-transparent to-indigo-500/5 p-6 text-left hover:border-blue-500/40 hover:from-blue-600/15 transition-all duration-200 shadow-lg shadow-blue-500/5">
-              <div className="flex items-start justify-between gap-4 mb-4">
-                <div className="min-w-0">
-                  <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-bold mb-2 ${heroMain.calc_type === "TOTAL" ? "bg-blue-500/20 text-blue-400" : "bg-indigo-500/20 text-indigo-400"}`}>
-                    {getCalcTypeLabel(heroMain.calc_type)}
+      <section>
+        <h2 className="mp-section-title">
+          <Clock size={18} className="text-[#c0c1ff]" />
+          최근 프로젝트
+        </h2>
+        <div className="mp-hero-grid">
+          <div className="mp-hero-main-wrap">
+            <button
+              type="button"
+              onClick={() => featuredProject && onOpenProject(featuredProject)}
+              className="mp-hero-main"
+            >
+              <div className="mp-hero-content">
+                <div className="mp-hero-top">
+                  <span className={featuredProject?.calc_type === "TOTAL" ? "mp-chip-total" : "mp-chip-apartment"}>
+                    {getCalcTypeLabel(featuredProject?.calc_type)}
                   </span>
-                  <div className="text-xl font-black text-[var(--navy-text)] truncate">{heroMain.title || "제목 없음"}</div>
-                  {heroMain.description && (
-                    <div className="mt-1 text-sm text-[var(--navy-text-muted)] line-clamp-1">{heroMain.description}</div>
+                  <span className="mp-hero-meta">
+                    최종 수정: {relTime(getLastUpdated(featuredProject)) || "방금 전"}
+                  </span>
+                </div>
+                <h3 className="mp-hero-title">
+                  {featuredProject?.title || "첫 프로젝트를 생성해 주세요"}
+                </h3>
+                <p className="mp-hero-desc">
+                  {featuredProject?.description || "프로젝트 생성 후 공기산정/공기계산 작업을 이어서 진행할 수 있습니다."}
+                </p>
+                <div className="mp-hero-summary">
+                  <div className="mp-hero-summary-total">
+                    전체 기간 {formatDaysLabel(featuredSummary.totalDays)}
+                  </div>
+                  {featuredSummary.loading ? (
+                    <div className="mp-hero-summary-empty">기간 정보를 불러오는 중입니다.</div>
+                  ) : featuredSummary.categories.length ? (
+                    <div className="mp-hero-summary-list">
+                      {featuredSummary.categories.map((item) => (
+                        <div key={item.name} className="mp-hero-summary-item">
+                          <span className="mp-hero-summary-name">{item.name}</span>
+                          <span className="mp-hero-summary-days">{formatDaysLabel(item.days)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="mp-hero-summary-empty">산정된 기간 데이터가 없습니다.</div>
                   )}
                 </div>
               </div>
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-[var(--navy-text-muted)]">
-                  <Clock size={11} className="inline mr-1 align-text-top" />
-                  {relTime(getLastUpdated(heroMain)) || "—"}
-                </span>
-                <span className="inline-flex items-center gap-1.5 rounded-xl bg-blue-600 px-4 py-1.5 text-xs font-bold text-white group-hover:bg-blue-500 transition">
-                  바로 열기 <ArrowRight size={13} className="group-hover:translate-x-0.5 transition-transform" />
-                </span>
-              </div>
             </button>
-
-            {/* Mini recents */}
-            {heroRecent.length > 0 && (
-              <div className="flex xl:flex-col gap-2.5 xl:w-[200px]">
-                {heroRecent.map((p) => (
-                  <button key={p.id} type="button" onClick={() => onOpenProject(p)}
-                    className="group flex-1 xl:flex-none text-left rounded-xl border border-[var(--navy-border-soft)] bg-[var(--navy-surface)] px-4 py-3 hover:border-blue-500/20 hover:bg-[var(--navy-surface-2)] transition">
-                    <div className="text-[10px] font-semibold text-[var(--navy-text-muted)] mb-0.5">{getCalcTypeLabel(p.calc_type)}</div>
-                    <div className="text-sm font-bold text-[var(--navy-text)] truncate leading-snug">{p.title || "제목 없음"}</div>
-                    <div className="text-[11px] text-[var(--navy-text-muted)] mt-1">{relTime(getLastUpdated(p)) || "—"}</div>
-                  </button>
-                ))}
-              </div>
-            )}
           </div>
-        </motion.div>
+
+          <div className="mp-hero-side">
+            {displayRecentProjects.map((p) => (
+              <button
+                key={p.id}
+                type="button"
+                onClick={() => onOpenProject(p)}
+                className="mp-recent-card"
+              >
+                <div className="mp-recent-icon-wrap">
+                  <Building2 size={20} className={p.calc_type === "TOTAL" ? "text-[#4edea3]" : "text-[#c0c1ff]"} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h4 className="mp-recent-title">{p.title || "제목 없음"}</h4>
+                  <p className="mp-recent-meta">
+                    {getCalcTypeLabel(p.calc_type)} · {relTime(getLastUpdated(p)) || "업데이트 없음"}
+                  </p>
+                </div>
+                <ArrowRight size={16} className="text-[var(--navy-text-muted)]" />
+              </button>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {hasProjects && (
+        <div className="mp-ftue-wrap">
+          <FtueInlineCard
+            ftueTotal={ftueTotal}
+            ftueApartment={ftueApartment}
+            ftueAllComplete={ftueAllComplete}
+            ftueAllHidden={ftueAllHidden}
+            projects={projects}
+            onOpenCreate={onOpenCreate}
+            onOpenProject={onOpenProject}
+            onShowFtueGuide={onShowFtueGuide}
+          />
+        </div>
       )}
 
-      {/* ── FTUE inline card (incomplete only, dismissable) ───────────────── */}
-      <FtueInlineCard
-        ftueTotal={ftueTotal}
-        ftueApartment={ftueApartment}
-        ftueAllComplete={ftueAllComplete}
-        ftueAllHidden={ftueAllHidden}
-        projects={projects}
-        onOpenCreate={onOpenCreate}
-        onOpenProject={onOpenProject}
-        onShowFtueGuide={onShowFtueGuide}
-      />
-
-      {/* ── Projects list ─────────────────────────────────────────────────── */}
-      <motion.section ref={listRef} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: 0.08 }}
-        className="rounded-2xl bg-[var(--navy-surface)] border border-[var(--navy-border-soft)] overflow-hidden">
-        {/* header */}
-        <div className="flex items-center justify-between gap-3 px-5 py-3.5 border-b border-[var(--navy-border-soft)]">
-          <span className="text-sm font-black text-[var(--navy-text)]">
-            전체 프로젝트 <span className="font-normal text-[var(--navy-text-muted)] text-xs">{filteredProjects.length}개</span>
-          </span>
-          <div className="flex items-center gap-2">
-            <div className="inline-flex rounded-lg border border-[var(--navy-border-soft)] bg-[var(--navy-surface-2)] p-0.5">
+      <motion.section
+        ref={listRef}
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3, delay: 0.08 }}
+        className="mp-board"
+      >
+        <div className="mp-board-toolbar">
+          <div className="mp-search-wrap">
+            <Search size={18} className="mp-search-icon" />
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="프로젝트 검색..."
+              className="mp-search-input"
+            />
+          </div>
+          <div className="mp-filter-wrap">
+            <div className="mp-filter-group">
               {[["ALL", "전체"], ["TOTAL", "공기산정"], ["APARTMENT", "공기계산"]].map(([v, label]) => (
-                <button key={v} type="button" onClick={() => setTypeFilter(v)}
-                  className={`px-2.5 py-1 text-[11px] font-semibold rounded-md transition ${typeFilter === v ? "bg-blue-600 text-white" : "text-[var(--navy-text-muted)] hover:text-[var(--navy-text)]"}`}>
+                <button
+                  key={v}
+                  type="button"
+                  onClick={() => setTypeFilter(v)}
+                  className={typeFilter === v ? "mp-filter-btn mp-filter-btn-active" : "mp-filter-btn"}
+                >
                   {label}
                 </button>
               ))}
             </div>
-            <select value={sortKey} onChange={(e) => setSortKey(e.target.value)}
-              className="rounded-lg border border-[var(--navy-border-soft)] bg-[var(--navy-surface-2)] px-2.5 py-1.5 text-[11px] text-[var(--navy-text-muted)] focus:outline-none focus:ring-1 focus:ring-blue-500/30 cursor-pointer">
+            <select
+              value={sortKey}
+              onChange={(e) => setSortKey(e.target.value)}
+              className="mp-sort-select"
+            >
               <option value="updated">최근수정순</option>
               <option value="name">이름순</option>
             </select>
@@ -865,62 +1082,104 @@ function ReturningUserView({
         </div>
 
         {filteredProjects.length === 0 ? (
-          <div className="px-5 py-8 text-center text-sm text-[var(--navy-text-muted)]">
+          <div className="mp-empty">
             {search ? "검색 결과가 없습니다." : "해당 유형의 프로젝트가 없습니다."}
           </div>
         ) : (
           <>
-            {/* col headers */}
-            <div className="grid grid-cols-[1fr_110px_90px_40px_40px] gap-2 px-5 py-2 text-[11px] font-bold uppercase tracking-wide text-[var(--navy-text-muted)] border-b border-[var(--navy-border-soft)] bg-[var(--navy-surface-2)]">
-              <span>이름</span><span>유형</span><span>최근수정</span>
-              <span className="text-center"><Pin size={11} className="inline" /></span>
-              <span />
-            </div>
-            {/* rows */}
-            {filteredProjects.slice(0, showCount).map((p) => {
+            <div className="mp-table-wrap">
+              <table className="mp-table">
+                <thead>
+                  <tr className="mp-table-head-row">
+                    <th className="mp-table-head-cell pl-4">프로젝트명</th>
+                    <th className="mp-table-head-cell">유형</th>
+                    <th className="mp-table-head-cell">최근 수정</th>
+                    <th className="mp-table-head-cell text-center">핀</th>
+                    <th className="mp-table-head-cell pr-4 text-right">관리</th>
+                  </tr>
+                </thead>
+                <tbody className="mp-table-body">
+                  {pagedProjects.map((p) => {
               const isPinned = pinnedSet.has(String(p.id));
               return (
-                <div key={p.id}
-                  className="group grid grid-cols-[1fr_110px_90px_40px_40px] gap-2 items-center px-5 py-2 border-b border-[var(--navy-border-soft)] last:border-b-0 hover:bg-[var(--navy-surface-2)] transition cursor-pointer"
-                  onClick={() => onOpenProject(p)}>
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2">
-                      {isPinned && <Pin size={11} className="text-[var(--navy-success)] shrink-0" />}
-                      <span className="font-bold text-sm text-[var(--navy-text)] truncate">{p.title || "제목 없음"}</span>
+                    <tr
+                      key={p.id}
+                      className="mp-table-row"
+                  onClick={() => onOpenProject(p)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      onOpenProject(p);
+                    }
+                  }}
+                  tabIndex={0}
+                  role="button">
+                      <td className="mp-table-cell-main">
+                    <div className="mp-table-title-row">
+                          <div className={p.calc_type === "TOTAL" ? "mp-table-dot mp-table-dot-total" : "mp-table-dot mp-table-dot-apartment"} />
+                      <span className="mp-table-title">{p.title || "제목 없음"}</span>
                     </div>
-                    {p.description && <div className="text-[11px] text-[var(--navy-text-muted)] truncate mt-0.5">{p.description}</div>}
-                  </div>
-                  <div>
-                    <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold ${p.calc_type === "TOTAL" ? "bg-blue-500/15 text-blue-400" : "bg-indigo-500/15 text-indigo-400"}`}>
-                      {getCalcTypeLabel(p.calc_type)}
-                    </span>
-                  </div>
-                  <div className="text-[11px] text-[var(--navy-text-muted)]">{relTime(getLastUpdated(p)) || "—"}</div>
-                  <div className="flex justify-center">
+                        {p.description && <div className="mp-table-desc">{p.description}</div>}
+                      </td>
+                      <td className="mp-table-cell-type">
+                        <span className={p.calc_type === "TOTAL" ? "mp-table-chip-total" : "mp-table-chip-apartment"}>
+                        {getCalcTypeLabel(p.calc_type)}
+                      </span>
+                      </td>
+                      <td className="mp-table-cell-meta"><span className="mp-table-meta">{relTime(getLastUpdated(p)) || "—"}</span></td>
+                      <td className="mp-table-cell-pin">
                     <button type="button" onClick={(e) => { e.stopPropagation(); onTogglePinned(p.id); }}
-                      className="rounded-lg p-1.5 hover:bg-white/10 transition opacity-0 group-hover:opacity-100">
-                      {isPinned ? <PinOff size={13} className="text-[var(--navy-success)]" /> : <Pin size={13} className="text-[var(--navy-text-muted)]" />}
+                          className="mp-pin-btn">
+                      {isPinned ? <PinOff size={13} className="mp-pin-icon-active" /> : <Pin size={13} className="mp-pin-icon-inactive" />}
                     </button>
-                  </div>
-                  <div className="flex justify-center">
+                      </td>
+                      <td className="mp-table-cell-action">
                     <button type="button" onClick={(e) => {
                       e.stopPropagation();
                       const r = e.currentTarget.getBoundingClientRect();
                       onOpenMenu({ top: r.bottom + window.scrollY + 6, left: Math.max(12, r.right + window.scrollX - 176) }, p.id);
                     }}
-                      className="rounded-lg p-1.5 hover:bg-white/10 transition opacity-0 group-hover:opacity-100">
-                      <MoreVertical size={13} className="text-[var(--navy-text-muted)]" />
+                          className="mp-icon-action">
+                      <MoreVertical size={13} className="mp-muted-icon" />
                     </button>
-                  </div>
-                </div>
+                      </td>
+                    </tr>
               );
-            })}
-            {filteredProjects.length > showCount && (
-              <button type="button" onClick={() => setShowCount((n) => n + 25)}
-                className="w-full py-3.5 text-xs font-semibold text-[var(--navy-text-muted)] hover:bg-[var(--navy-surface-2)] hover:text-[var(--navy-text)] transition border-t border-[var(--navy-border-soft)]">
-                더 보기 ({filteredProjects.length - showCount}개 남음)
-              </button>
-            )}
+                  })}
+                </tbody>
+              </table>
+            </div>
+            <div className="mp-pagination">
+              <p className="mp-pagination-label">Showing {startIndex + 1} to {Math.max(startIndex + 1, endIndex)} of {filteredProjects.length} projects</p>
+              <div className="mp-pagination-nav">
+                <button
+                  type="button"
+                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                  disabled={safePage <= 1}
+                  className={`mp-pagination-btn ${safePage <= 1 ? "opacity-40 cursor-not-allowed" : ""}`}
+                >
+                  <ChevronDown size={14} className="rotate-90" />
+                </button>
+                {pageNumbers.map((pageNum) => (
+                  <button
+                    key={pageNum}
+                    type="button"
+                    onClick={() => setCurrentPage(pageNum)}
+                    className={pageNum === safePage ? "mp-pagination-btn-active" : "mp-pagination-btn mp-pagination-btn-number"}
+                  >
+                    {pageNum}
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={safePage >= totalPages}
+                  className={`mp-pagination-btn ${safePage >= totalPages ? "opacity-40 cursor-not-allowed" : ""}`}
+                >
+                  <ChevronDown size={14} className="-rotate-90" />
+                </button>
+              </div>
+            </div>
           </>
         )}
       </motion.section>

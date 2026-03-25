@@ -105,8 +105,9 @@ function Projects() {
         return;
       }
 
-      if (type === PROJECT_EVENT_TYPES.DELETED && projectId != null) {
-        const sid = String(projectId);
+      const deletedId = projectId ?? project?.id;
+      if (type === PROJECT_EVENT_TYPES.DELETED && deletedId != null) {
+        const sid = String(deletedId);
         deletedProjectIdsRef.current.add(sid);
         setProjects((prev) => (Array.isArray(prev) ? prev : []).filter((p) => String(p?.id) !== sid));
       }
@@ -225,6 +226,11 @@ function Projects() {
       if (currentProjectId && String(currentProjectId) === sid) {
         navigate("/");
       }
+
+      // 이벤트 누락/경합 상황을 대비해 서버 데이터와 재동기화
+      refreshProjects().catch((err) => {
+        console.error("프로젝트 목록 재동기화 실패:", err);
+      });
     } catch (error) {
       console.error("삭제 실패:", error);
       await alert("프로젝트 삭제에 실패했습니다. 잠시 후 다시 시도해 주세요.");

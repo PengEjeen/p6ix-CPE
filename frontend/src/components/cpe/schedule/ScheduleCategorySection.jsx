@@ -107,6 +107,34 @@ export default function ScheduleCategorySection({
         setCategoryTotalInput(String(normalizedValue));
     }, [category, categoryTotalInput, handleCategoryTotalDaysChange, isSingleInputCategory, manualCategoryTotal]);
 
+    const getCategoryActionTarget = useCallback(() => {
+        const lastCategoryItem = allCategoryItems[allCategoryItems.length - 1] || fallbackItem;
+        if (!lastCategoryItem) return null;
+        return {
+            ...lastCategoryItem,
+            main_category: category
+        };
+    }, [allCategoryItems, category, fallbackItem]);
+
+    const handleQuickOpenImport = useCallback(() => {
+        const target = getCategoryActionTarget();
+        if (!target) return;
+        handleOpenImport(target);
+        setOpenCategoryMenu(null);
+    }, [getCategoryActionTarget, handleOpenImport, setOpenCategoryMenu]);
+
+    const handleQuickOpenEvidence = useCallback(() => {
+        const target = getCategoryActionTarget();
+        handleOpenEvidence(target || null);
+        setOpenCategoryMenu(null);
+    }, [getCategoryActionTarget, handleOpenEvidence, setOpenCategoryMenu]);
+
+    const handleQuickOpenFloorBatch = useCallback(() => {
+        if (!canGenerateFloorBatch) return;
+        handleOpenFloorBatchModal(category, allCategoryItems);
+        setOpenCategoryMenu(null);
+    }, [allCategoryItems, canGenerateFloorBatch, category, handleOpenFloorBatchModal, setOpenCategoryMenu]);
+
     return (
         <React.Fragment>
             <tr className="bg-gradient-to-r from-[var(--navy-surface)] to-[var(--navy-surface-2)] border-t border-[var(--navy-border-soft)]">
@@ -290,6 +318,40 @@ export default function ScheduleCategorySection({
                                 </button>
                                 <button
                                     type="button"
+                                    onClick={handleQuickOpenImport}
+                                    className="inline-flex h-8 items-center gap-1 rounded-md border border-[var(--navy-border)] px-2 text-[11px] font-semibold text-[var(--navy-text)] transition hover:bg-[var(--navy-surface-3)]"
+                                    title="표준품셈 선택"
+                                    aria-label="표준품셈 선택"
+                                >
+                                    <RefreshCw size={12} />
+                                    표준품셈
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={handleQuickOpenEvidence}
+                                    className="inline-flex h-8 items-center gap-1 rounded-md border border-[var(--navy-border)] px-2 text-[11px] font-semibold text-[var(--navy-text)] transition hover:bg-[var(--navy-surface-3)]"
+                                    title="근거 데이터 반영"
+                                    aria-label="근거 데이터 반영"
+                                >
+                                    <SlidersHorizontal size={12} />
+                                    근거반영
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={handleQuickOpenFloorBatch}
+                                    disabled={!canGenerateFloorBatch}
+                                    className={`inline-flex h-8 items-center gap-1 rounded-md border px-2 text-[11px] font-semibold transition ${canGenerateFloorBatch
+                                        ? "border-[var(--navy-border)] text-[var(--navy-text)] hover:bg-[var(--navy-surface-3)]"
+                                        : "cursor-not-allowed border-gray-700 text-[var(--navy-text-muted)] opacity-60"
+                                        }`}
+                                    title={canGenerateFloorBatch ? "층별 공정 생성" : "골조/RC 계열 대공종에서만 사용할 수 있습니다."}
+                                    aria-label="층별 공정 생성"
+                                >
+                                    <Layers3 size={12} />
+                                    층별생성
+                                </button>
+                                <button
+                                    type="button"
                                     onClick={() => setOpenCategoryMenu((prev) => (prev === category ? null : category))}
                                     className="flex h-8 w-8 items-center justify-center rounded-md border border-[var(--navy-border)] text-[var(--navy-text)] transition hover:bg-[var(--navy-surface-3)]"
                                     title="더보기"
@@ -309,16 +371,7 @@ export default function ScheduleCategorySection({
                                     >
                                         <button
                                             type="button"
-                                            onClick={() => {
-                                                const lastCategoryItem = allCategoryItems[allCategoryItems.length - 1] || fallbackItem;
-                                                if (lastCategoryItem) {
-                                                    handleOpenImport({
-                                                        ...lastCategoryItem,
-                                                        main_category: category
-                                                    });
-                                                }
-                                                setOpenCategoryMenu(null);
-                                            }}
+                                            onClick={handleQuickOpenImport}
                                             className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-[var(--navy-text)] transition hover:bg-[var(--navy-surface-3)]"
                                         >
                                             <RefreshCw size={12} />
@@ -326,11 +379,7 @@ export default function ScheduleCategorySection({
                                         </button>
                                         <button
                                             type="button"
-                                            onClick={() => {
-                                                const lastCategoryItem = allCategoryItems[allCategoryItems.length - 1] || fallbackItem;
-                                                handleOpenEvidence(lastCategoryItem || null);
-                                                setOpenCategoryMenu(null);
-                                            }}
+                                            onClick={handleQuickOpenEvidence}
                                             className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-[var(--navy-text)] transition hover:bg-[var(--navy-surface-3)]"
                                         >
                                             <SlidersHorizontal size={12} />
@@ -338,11 +387,7 @@ export default function ScheduleCategorySection({
                                         </button>
                                         <button
                                             type="button"
-                                            onClick={() => {
-                                                if (!canGenerateFloorBatch) return;
-                                                handleOpenFloorBatchModal(category, allCategoryItems);
-                                                setOpenCategoryMenu(null);
-                                            }}
+                                            onClick={handleQuickOpenFloorBatch}
                                             disabled={!canGenerateFloorBatch}
                                             className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs transition ${canGenerateFloorBatch
                                                 ? "text-[var(--navy-text)] hover:bg-[var(--navy-surface-3)]"

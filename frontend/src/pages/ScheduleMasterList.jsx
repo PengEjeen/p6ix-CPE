@@ -994,8 +994,27 @@ export default function ScheduleMasterList() {
             ? selectedItemIds.filter((id) => visibleItemIdSet.has(id))
             : selectedItemIds;
         if (targetIds.length === 0) return;
-        const ok = await confirm(`선택된 ${targetIds.length}개 항목을 삭제하시겠습니까?`);
+
+        const targetCount = targetIds.length;
+        const scopeText = isFilterActive ? "현재 필터/검색 결과에서 " : "";
+        const ok = await confirm({
+            title: "선택 항목 삭제",
+            message: `${scopeText}선택된 ${targetCount}개 항목을 삭제하시겠습니까?`,
+            confirmText: "삭제",
+            cancelText: "취소"
+        });
         if (!ok) return;
+
+        if (targetCount >= 20) {
+            const bulkOk = await confirm({
+                title: "대량 삭제 확인",
+                message: `${targetCount}개 항목이 한 번에 삭제됩니다.\n정말 계속하시겠습니까?`,
+                confirmText: "대량 삭제 진행",
+                cancelText: "취소"
+            });
+            if (!bulkOk) return;
+        }
+
         deleteItems(targetIds);
         const removedIdSet = new Set(targetIds);
         setSelectedItemIds((prev) => prev.filter((id) => !removedIdSet.has(id)));
@@ -1400,7 +1419,7 @@ export default function ScheduleMasterList() {
             }
 
             if (selectedCount === 0) return;
-            if (e.key === 'Delete' || e.key === 'Backspace') {
+            if (e.key === 'Delete') {
                 e.preventDefault();
                 handleDeleteSelectedItems();
             }
