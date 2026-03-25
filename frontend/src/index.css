@@ -585,6 +585,12 @@ code {
     color: var(--navy-text);
   }
 
+  .glass-card {
+    background: color-mix(in srgb, var(--navy-surface-3) 60%, transparent);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+  }
+
   .mp-page {
     @apply mx-auto w-full max-w-[1680px] space-y-10;
   }

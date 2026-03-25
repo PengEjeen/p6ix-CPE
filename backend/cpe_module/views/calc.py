@@ -35,7 +35,7 @@ def _get_owned_project_or_404(request, project_id):
 @permission_classes([IsAuthenticated])
 def detail_construction_overview(request, project_id):
     project = _get_owned_project_or_404(request, project_id)
-    instance = get_object_or_404(ConstructionOverview, project=project)
+    instance, _ = ConstructionOverview.objects.get_or_create(project=project)
     serializer = ConstructionOverviewSerializer(instance)
     return Response(serializer.data)
 
@@ -44,7 +44,7 @@ def detail_construction_overview(request, project_id):
 @permission_classes([IsAuthenticated])
 def update_construction_overview(request, project_id):
     project = _get_owned_project_or_404(request, project_id)
-    instance = get_object_or_404(ConstructionOverview, project=project)
+    instance, _ = ConstructionOverview.objects.get_or_create(project=project)
     serializer = ConstructionOverviewSerializer(instance, data=request.data, partial=True)
     if serializer.is_valid():
         serializer.save()
