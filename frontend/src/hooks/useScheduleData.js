@@ -10,6 +10,7 @@ import { fetchPileResults, fetchPileStandard } from "../api/cpe_all/pile_basis";
 import { fetchBoredPileResults, fetchBoredPileStandard } from "../api/cpe_all/bored_pile_basis";
 import { detailProject } from "../api/cpe/project";
 import { detailWorkCondition } from "../api/cpe/calc";
+import { getSelectableOperatingRates } from "../utils/operatingRateKeys";
 import toast from "react-hot-toast";
 
 const DEFAULT_SCHEDULE_ITEMS = [];
@@ -102,7 +103,7 @@ export const useScheduleData = (projectId, setStoreItems, setStoreOperatingRates
             setContainerId(currentContainerId);
 
             // Store Init
-            setStoreOperatingRates(rateData);
+            setStoreOperatingRates(getSelectableOperatingRates(rateData));
 
             // CRIMTICAL FIX: Deduplicate items based on ID to prevent rendering issues
             // Backend might return duplicates or previous logic might have piled them up locally

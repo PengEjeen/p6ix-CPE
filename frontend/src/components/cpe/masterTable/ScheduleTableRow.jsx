@@ -3,7 +3,15 @@ import { Trash2, Link, GripVertical } from "lucide-react";
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import StandardSuggestList from "./StandardSuggestList";
-import { findOperatingRateForItem } from "../../../utils/operatingRateKeys";
+import {
+    findOperatingRateForItem,
+    getOperatingRateOptionLabel,
+    getSelectableOperatingRates,
+    normalizeOperatingRateKey
+} from "../../../utils/operatingRateKeys";
+
+const OPERATING_RATE_FIELD = "operating_rate_key";
+const AUTO_OPERATING_RATE_VALUE = "__AUTO__";
 
 const ScheduleTableRow = ({
     item,
@@ -96,6 +104,7 @@ const ScheduleTableRow = ({
     const formulaInputRef = useRef(null);
     const unitInputRef = useRef(null);
     const noteInputRef = useRef(null);
+    const operatingRateSelectRef = useRef(null);
     const editableInputBaseClass = "ui-table-editable-input text-gray-100";
     const focusRingClass = "ring-1 ring-cyan-400/70";
     const multilineInputClass = "resize-none overflow-hidden whitespace-pre-wrap break-words leading-snug";
@@ -210,6 +219,37 @@ const ScheduleTableRow = ({
     const processSuggestions = useMemo(() => buildSuggestions(processQuery), [processQuery, standardItems]);
     const subProcessSuggestions = useMemo(() => buildSuggestions(subProcessQuery), [subProcessQuery, standardItems]);
     const workTypeSuggestions = useMemo(() => buildSuggestions(workTypeQuery), [workTypeQuery, standardItems]);
+    const selectableOperatingRates = useMemo(
+        () => getSelectableOperatingRates(operatingRates),
+        [operatingRates]
+    );
+    const explicitOperatingRateKey = normalizeOperatingRateKey(item?.operating_rate_key);
+    const operatingRateSelectOptions = useMemo(() => {
+        const options = [{
+            value: AUTO_OPERATING_RATE_VALUE,
+            label: rateObj
+                ? `자동 매칭 (${getOperatingRateOptionLabel(rateObj)})`
+                : "자동 매칭"
+        }];
+
+        selectableOperatingRates.forEach((rate) => {
+            const value = normalizeOperatingRateKey(rate?.main_category);
+            if (!value) return;
+            options.push({
+                value,
+                label: getOperatingRateOptionLabel(rate)
+            });
+        });
+
+        return options;
+    }, [rateObj, selectableOperatingRates]);
+    const operatingRateSelectValue = useMemo(() => {
+        if (!explicitOperatingRateKey) return AUTO_OPERATING_RATE_VALUE;
+        const hasExplicitOption = operatingRateSelectOptions.some(
+            (option) => option.value === explicitOperatingRateKey
+        );
+        return hasExplicitOption ? explicitOperatingRateKey : AUTO_OPERATING_RATE_VALUE;
+    }, [explicitOperatingRateKey, operatingRateSelectOptions]);
 
     const handleInputFocus = (field, currentValue) => {
         if (blurTimeoutRef.current) {
@@ -271,6 +311,11 @@ const ScheduleTableRow = ({
         resizeTextarea(unitInputRef.current);
         resizeTextarea(noteInputRef.current);
     }, [item.process, item.sub_process, item.work_type, item.quantity_formula, item.unit, item.note]);
+
+    useEffect(() => {
+        if (activeField !== OPERATING_RATE_FIELD || !operatingRateSelectRef.current) return;
+        operatingRateSelectRef.current.focus();
+    }, [activeField]);
 
     const normalizedSpanInfo = spanInfo || {
         isProcessFirst: true,
@@ -744,10 +789,63 @@ const ScheduleTableRow = ({
             </td>
 
             {/* Op Rate */}
-            <td className="border-r border-gray-700 p-1">
-                <div className="w-full text-base text-center text-gray-200 bg-[#1f1f2b] rounded font-medium py-1">
-                    {rateValue}%
-                </div>
+            <td
+                className={getCellWrapperClass(OPERATING_RATE_FIELD, "border-r border-gray-700 p-1")}
+                {...getCellWrapperProps(OPERATING_RATE_FIELD)}
+            >
+                {isOverlay ? (
+                    <div className="w-full text-base text-center text-gray-200 bg-[#1f1f2b] rounded font-medium py-1">
+                        {rateValue}%
+                    </div>
+                ) : activeField === OPERATING_RATE_FIELD ? (
+                    <select
+                        ref={operatingRateSelectRef}
+                        className={`ui-table-editable-input w-full rounded p-1 text-center text-sm font-medium text-gray-100 ${getEditableStateClass(OPERATING_RATE_FIELD)}`}
+                        data-schedule-cell="true"
+                        data-schedule-row-id={item.id}
+                        data-schedule-field={OPERATING_RATE_FIELD}
+                        value={operatingRateSelectValue}
+                        onChange={(e) => {
+                            const nextValue = e.target.value;
+                            handleChange(
+                                item.id,
+                                OPERATING_RATE_FIELD,
+                                nextValue === AUTO_OPERATING_RATE_VALUE ? "" : nextValue
+                            );
+                        }}
+                        onFocus={() => {
+                            onActivateCell?.(item.id, OPERATING_RATE_FIELD);
+                            rememberFieldOrigin(OPERATING_RATE_FIELD, explicitOperatingRateKey);
+                        }}
+                        onBlur={() => {
+                            clearFieldOrigin(OPERATING_RATE_FIELD);
+                            handleInputBlur(OPERATING_RATE_FIELD);
+                        }}
+                        onKeyDown={(e) => handleFieldKeyDown(e, OPERATING_RATE_FIELD, operatingRateSelectValue, {
+                            revertField: OPERATING_RATE_FIELD
+                        })}
+                    >
+                        {operatingRateSelectOptions.map((option) => (
+                            <option key={option.value} value={option.value}>
+                                {option.label}
+                            </option>
+                        ))}
+                    </select>
+                ) : (
+                    <button
+                        type="button"
+                        className={`w-full rounded bg-[#1f1f2b] py-1 text-center text-base font-medium text-gray-200 transition hover:bg-[#2a2a38] ${getEditableStateClass(OPERATING_RATE_FIELD)}`}
+                        title={operatingRateSelectOptions.find((option) => option.value === operatingRateSelectValue)?.label || "가동률 선택"}
+                        onClick={() => {
+                            onActivateCell?.(item.id, OPERATING_RATE_FIELD);
+                            rememberFieldOrigin(OPERATING_RATE_FIELD, explicitOperatingRateKey);
+                            setSuggestionField(null);
+                            setActiveField(OPERATING_RATE_FIELD);
+                        }}
+                    >
+                        {rateValue}%
+                    </button>
+                )}
             </td>
 
             {/* Cal Days */}

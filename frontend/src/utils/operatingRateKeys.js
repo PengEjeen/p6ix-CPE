@@ -2,6 +2,8 @@ const PROCESS_KEY_DELIMITER = "|||";
 
 const normalizePart = (value) => String(value || "").trim();
 
+export const normalizeOperatingRateKey = (value) => normalizePart(value);
+
 export const makeMainOperatingRateKey = (mainCategory) => normalizePart(mainCategory);
 
 export const makeProcessOperatingRateKey = (mainCategory, process) => {
@@ -33,8 +35,49 @@ export const parseOperatingRateKey = (rawKey) => {
     };
 };
 
+export const isSelectableOperatingRate = (rate = {}) => {
+    const parsed = parseOperatingRateKey(rate?.main_category);
+    if (!parsed.rawKey) return false;
+    if (!parsed.isProcessKey) return true;
+    return normalizePart(rate?.type).toUpperCase() !== "INHERIT";
+};
+
+export const getSelectableOperatingRates = (operatingRates = []) => {
+    if (!Array.isArray(operatingRates) || operatingRates.length === 0) return [];
+
+    const seenKeys = new Set();
+    return operatingRates.filter((rate) => {
+        const key = normalizePart(rate?.main_category);
+        if (!key || seenKeys.has(key) || !isSelectableOperatingRate(rate)) {
+            return false;
+        }
+        seenKeys.add(key);
+        return true;
+    });
+};
+
+export const getOperatingRateOptionLabel = (rate = {}) => {
+    const parsed = parseOperatingRateKey(rate?.main_category);
+    const label = parsed.isProcessKey
+        ? `${parsed.mainCategory} / ${parsed.process}`
+        : parsed.mainCategory;
+    const percent = rate?.operating_rate ?? null;
+    if (percent === null || percent === undefined || percent === "") {
+        return label || "가동률";
+    }
+    return `${label} (${percent}%)`;
+};
+
 export const findOperatingRateForItem = (operatingRates = [], item = {}) => {
     if (!Array.isArray(operatingRates) || operatingRates.length === 0) return null;
+
+    const explicitKey = normalizePart(item.operating_rate_key);
+    if (explicitKey) {
+        const byExplicitKey = operatingRates.find(
+            (rate) => normalizePart(rate?.main_category) === explicitKey
+        );
+        if (byExplicitKey) return byExplicitKey;
+    }
 
     const mainCategory = normalizePart(item.main_category);
     const process = normalizePart(item.process);
@@ -52,4 +95,3 @@ export const findOperatingRateForItem = (operatingRates = [], item = {}) => {
         operatingRates.find((rate) => normalizePart(rate?.main_category) === mainCategory) || null
     );
 };
-

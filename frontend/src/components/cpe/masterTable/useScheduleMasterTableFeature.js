@@ -3,6 +3,7 @@ import toast from "react-hot-toast";
 import { saveScheduleData } from "../../../api/cpe_all/construction_schedule";
 import useScheduleMasterTable from "./useScheduleMasterTable";
 import { getCategoryManualTotalDays } from "../../../utils/scheduleCalculations";
+import { getSelectableOperatingRates } from "../../../utils/operatingRateKeys";
 
 export default function useScheduleMasterTableFeature({
     items,
@@ -146,11 +147,11 @@ export default function useScheduleMasterTableFeature({
                 ? savedRatesResponse
                 : Array.isArray(savedRatesResponse?.results)
                     ? savedRatesResponse.results
-                    : Array.isArray(savedRatesResponse?.data)
-                        ? savedRatesResponse.data
-                        : null;
+                        : Array.isArray(savedRatesResponse?.data)
+                            ? savedRatesResponse.data
+                            : null;
             if (normalizedSavedRates) {
-                setStoreOperatingRates(normalizedSavedRates);
+                setStoreOperatingRates(getSelectableOperatingRates(normalizedSavedRates));
             }
             toast.success(`${category} Run Rate 업데이트 완료`);
         } catch (error) {
@@ -333,7 +334,7 @@ export default function useScheduleMasterTableFeature({
                         main_category: nextCategory
                     }))
                 });
-                setStoreOperatingRates(savedRates);
+                setStoreOperatingRates(getSelectableOperatingRates(savedRates));
             } catch (error) {
                 console.error("대공종명 변경 후 가동률 저장 실패:", error);
                 setStoreOperatingRates(operatingRates);

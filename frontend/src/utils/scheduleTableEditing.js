@@ -25,6 +25,7 @@ export const SCHEDULE_CELL_NAV_FIELDS = [
     "cp_checked",
     "parallel_rate",
     "reflection_rate",
+    "operating_rate_key",
     "note"
 ];
 
