@@ -23,6 +23,13 @@ function normalizePath(value, fallback = "/") {
   return path || "/";
 }
 
+export function normalizeApiPath(value, fallback = "/api") {
+  const normalizedPath = normalizePath(value, fallback);
+  if (normalizedPath === "/") return "/api";
+  if (normalizedPath.endsWith("/api")) return normalizedPath;
+  return `${normalizedPath}/api`;
+}
+
 function inferAppBaseFromLocation() {
   if (typeof window === "undefined") return "/";
 
@@ -111,7 +118,7 @@ export function resolveApiBase() {
   const appBase = resolveAppBase();
   const configured = String(import.meta.env.VITE_API_BASE || "").trim();
   if (configured) {
-    const normalizedConfigured = normalizePath(configured, "/api");
+    const normalizedConfigured = normalizeApiPath(configured, "/api");
     if (normalizedConfigured === "/api" && appBase !== "/") {
       return `${appBase}/api`;
     }

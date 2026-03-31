@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { resolveApiBase, resolveAppBase } from "./runtimePaths";
+import { normalizeApiPath, resolveApiBase, resolveAppBase } from "./runtimePaths";
 
 const APP_BASE_STORAGE_KEY = "p6ix_app_base";
 
@@ -39,5 +39,10 @@ describe("runtimePaths", () => {
 
     expect(resolveAppBase()).toBe("/deploy");
     expect(resolveApiBase()).toBe("/deploy/api");
+  });
+
+  it("normalizes configured api bases without an api suffix", () => {
+    expect(normalizeApiPath("/deploy")).toBe("/deploy/api");
+    expect(normalizeApiPath("/deploy/api")).toBe("/deploy/api");
   });
 });

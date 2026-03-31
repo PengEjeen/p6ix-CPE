@@ -17,13 +17,17 @@ const normalizePathPrefix = (value = "/") => {
     return path || "/";
 };
 
+const normalizeApiBase = (value = "/api") => {
+    const normalizedPath = normalizePathPrefix(value);
+    if (normalizedPath === "/") return "/api";
+    if (normalizedPath.endsWith("/api")) return normalizedPath;
+    return `${normalizedPath}/api`;
+};
+
 const deriveBaseFromApi = (apiBase = "/api") => {
-    const normalizedApiBase = normalizePathPrefix(apiBase);
+    const normalizedApiBase = normalizeApiBase(apiBase);
     if (normalizedApiBase === "/api") return "/";
-    if (normalizedApiBase.endsWith("/api")) {
-        return normalizedApiBase.slice(0, -4) || "/";
-    }
-    return "/";
+    return normalizedApiBase.slice(0, -4) || "/";
 };
 
 export default defineConfig(({ mode }) => {
