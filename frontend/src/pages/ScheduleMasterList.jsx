@@ -3,31 +3,23 @@ import { useParams } from "react-router-dom";
 import { saveScheduleData, initializeDefaultItems, fetchScheduleItems, exportScheduleExcel } from "../api/cpe_all/construction_schedule";
 import { updateWorkCondition } from "../api/cpe/calc";
 import toast from "react-hot-toast";
-import { ChevronLeft, ChevronRight, X } from "lucide-react";
 import { markFtueDone } from "../utils/ftue";
 import { FTUE_STEP_IDS } from "../config/ftueSteps";
-
-import { DndContext, closestCenter, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
-import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
 
 import StandardImportModal from "../components/cpe/StandardImportModal";
 import ScheduleHeader from "../components/cpe/schedule/ScheduleHeader";
 import ScheduleGanttPanel from "../components/cpe/schedule/ScheduleGanttPanel";
 import EvidenceResultModal from "../components/cpe/schedule/EvidenceResultModal";
 import SnapshotManager from "../components/cpe/schedule/SnapshotManager";
-import ScheduleMasterTableToolbarRow from "../components/cpe/schedule/ScheduleMasterTableToolbarRow";
-import ScheduleCategorySection from "../components/cpe/schedule/ScheduleCategorySection";
+import ScheduleMasterTablePage from "../components/cpe/masterTable/ScheduleMasterTablePage";
 
 import { useScheduleStore } from "../stores/scheduleStore";
 import { useConfirm } from "../contexts/ConfirmContext";
 import { useAIScheduleOptimizer } from "../hooks/useAIScheduleOptimizer";
 import { useScheduleData } from "../hooks/useScheduleData";
-import { useDragHandlers } from "../hooks/useDragHandlers";
-import { calculateTotalCalendarDays, calculateTotalCalendarMonths, getCategoryManualTotalDays } from "../utils/scheduleCalculations";
-import { calculateGanttItems } from "../components/cpe/ganttUtils";
+import useScheduleMasterGantt from "../hooks/useScheduleMasterGantt";
+import { calculateTotalCalendarDays, calculateTotalCalendarMonths } from "../utils/scheduleCalculations";
 import { fetchProductivities } from "../api/cpe_all/productivity";
-
-const HORIZONTAL_HINT_STORAGE_KEY = "scheduleMaster.horizontalHintSeen";
 
 export default function ScheduleMasterList() {
     const { id: projectId } = useParams();
@@ -49,6 +41,7 @@ export default function ScheduleMasterList() {
     const setStoreSubTasks = useScheduleStore((state) => state.setSubTasks);
     const updateItem = useScheduleStore((state) => state.updateItem);
     const updateItemsField = useScheduleStore((state) => state.updateItemsField);
+    const applyItemFieldChanges = useScheduleStore((state) => state.applyItemFieldChanges);
     const addItem = useScheduleStore((state) => state.addItem);
     const addItemAtIndex = useScheduleStore((state) => state.addItemAtIndex);
     const deleteItems = useScheduleStore((state) => state.deleteItems);
@@ -196,14 +189,7 @@ export default function ScheduleMasterList() {
     const [snapshotModalOpen, setSnapshotModalOpen] = useState(false);
     const [importTargetParent, setImportTargetParent] = useState(null);
     const [viewMode, setViewMode] = useState("table"); // "table" or "gantt"
-    const [newMainCategory, setNewMainCategory] = useState("");
-    const [isScrolling, setIsScrolling] = useState(false);
     const [standardItems, setStandardItems] = useState([]);
-    const [selectedItemIds, setSelectedItemIds] = useState([]);
-    const [activeEditingItemId, setActiveEditingItemId] = useState(null);
-    const [categoryRenameTarget, setCategoryRenameTarget] = useState(null);
-    const [categoryRenameValue, setCategoryRenameValue] = useState("");
-    const [isSelectionDragging, setIsSelectionDragging] = useState(false);
     const [rowClassEditModal, setRowClassEditModal] = useState({
         open: false,
         itemId: null,
@@ -212,274 +198,21 @@ export default function ScheduleMasterList() {
     });
     const [floorBatchModal, setFloorBatchModal] = useState(null);
     const [floorBatchRange, setFloorBatchRange] = useState({ min: "", max: "" });
-    const [openCategoryMenu, setOpenCategoryMenu] = useState(null);
-    const [searchKeyword, setSearchKeyword] = useState("");
-    const [categoryFilter, setCategoryFilter] = useState("ALL");
-    const [isTablePointerInside, setIsTablePointerInside] = useState(false);
-    const [isTableFocusInside, setIsTableFocusInside] = useState(false);
-    const selectAllRef = useRef(null);
-    const tableHeaderRef = useRef(null);
-    const tableScrollRef = useRef(null);
-    const tableInteractionRef = useRef(null);
-    const categoryMenuRef = useRef(null);
-    const categoryMenuDropdownRef = useRef(null);
-    const [tableHeaderHeight, setTableHeaderHeight] = useState(44);
-    const [categoryMenuPosition, setCategoryMenuPosition] = useState(null);
-    const [hasHorizontalOverflow, setHasHorizontalOverflow] = useState(false);
-    const [canScrollLeft, setCanScrollLeft] = useState(false);
-    const [canScrollRight, setCanScrollRight] = useState(false);
-    const [showHorizontalHint, setShowHorizontalHint] = useState(false);
-    const selectionDragModeRef = useRef(null);
-    const selectionDragVisitedRef = useRef(new Set());
     const startDateRequestRef = useRef(0);
 
-    const selectedIdSet = useMemo(() => new Set(selectedItemIds), [selectedItemIds]);
-    const normalizedSearchKeyword = useMemo(() => searchKeyword.trim().toLowerCase(), [searchKeyword]);
-    const hasSearchKeyword = normalizedSearchKeyword.length > 0;
-    const isFilterActive = categoryFilter !== "ALL" || normalizedSearchKeyword.length > 0;
-    const categoryOptions = useMemo(() => {
-        const seen = new Set();
-        const result = [];
-        items.forEach((item) => {
-            const category = String(item.main_category || "기타");
-            if (seen.has(category)) return;
-            seen.add(category);
-            result.push(category);
-        });
-        return result;
-    }, [items]);
-    const categoryItemsMap = useMemo(() => {
-        const map = new Map();
-        items.forEach((item) => {
-            const category = String(item.main_category || "기타");
-            if (!map.has(category)) {
-                map.set(category, []);
-            }
-            map.get(category).push(item);
-        });
-        return map;
-    }, [items]);
-    const visibleItems = useMemo(() => {
-        return items.filter((item) => {
-            const category = String(item.main_category || "기타");
-            if (categoryFilter !== "ALL" && category !== categoryFilter) return false;
-            if (!normalizedSearchKeyword) return true;
-            const fields = [
-                category,
-                item.process,
-                item.sub_process,
-                item.work_type,
-                item.unit,
-                item.note,
-                item.remarks,
-                item.quantity_formula
-            ];
-            const haystack = fields
-                .filter((field) => field !== null && field !== undefined)
-                .map((field) => String(field).toLowerCase())
-                .join(" ");
-            return haystack.includes(normalizedSearchKeyword);
-        });
-    }, [categoryFilter, items, normalizedSearchKeyword]);
-    const visibleItemIds = useMemo(() => visibleItems.map((item) => item.id), [visibleItems]);
-    const visibleItemIdSet = useMemo(() => new Set(visibleItemIds), [visibleItemIds]);
-    const selectedVisibleCount = useMemo(
-        () => selectedItemIds.reduce((count, id) => count + (visibleItemIdSet.has(id) ? 1 : 0), 0),
-        [selectedItemIds, visibleItemIdSet]
-    );
-    const selectedCount = isFilterActive ? selectedVisibleCount : selectedItemIds.length;
-    const allSelected = visibleItemIds.length > 0 && visibleItemIds.every((id) => selectedIdSet.has(id));
-    const groupedVisibleItems = useMemo(() => {
-        return visibleItems.reduce((acc, item) => {
-            const category = String(item.main_category || "기타");
-            if (!acc[category]) acc[category] = [];
-            acc[category].push(item);
-            return acc;
-        }, {});
-    }, [visibleItems]);
-    const activeEditingItem = useMemo(
-        () => items.find((item) => item.id === activeEditingItemId) || null,
-        [items, activeEditingItemId]
-    );
     const {
-        activeId,
-        overId,
-        handleDragStart,
-        handleDragOver,
-        handleDragCancel,
-        handleDragEnd
-    } = useDragHandlers(items, reorderItems, selectedItemIds);
-
-    const toggleSelectItem = useCallback((id) => {
-        setSelectedItemIds((prev) => (
-            prev.includes(id) ? prev.filter((itemId) => itemId !== id) : [...prev, id]
-        ));
-    }, []);
-
-    const startSelectionDrag = useCallback((id) => {
-        if (!id) return;
-        const shouldSelect = !selectedItemIds.includes(id);
-        selectionDragModeRef.current = shouldSelect;
-        selectionDragVisitedRef.current = new Set([id]);
-        setIsSelectionDragging(true);
-        setSelectedItemIds((prev) => {
-            if (shouldSelect) {
-                return prev.includes(id) ? prev : [...prev, id];
-            }
-            return prev.filter((itemId) => itemId !== id);
-        });
-    }, [selectedItemIds]);
-
-    const dragSelectItem = useCallback((id) => {
-        if (!isSelectionDragging || !id) return;
-        if (selectionDragVisitedRef.current.has(id)) return;
-        selectionDragVisitedRef.current.add(id);
-        const shouldSelect = selectionDragModeRef.current !== false;
-        setSelectedItemIds((prev) => {
-            if (shouldSelect) {
-                return prev.includes(id) ? prev : [...prev, id];
-            }
-            return prev.filter((itemId) => itemId !== id);
-        });
-    }, [isSelectionDragging]);
-
-    const updateCategoryMenuPosition = useCallback(() => {
-        if (!categoryMenuRef.current || typeof window === "undefined") return;
-        const rect = categoryMenuRef.current.getBoundingClientRect();
-        const menuWidth = 188;
-        const menuHeightEstimate = 220;
-        const left = Math.min(
-            window.innerWidth - menuWidth - 8,
-            Math.max(8, rect.right - menuWidth)
-        );
-        const spaceBelow = window.innerHeight - rect.bottom;
-        const top = spaceBelow < menuHeightEstimate
-            ? Math.max(8, rect.top - menuHeightEstimate - 6)
-            : rect.bottom + 6;
-        setCategoryMenuPosition({ top, left });
-    }, []);
-
-    const toggleSelectAllItems = useCallback((checked) => {
-        setSelectedItemIds((prev) => {
-            if (!checked) {
-                return prev.filter((id) => !visibleItemIdSet.has(id));
-            }
-            const next = new Set(prev);
-            visibleItemIds.forEach((id) => next.add(id));
-            return Array.from(next);
-        });
-    }, [visibleItemIdSet, visibleItemIds]);
-
-    useEffect(() => {
-        if (!isSelectionDragging) return;
-        const handleMouseUp = () => {
-            setIsSelectionDragging(false);
-            selectionDragModeRef.current = null;
-            selectionDragVisitedRef.current.clear();
-        };
-        window.addEventListener("mouseup", handleMouseUp);
-        return () => window.removeEventListener("mouseup", handleMouseUp);
-    }, [isSelectionDragging]);
-
-    useEffect(() => {
-        if (!isFilterActive) return;
-        setSelectedItemIds((prev) => prev.filter((id) => visibleItemIdSet.has(id)));
-    }, [isFilterActive, visibleItemIdSet]);
-
-    const updateHorizontalScrollState = useCallback(() => {
-        const el = tableScrollRef.current;
-        if (!el) return;
-        const maxLeft = Math.max(0, el.scrollWidth - el.clientWidth);
-        const hasOverflow = maxLeft > 1;
-        setHasHorizontalOverflow(hasOverflow);
-        setCanScrollLeft(hasOverflow && el.scrollLeft > 2);
-        setCanScrollRight(hasOverflow && el.scrollLeft < maxLeft - 2);
-    }, []);
-
-    const dismissHorizontalHint = useCallback(() => {
-        setShowHorizontalHint(false);
-        try {
-            window.localStorage.setItem(HORIZONTAL_HINT_STORAGE_KEY, "1");
-        } catch {
-            // ignore storage errors
-        }
-    }, []);
-
-    // Scroll handler for custom scrollbar
-    const handleScroll = useCallback((e) => {
-        setIsScrolling(true);
-        clearTimeout(window.scrollTimeout);
-        window.scrollTimeout = setTimeout(() => {
-            setIsScrolling(false);
-        }, 1000);
-        updateHorizontalScrollState();
-    }, [updateHorizontalScrollState]);
-
-    useEffect(() => {
-        if (viewMode !== "table") return;
-        const raf = window.requestAnimationFrame(() => {
-            updateHorizontalScrollState();
-        });
-        const handleResize = () => updateHorizontalScrollState();
-        window.addEventListener("resize", handleResize);
-        return () => {
-            window.cancelAnimationFrame(raf);
-            window.removeEventListener("resize", handleResize);
-        };
-    }, [items, updateHorizontalScrollState, viewMode]);
-
-    useEffect(() => {
-        if (viewMode !== "table" || !hasHorizontalOverflow) return;
-        let seen = false;
-        try {
-            seen = window.localStorage.getItem(HORIZONTAL_HINT_STORAGE_KEY) === "1";
-        } catch {
-            // ignore storage errors
-        }
-        if (!seen) setShowHorizontalHint(true);
-    }, [hasHorizontalOverflow, viewMode]);
-
-    useEffect(() => {
-        if (showHorizontalHint && canScrollLeft) {
-            dismissHorizontalHint();
-        }
-    }, [canScrollLeft, dismissHorizontalHint, showHorizontalHint]);
-
-    useEffect(() => {
-        if (!openCategoryMenu) return;
-        const handleClickOutside = (event) => {
-            const target = event.target;
-            const clickedTrigger = categoryMenuRef.current?.contains(target);
-            const clickedDropdown = categoryMenuDropdownRef.current?.contains(target);
-            if (!clickedTrigger && !clickedDropdown) {
-                setOpenCategoryMenu(null);
-            }
-        };
-        const handleEscape = (event) => {
-            if (event.key === "Escape") setOpenCategoryMenu(null);
-        };
-        window.addEventListener("mousedown", handleClickOutside);
-        window.addEventListener("keydown", handleEscape);
-        return () => {
-            window.removeEventListener("mousedown", handleClickOutside);
-            window.removeEventListener("keydown", handleEscape);
-        };
-    }, [openCategoryMenu]);
-
-    useEffect(() => {
-        if (!openCategoryMenu) {
-            setCategoryMenuPosition(null);
-            return;
-        }
-        const rafId = window.requestAnimationFrame(updateCategoryMenuPosition);
-        window.addEventListener("resize", updateCategoryMenuPosition);
-        window.addEventListener("scroll", updateCategoryMenuPosition, true);
-        return () => {
-            window.cancelAnimationFrame(rafId);
-            window.removeEventListener("resize", updateCategoryMenuPosition);
-            window.removeEventListener("scroll", updateCategoryMenuPosition, true);
-        };
-    }, [openCategoryMenu, updateCategoryMenuPosition]);
+        handleCreateSubtask,
+        handleDeleteSubtask,
+        handleGanttResize,
+        handleSmartResize,
+        handleUpdateSubtask
+    } = useScheduleMasterGantt({
+        addSubTask,
+        updateSubTask,
+        deleteSubTask,
+        resizeTaskBar,
+        resizeTaskBarByProductivity
+    });
 
     const handleExportExcel = useCallback(async () => {
         try {
@@ -501,11 +234,6 @@ export default function ScheduleMasterList() {
             toast.error("엑셀 내보내기 실패");
         }
     }, [projectId, projectName, ganttDateScale, aiDisplayItems, items]);
-
-    // Dnd Sensors
-    const sensors = useSensors(
-        useSensor(PointerSensor, { activationConstraint: { distance: 5 } })
-    );
 
     useEffect(() => {
         loadData();
@@ -549,52 +277,6 @@ export default function ScheduleMasterList() {
         }
     }, [items, subTasks, setStoreSubTasks]);
 
-    useEffect(() => {
-        const itemIdSet = new Set(items.map((item) => item.id));
-        setSelectedItemIds((prev) => prev.filter((id) => itemIdSet.has(id)));
-    }, [items]);
-
-    useEffect(() => {
-        if (!activeEditingItemId) return;
-        const exists = items.some((item) => item.id === activeEditingItemId);
-        if (!exists) {
-            setActiveEditingItemId(null);
-        }
-    }, [items, activeEditingItemId]);
-
-    useEffect(() => {
-        if (!selectAllRef.current) return;
-        selectAllRef.current.indeterminate = selectedCount > 0 && !allSelected;
-    }, [allSelected, selectedCount]);
-
-    useEffect(() => {
-        const headerEl = tableHeaderRef.current;
-        if (!headerEl) return;
-
-        const updateHeaderHeight = () => {
-            const headHeight = headerEl.getBoundingClientRect().height || 0;
-            const thHeights = Array.from(headerEl.querySelectorAll("th")).map(
-                (th) => th.getBoundingClientRect().height || 0
-            );
-            const maxThHeight = thHeights.length > 0 ? Math.max(...thHeights) : 0;
-            const measured = Math.ceil(Math.max(headHeight, maxThHeight, 44));
-            setTableHeaderHeight((prev) => (prev === measured ? prev : measured));
-        };
-
-        updateHeaderHeight();
-        let resizeObserver = null;
-        if (typeof ResizeObserver !== "undefined") {
-            resizeObserver = new ResizeObserver(updateHeaderHeight);
-            resizeObserver.observe(headerEl);
-        }
-        window.addEventListener("resize", updateHeaderHeight);
-
-        return () => {
-            if (resizeObserver) resizeObserver.disconnect();
-            window.removeEventListener("resize", updateHeaderHeight);
-        };
-    }, [viewMode]);
-
     const handleAddEvidenceItem = useCallback((type, row) => {
         const parent = evidenceTargetParent || items[0];
         if (!parent) {
@@ -630,20 +312,6 @@ export default function ScheduleMasterList() {
         toast.success("근거 결과 항목이 추가되었습니다.");
     }, [addItem, addItemAtIndex, evidenceTargetParent, items]);
 
-    // --- Store Actions Wrapper ---
-    const handleChange = (id, field, value) => {
-        updateItem(id, field, value);
-    };
-
-    const handleGroupFieldChange = useCallback((id, field, value, targetIds = []) => {
-        const ids = Array.isArray(targetIds) ? targetIds.filter(Boolean) : [];
-        if (ids.length > 1) {
-            updateItemsField(ids, field, value);
-            return;
-        }
-        updateItem(id, field, value);
-    }, [updateItem, updateItemsField]);
-
     const handleOpenRowClassEdit = useCallback((item) => {
         if (!item?.id) return;
         setRowClassEditModal({
@@ -670,166 +338,6 @@ export default function ScheduleMasterList() {
         handleCloseRowClassEdit();
     }, [handleCloseRowClassEdit, rowClassEditModal.itemId, rowClassEditModal.process, rowClassEditModal.sub_process, updateItem]);
 
-    const handleActivateItem = useCallback((item) => {
-        if (!item?.id) return;
-        setActiveEditingItemId(item.id);
-    }, []);
-
-    const handleAddItem = (parentItem = null) => {
-        const targetItem = parentItem || activeEditingItem;
-        const newItem = {
-            id: `new-${Date.now()}`,
-            main_category: targetItem ? targetItem.main_category : "새 세부공종",
-            process: targetItem ? targetItem.process : "새 작업",
-            sub_process: targetItem ? (targetItem.sub_process || "") : "새 세부공정",
-            work_type: "새 세부작업",
-            unit: "",
-            quantity: 0,
-            quantity_formula: "",
-            productivity: 0,
-            crew_size: 1,
-            remarks: "",
-            operating_rate_type: targetItem ? targetItem.operating_rate_type : "EARTH",
-            operating_rate_value: 0,
-            cp_checked: true,
-            parallel_rate: targetItem?.parallel_rate ?? (targetItem?.cp_checked === false ? 100 : 0),
-            application_rate: targetItem?.application_rate ?? targetItem?.parallel_rate ?? 100,
-            reflection_rate: targetItem?.reflection_rate ?? 100
-        };
-
-        if (targetItem) {
-            const index = items.findIndex(i => i.id === targetItem.id);
-            addItemAtIndex(newItem, index + 1);
-        } else {
-            addItem(newItem);
-        }
-    };
-
-    const handleCreateSubtask = useCallback((itemId, startDay, durationDays, extraProps = {}) => {
-        addSubTask({
-            id: `sub-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-            itemId,
-            startDay,
-            durationDays,
-            label: "부세부공종",
-            ...extraProps
-        });
-    }, [addSubTask]);
-
-    const handleUpdateSubtask = useCallback((id, updates) => {
-        updateSubTask(id, updates);
-    }, [updateSubTask]);
-
-    const handleDeleteSubtask = useCallback((id) => {
-        deleteSubTask(id);
-    }, [deleteSubTask]);
-
-    const handleAddMainCategory = () => {
-        const name = newMainCategory.trim();
-        if (!name) {
-            toast.error("대공종명을 입력해주세요.");
-            return;
-        }
-        const newItem = {
-            id: `main-${Date.now()}`,
-            main_category: name,
-            process: "새 공정",
-            sub_process: "새 세부공정",
-            work_type: "새 세부작업",
-            unit: "",
-            quantity: 0,
-            quantity_formula: "",
-            productivity: 0,
-            crew_size: 1,
-            remarks: "",
-            operating_rate_type: "EARTH",
-            operating_rate_value: 0,
-            cp_checked: true,
-            parallel_rate: 0,
-            application_rate: 100,
-            reflection_rate: 100
-        };
-        addItem(newItem);
-        setNewMainCategory("");
-        toast.success("대공종이 추가되었습니다.");
-    };
-
-    const handleCategoryRunRateChange = async (category, newRunRate) => {
-        const parsedRunRate = parseInt(newRunRate, 10);
-        if (!Number.isFinite(parsedRunRate) || parsedRunRate < 1) {
-            toast.error("유효한 Run Rate 값을 선택해주세요.");
-            return;
-        }
-
-        const prevRates = Array.isArray(operatingRates)
-            ? operatingRates.map((rate) => ({ ...rate }))
-            : [];
-
-        try {
-            // Optimistic update for instant UI feedback
-            updateOperatingRate(category, parsedRunRate);
-
-            const rateToUpdate = prevRates.find((r) => r.main_category === category);
-            const payload = {
-                weights: [{
-                    ...(rateToUpdate?.id ? { id: rateToUpdate.id } : {}),
-                    main_category: category,
-                    work_week_days: parsedRunRate
-                }]
-            };
-            const { updateOperatingRate: updateOperatingRateAPI } = await import("../api/cpe/operating_rate");
-            const savedRatesResponse = await updateOperatingRateAPI(projectId, payload);
-            const normalizedSavedRates = Array.isArray(savedRatesResponse)
-                ? savedRatesResponse
-                : Array.isArray(savedRatesResponse?.results)
-                    ? savedRatesResponse.results
-                    : Array.isArray(savedRatesResponse?.data)
-                        ? savedRatesResponse.data
-                        : null;
-            if (normalizedSavedRates) {
-                setStoreOperatingRates(normalizedSavedRates);
-            }
-            toast.success(`${category} Run Rate 업데이트 완료`);
-        } catch (error) {
-            console.error("Run Rate 업데이트 실패:", error);
-            setStoreOperatingRates(prevRates);
-            toast.error("Run Rate 업데이트 실패 - 변경값을 되돌렸습니다.");
-        }
-    };
-
-    const handleCategoryTotalDaysChange = useCallback((category, nextValue) => {
-        const targetCategory = String(category || "기타");
-        const categoryRows = items.filter((item) => String(item?.main_category || "기타") === targetCategory);
-        if (categoryRows.length === 0) return;
-
-        const nextParsed = parseFloat(nextValue);
-        const normalizedNext = Number.isFinite(nextParsed) && nextParsed >= 0
-            ? parseFloat(nextParsed.toFixed(1))
-            : null;
-        const currentManualDays = getCategoryManualTotalDays(categoryRows);
-
-        if (currentManualDays === normalizedNext) return;
-
-        updateItemsField(
-            categoryRows.map((item) => item.id),
-            "category_total_days",
-            normalizedNext
-        );
-    }, [items, updateItemsField]);
-
-    // --- Gantt to Store Connection ---
-    const handleGanttResize = (itemId, newCalendarDays, mode = 'crew') => {
-        if (mode === 'prod') {
-            resizeTaskBarByProductivity(itemId, newCalendarDays);
-        } else {
-            resizeTaskBar(itemId, newCalendarDays);
-        }
-    };
-
-    const handleSmartResize = (itemId, newCalendarDays, baseProductivity = null) => {
-        resizeTaskBar(itemId, newCalendarDays, baseProductivity);
-    };
-
     const handleOpenImport = (parentItem) => {
         setImportTargetParent(parentItem);
         setImportModalOpen(true);
@@ -839,9 +347,9 @@ export default function ScheduleMasterList() {
         const dataArray = Array.isArray(importedData) ? importedData : [importedData];
 
         dataArray.forEach(std => {
-            const processName = std.category || std.process_name || importTargetParent?.process || "수입 작업";
-            const subProcessName = std.sub_category || std.work_type_name || importTargetParent?.sub_process || "";
-            const workTypeName = std.sub_category || std.work_type_name || std.category || "수입 세부공종";
+            const processName = std.main_category || importTargetParent?.process || "수입 작업";
+            const subProcessName = std.category || std.process_name || importTargetParent?.sub_process || "";
+            const workTypeName = std.sub_category || std.work_type_name || importTargetParent?.work_type || "수입 세부공종";
             const tocLabel = std.item_name || "";
             const noteText = tocLabel ? (std.remark ? `${tocLabel} (${std.remark})` : tocLabel) : (std.remark || "");
             const newItem = {
@@ -879,280 +387,6 @@ export default function ScheduleMasterList() {
         toast.success("표준품셈 항목 추가");
         setImportModalOpen(false);
     };
-
-    const deriveStandardProductivity = useCallback((std) => {
-        if (std?.molit_workload) {
-            return { productivity: std.molit_workload, remark: '국토부 가이드라인 물량 기준' };
-        }
-        if (std?.pumsam_workload) {
-            return { productivity: std.pumsam_workload, remark: '표준품셈 물량 기준' };
-        }
-        return { productivity: 0, remark: '추천 기준 없음' };
-    }, []);
-
-    const handleApplyStandardToRow = useCallback((item, std) => {
-        if (!item || !std) return;
-        const { productivity, remark } = deriveStandardProductivity(std);
-        const processName = std.category || std.process_name || item.process || '';
-        const subProcessName = std.sub_category || std.work_type_name || item.sub_process || '';
-        const workTypeName = std.sub_category || std.work_type_name || std.category || item.work_type || '';
-        const tocLabel = std.item_name || '';
-        const noteText = tocLabel ? `${tocLabel} (${remark})` : (item.note || remark);
-        updateItem(item.id, 'process', processName);
-        updateItem(item.id, 'sub_process', subProcessName);
-        updateItem(item.id, 'work_type', workTypeName);
-        updateItem(item.id, 'unit', std.unit || item.unit || '');
-        updateItem(item.id, 'productivity', productivity || 0);
-        updateItem(item.id, 'standard_code', std.code || std.standard || item.standard_code || '');
-        updateItem(item.id, 'note', noteText);
-        updateItem(item.id, 'remarks', noteText);
-    }, [deriveStandardProductivity, updateItem]);
-
-    const spanInfoMap = useMemo(() => {
-        const map = {};
-        const splitRowIdSet = new Set(selectedItemIds);
-        if (activeEditingItemId) {
-            splitRowIdSet.add(activeEditingItemId);
-        }
-        const groupedItems = visibleItems.reduce((acc, item) => {
-            const category = item.main_category || '기타';
-            if (!acc[category]) acc[category] = [];
-            acc[category].push(item);
-            return acc;
-        }, {});
-
-        Object.values(groupedItems).forEach((categoryItems) => {
-            // Merge same `process` values in "중공종" column.
-            let i = 0;
-            while (i < categoryItems.length) {
-                const processValue = String(categoryItems[i]?.process || "");
-                const startRow = categoryItems[i];
-                const startRowSelected = splitRowIdSet.has(startRow.id);
-                let j = i + 1;
-                while (
-                    !startRowSelected &&
-                    j < categoryItems.length &&
-                    String(categoryItems[j]?.process || "") === processValue &&
-                    !splitRowIdSet.has(categoryItems[j].id)
-                ) {
-                    j += 1;
-                }
-                const span = startRowSelected ? 1 : (j - i);
-                const groupIds = categoryItems.slice(i, j).map((row) => row.id);
-                for (let k = i; k < j; k += 1) {
-                    const row = categoryItems[k];
-                    if (!map[row.id]) map[row.id] = {};
-                    map[row.id].isProcessFirst = k === i;
-                    map[row.id].processRowSpan = span;
-                    map[row.id].processGroupIds = groupIds;
-                }
-                i = j;
-            }
-
-            // Merge same `sub_process` values in "공정" column.
-            i = 0;
-            while (i < categoryItems.length) {
-                const processValue = String(categoryItems[i]?.process || "");
-                const subProcessValue = String(categoryItems[i]?.sub_process || "");
-                const startRow = categoryItems[i];
-                const startRowSelected = splitRowIdSet.has(startRow.id);
-                let j = i + 1;
-                while (
-                    !startRowSelected &&
-                    j < categoryItems.length &&
-                    String(categoryItems[j]?.process || "") === processValue &&
-                    String(categoryItems[j]?.sub_process || "") === subProcessValue &&
-                    !splitRowIdSet.has(categoryItems[j].id)
-                ) {
-                    j += 1;
-                }
-                const span = startRowSelected ? 1 : (j - i);
-                const groupIds = categoryItems.slice(i, j).map((row) => row.id);
-                for (let k = i; k < j; k += 1) {
-                    const row = categoryItems[k];
-                    if (!map[row.id]) map[row.id] = {};
-                    map[row.id].isSubProcessFirst = k === i;
-                    map[row.id].subProcessRowSpan = span;
-                    map[row.id].subProcessGroupIds = groupIds;
-                }
-                i = j;
-            }
-        });
-
-        return map;
-    }, [visibleItems, selectedItemIds, activeEditingItemId]);
-
-    const handleDeleteItem = async (id) => {
-        const ok = await confirm("삭제하시겠습니까?");
-        if (!ok) return;
-        deleteItems([id]);
-        setSelectedItemIds((prev) => prev.filter((itemId) => itemId !== id));
-    };
-
-    const handleDeleteSelectedItems = useCallback(async () => {
-        const targetIds = isFilterActive
-            ? selectedItemIds.filter((id) => visibleItemIdSet.has(id))
-            : selectedItemIds;
-        if (targetIds.length === 0) return;
-
-        const targetCount = targetIds.length;
-        const scopeText = isFilterActive ? "현재 필터/검색 결과에서 " : "";
-        const ok = await confirm({
-            title: "선택 항목 삭제",
-            message: `${scopeText}선택된 ${targetCount}개 항목을 삭제하시겠습니까?`,
-            confirmText: "삭제",
-            cancelText: "취소"
-        });
-        if (!ok) return;
-
-        if (targetCount >= 20) {
-            const bulkOk = await confirm({
-                title: "대량 삭제 확인",
-                message: `${targetCount}개 항목이 한 번에 삭제됩니다.\n정말 계속하시겠습니까?`,
-                confirmText: "대량 삭제 진행",
-                cancelText: "취소"
-            });
-            if (!bulkOk) return;
-        }
-
-        deleteItems(targetIds);
-        const removedIdSet = new Set(targetIds);
-        setSelectedItemIds((prev) => prev.filter((id) => !removedIdSet.has(id)));
-        toast.success(`${targetIds.length}개 항목이 삭제되었습니다.`);
-    }, [confirm, deleteItems, isFilterActive, selectedItemIds, visibleItemIdSet]);
-
-    const handleDeleteCategory = async (category, categoryItems) => {
-        const ok = await confirm(`${category} 대공종을 삭제하시겠습니까? (항목 ${categoryItems.length}개)`);
-        if (!ok) return;
-        const remainingItems = items.filter((item) => item.main_category !== category);
-        const remainingIds = new Set(remainingItems.map((item) => item.id));
-        const remainingLinks = links.filter(
-            (link) => remainingIds.has(link.from) && remainingIds.has(link.to)
-        );
-        const remainingSubTasks = subTasks.filter((subtask) => remainingIds.has(subtask.itemId));
-
-        if (containerId) {
-            try {
-                await saveScheduleData(containerId, { items: remainingItems, links: remainingLinks, sub_tasks: remainingSubTasks });
-            } catch (error) {
-                console.error("Failed to save after category delete:", error);
-                toast.error("대공종 삭제 저장 실패");
-                return;
-            }
-        }
-        deleteItems(categoryItems.map((item) => item.id));
-        setSelectedItemIds((prev) => {
-            const removedIdSet = new Set(categoryItems.map((item) => item.id));
-            return prev.filter((id) => !removedIdSet.has(id));
-        });
-        toast.success("대공종이 삭제되었습니다.");
-    };
-
-    const handleStartCategoryRename = useCallback((category) => {
-        setCategoryRenameTarget(category);
-        setCategoryRenameValue(category);
-        setOpenCategoryMenu(null);
-    }, []);
-
-    const handleCancelCategoryRename = useCallback(() => {
-        setCategoryRenameTarget(null);
-        setCategoryRenameValue("");
-    }, []);
-
-    const handleCommitCategoryRename = useCallback(async (oldCategory) => {
-        const sourceCategory = String(oldCategory || "").trim();
-        const nextCategory = String(categoryRenameValue || "").trim();
-        if (!sourceCategory) return;
-
-        if (!nextCategory) {
-            toast.error("대공종명을 입력해주세요.");
-            return;
-        }
-
-        if (sourceCategory === nextCategory) {
-            handleCancelCategoryRename();
-            return;
-        }
-
-        const hasDuplicateCategory = items.some((item) => {
-            const current = String(item?.main_category || "기타");
-            return current === nextCategory && current !== sourceCategory;
-        });
-        if (hasDuplicateCategory) {
-            toast.error("이미 존재하는 대공종명입니다.");
-            return;
-        }
-
-        const targetIds = items
-            .filter((item) => String(item?.main_category || "기타") === sourceCategory)
-            .map((item) => item.id);
-
-        if (targetIds.length === 0) {
-            handleCancelCategoryRename();
-            return;
-        }
-
-        const rateIdsToRename = operatingRates
-            .filter((rate) => String(rate?.main_category || "기타") === sourceCategory)
-            .map((rate) => rate.id)
-            .filter(Boolean);
-
-        const nextRates = operatingRates.map((rate) => {
-            if (String(rate?.main_category || "기타") !== sourceCategory) return rate;
-            return {
-                ...rate,
-                main_category: nextCategory
-            };
-        });
-
-        // Keep table calculation stable by syncing category/rate keys together immediately.
-        setStoreOperatingRates(nextRates);
-        updateItemsField(targetIds, "main_category", nextCategory);
-        if (rateIdsToRename.length > 0) {
-            try {
-                const { updateOperatingRate: updateOperatingRateAPI } = await import("../api/cpe/operating_rate");
-                const savedRates = await updateOperatingRateAPI(projectId, {
-                    weights: rateIdsToRename.map((id) => ({
-                        id,
-                        main_category: nextCategory
-                    }))
-                });
-                setStoreOperatingRates(savedRates);
-            } catch (error) {
-                console.error("대공종명 변경 후 가동률 저장 실패:", error);
-                setStoreOperatingRates(operatingRates);
-                updateItemsField(targetIds, "main_category", sourceCategory);
-                toast.error("가동률 대공종명 저장 실패 - 변경을 되돌렸습니다.");
-                return;
-            }
-        }
-        handleCancelCategoryRename();
-        toast.success("대공종명이 변경되었습니다.");
-    }, [categoryRenameValue, handleCancelCategoryRename, items, operatingRates, projectId, setStoreOperatingRates, updateItemsField]);
-
-    const handleMoveCategory = useCallback((category, direction) => {
-        const categoryOrder = [];
-        const groupedByCategory = new Map();
-
-        items.forEach((item) => {
-            const key = item.main_category || "기타";
-            if (!groupedByCategory.has(key)) {
-                groupedByCategory.set(key, []);
-                categoryOrder.push(key);
-            }
-            groupedByCategory.get(key).push(item);
-        });
-
-        const currentIndex = categoryOrder.indexOf(category);
-        if (currentIndex < 0) return;
-
-        const targetIndex = direction === "up" ? currentIndex - 1 : currentIndex + 1;
-        if (targetIndex < 0 || targetIndex >= categoryOrder.length) return;
-
-        [categoryOrder[currentIndex], categoryOrder[targetIndex]] = [categoryOrder[targetIndex], categoryOrder[currentIndex]];
-        const reorderedItems = categoryOrder.flatMap((key) => groupedByCategory.get(key) || []);
-        reorderItems(reorderedItems);
-    }, [items, reorderItems]);
 
     const handleOpenFloorBatchModal = useCallback((category, categoryItems) => {
         setFloorBatchModal({ category, categoryItems });
@@ -1391,54 +625,6 @@ export default function ScheduleMasterList() {
         handleCloseFloorBatchModal();
     }, [addItemAtIndex, floorBatchModal, floorBatchRange.max, floorBatchRange.min, handleCloseFloorBatchModal, items]);
 
-    useEffect(() => {
-        const handleTableHotkeys = (e) => {
-            if (viewMode !== "table") return;
-            const isTableContextActive = isTablePointerInside || isTableFocusInside || Boolean(activeEditingItemId);
-            if (!isTableContextActive) return;
-            const target = e.target;
-
-            const isTypingTarget = (() => {
-                if (!target) return false;
-                if (target?.isContentEditable) return true;
-                if (target?.tagName === "TEXTAREA") return true;
-                if (target?.tagName !== "INPUT") return false;
-                const inputType = String(target?.type || "").toLowerCase();
-                return !["checkbox", "radio", "button", "submit", "reset"].includes(inputType);
-            })();
-            if (isTypingTarget) return;
-
-            if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'a') {
-                e.preventDefault();
-                setSelectedItemIds((prev) => {
-                    const next = new Set(prev);
-                    visibleItemIds.forEach((id) => next.add(id));
-                    return Array.from(next);
-                });
-                return;
-            }
-
-            if (selectedCount === 0) return;
-            if (e.key === 'Delete') {
-                e.preventDefault();
-                handleDeleteSelectedItems();
-            }
-        };
-
-        window.addEventListener('keydown', handleTableHotkeys);
-        return () => window.removeEventListener('keydown', handleTableHotkeys);
-    }, [activeEditingItemId, handleDeleteSelectedItems, isTableFocusInside, isTablePointerInside, selectedCount, viewMode, visibleItemIds]);
-
-    const handleTableBlurCapture = useCallback(() => {
-        window.setTimeout(() => {
-            if (!tableInteractionRef.current) return;
-            const nextActiveElement = document.activeElement;
-            if (!tableInteractionRef.current.contains(nextActiveElement)) {
-                setIsTableFocusInside(false);
-            }
-        }, 0);
-    }, []);
-
     const handleSaveAll = async () => {
         console.log("Saving schedule data... ContainerID:", containerId);
         setSaving(true);
@@ -1536,249 +722,6 @@ export default function ScheduleMasterList() {
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[var(--navy-accent)]"></div>
     </div>;
 
-    const activeItem = activeId ? items.find((i) => i.id === activeId) : null;
-    const dragMovingItemIds = (() => {
-        if (!activeId) return [];
-        const activeItemForDrag = items.find((item) => item.id === activeId);
-        if (!activeItemForDrag) return [];
-        const selectedSet = new Set(selectedItemIds);
-        const activeSelected = selectedSet.has(activeId);
-        if (activeSelected && selectedSet.size > 1) {
-            return items
-                .filter((item) => selectedSet.has(item.id) && item.main_category === activeItemForDrag.main_category)
-                .map((item) => item.id);
-        }
-        return [activeId];
-    })();
-    const dragMovingItemSet = new Set(dragMovingItemIds);
-    const dropTargetId = (() => {
-        if (!activeId || !overId || activeId === overId) return null;
-        if (dragMovingItemSet.has(overId)) return null;
-        return overId;
-    })();
-    const dropPosition = (() => {
-        if (!dropTargetId || !activeId) return null;
-        const activeIndex = items.findIndex((item) => item.id === activeId);
-        const overIndex = items.findIndex((item) => item.id === dropTargetId);
-        if (activeIndex === -1 || overIndex === -1) return null;
-        return activeIndex < overIndex ? "after" : "before";
-    })();
-    const dropTargetItem = dropTargetId ? items.find((item) => item.id === dropTargetId) : null;
-    const isDropInvalid = Boolean(
-        activeItem && dropTargetItem && activeItem.main_category !== dropTargetItem.main_category
-    );
-    const renderTableView = ({ forPrint = false } = {}) => (
-        <div
-            className="relative h-full w-full"
-            ref={forPrint ? undefined : tableInteractionRef}
-            onMouseEnter={forPrint ? undefined : () => setIsTablePointerInside(true)}
-            onMouseLeave={forPrint ? undefined : () => setIsTablePointerInside(false)}
-            onFocusCapture={forPrint ? undefined : () => setIsTableFocusInside(true)}
-            onBlurCapture={forPrint ? undefined : handleTableBlurCapture}
-        >
-            <div
-                className={`scroll-container w-full overflow-auto rounded-xl border border-[var(--navy-border-soft)] shadow-xl bg-[var(--navy-surface)] relative ${isScrolling ? 'scrolling' : ''} ${forPrint ? 'print-table' : ''}`}
-                style={{ height: '100%' }}
-                ref={forPrint ? undefined : tableScrollRef}
-                onScroll={forPrint ? undefined : handleScroll}
-            >
-                <DndContext
-                    sensors={sensors}
-                    collisionDetection={closestCenter}
-                    onDragStart={handleDragStart}
-                    onDragOver={handleDragOver}
-                    onDragCancel={handleDragCancel}
-                    onDragEnd={handleDragEnd}
-                >
-                    <table className="w-full text-m box-border table-fixed border-collapse bg-[var(--navy-surface)] rounded-lg text-[var(--navy-text)]">
-                        <colgroup>
-                            <col width="40" />
-                            <col width="36" />
-                            <col width="180" />
-                            <col width="180" />
-                            <col width="260" />
-                            <col width="130" />
-                            <col width="70" />
-                            <col width="90" />
-                            <col width="90" />
-                            <col width="72" />
-                            <col width="90" />
-                            <col width="72" />
-                            <col width="86" />
-                            <col width="86" />
-                            <col width="90" />
-                            <col width="80" />
-                            <col width="150" />
-                            <col width="280" />
-                            <col width="64" />
-
-                        </colgroup>
-                        <thead ref={tableHeaderRef} className="bg-[var(--navy-surface-3)] text-[var(--navy-text)]">
-                            <tr className="bg-[var(--navy-surface)] text-[var(--navy-text-muted)] font-medium sticky top-0 z-[2] shadow-sm border-b border-[var(--navy-border-soft)]">
-                                <th className="sticky top-0 left-0 bg-[var(--navy-surface)] border-r border-[var(--navy-border-soft)] px-1 z-30">
-                                    <input
-                                        ref={selectAllRef}
-                                        type="checkbox"
-                                        checked={allSelected}
-                                        onChange={(e) => toggleSelectAllItems(e.target.checked)}
-                                        className="h-3.5 w-3.5 accent-[var(--navy-accent)] cursor-pointer"
-                                        aria-label="전체 선택"
-                                    />
-                                </th>
-                                <th className="sticky top-0 left-[40px] bg-[var(--navy-surface)] border-r border-[var(--navy-border-soft)] px-1 z-30"></th>
-                                <th className="sticky top-0 bg-[var(--navy-surface)] border-r border-[var(--navy-border-soft)] px-2 py-2 z-10">중공종</th>
-                                <th className="sticky top-0 bg-[var(--navy-surface)] border-r border-[var(--navy-border-soft)] px-2 py-2 z-10">공정</th>
-                                <th className="sticky top-0 bg-[var(--navy-surface)] border-r border-[var(--navy-border-soft)] px-2 py-2 z-10">세부공종</th>
-                                <th className="sticky top-0 bg-[var(--navy-surface)] border-r border-[var(--navy-border-soft)] px-2 py-2 z-10">수량산출(개산)</th>
-                                <th className="sticky top-0 bg-[var(--navy-surface)] border-r border-[var(--navy-border-soft)] px-2 py-2 z-10">단위</th>
-                                <th className="sticky top-0 bg-[var(--navy-surface)] border-r border-[var(--navy-border-soft)] px-2 py-2 z-10">내역수량</th>
-                                <th className="sticky top-0 bg-[var(--navy-surface)] border-r border-[var(--navy-border-soft)] px-2 py-2 z-10">단위 작업량</th>
-                                <th className="sticky top-0 bg-[var(--navy-surface)] border-r border-[var(--navy-border-soft)] px-2 py-2 z-10">투입조</th>
-                                <th className="sticky top-0 bg-[var(--navy-surface)] border-r border-[var(--navy-border-soft)] px-2 py-2 z-10">생산량/일</th>
-                                <th className="sticky top-0 bg-[var(--navy-surface)] border-r border-[var(--navy-border-soft)] px-2 py-2 z-10">CP</th>
-                                <th className="sticky top-0 bg-[var(--navy-surface)] border-r border-[var(--navy-border-soft)] px-2 py-2 z-10">병행률(%)</th>
-                                <th className="sticky top-0 bg-[var(--navy-surface)] border-r border-[var(--navy-border-soft)] px-2 py-2 z-10">반영률(%)</th>
-                                <th className="sticky top-0 bg-[var(--navy-surface)] border-r border-[var(--navy-border-soft)] px-2 py-2 z-10">작업기간 W/D</th>
-                                <th className="sticky top-0 bg-[var(--navy-surface)] border-r border-[var(--navy-border-soft)] px-2 py-2 z-10">가동률</th>
-                                <th className="sticky top-0 bg-[var(--navy-surface-3)] border-r border-[var(--navy-border-soft)] px-2 py-2 text-[var(--navy-text)] font-bold z-10">Cal Day</th>
-                                <th className="sticky top-0 bg-[var(--navy-surface)] border-r border-[var(--navy-border-soft)] px-2 py-2 z-10">비고</th>
-                                <th className="sticky top-0 bg-[var(--navy-surface)] border-r border-[var(--navy-border-soft)] px-2 py-2 z-10"></th>
-                            </tr>
-                        </thead>
-                        <SortableContext items={visibleItemIds} strategy={verticalListSortingStrategy}>
-                            <tbody className="divide-y divide-gray-700">
-                                {(() => {
-                                    const groupedItems = groupedVisibleItems;
-
-                                    return [
-                                        (
-                                            <ScheduleMasterTableToolbarRow
-                                                key="add-main-category"
-                                                forPrint={forPrint}
-                                                tableHeaderHeight={tableHeaderHeight}
-                                                newMainCategory={newMainCategory}
-                                                onNewMainCategoryChange={setNewMainCategory}
-                                                onAddMainCategory={handleAddMainCategory}
-                                                searchKeyword={searchKeyword}
-                                                onSearchKeywordChange={setSearchKeyword}
-                                                onClearSearch={() => setSearchKeyword("")}
-                                                categoryFilter={categoryFilter}
-                                                onCategoryFilterChange={setCategoryFilter}
-                                                categoryOptions={categoryOptions}
-                                                isFilterActive={isFilterActive}
-                                                hasSearchKeyword={hasSearchKeyword}
-                                                visibleItemCount={visibleItems.length}
-                                                totalItemCount={items.length}
-                                                selectedCount={selectedCount}
-                                                onDeleteSelectedItems={handleDeleteSelectedItems}
-                                            />
-                                        ),
-                                        ...Object.entries(groupedItems).map(([category, categoryItems], categoryIndex, categoryEntries) => (
-                                            <ScheduleCategorySection
-                                                key={category}
-                                                forPrint={forPrint}
-                                                category={category}
-                                                categoryItems={categoryItems}
-                                                allCategoryItems={categoryItemsMap.get(category) || categoryItems}
-                                                categoryIndex={categoryIndex}
-                                                categoryEntriesLength={categoryEntries.length}
-                                                categoryRenameTarget={categoryRenameTarget}
-                                                categoryRenameValue={categoryRenameValue}
-                                                setCategoryRenameValue={setCategoryRenameValue}
-                                                handleCommitCategoryRename={handleCommitCategoryRename}
-                                                handleCancelCategoryRename={handleCancelCategoryRename}
-                                                handleStartCategoryRename={handleStartCategoryRename}
-                                                isFilterActive={isFilterActive}
-                                                hasSearchKeyword={hasSearchKeyword}
-                                                operatingRates={operatingRates}
-                                                handleCategoryRunRateChange={handleCategoryRunRateChange}
-                                                handleCategoryTotalDaysChange={handleCategoryTotalDaysChange}
-                                                openCategoryMenu={openCategoryMenu}
-                                                setOpenCategoryMenu={setOpenCategoryMenu}
-                                                categoryMenuRef={categoryMenuRef}
-                                                categoryMenuPosition={categoryMenuPosition}
-                                                categoryMenuDropdownRef={categoryMenuDropdownRef}
-                                                handleMoveCategory={handleMoveCategory}
-                                                activeEditingItem={activeEditingItem}
-                                                fallbackItem={items[0]}
-                                                handleAddItem={handleAddItem}
-                                                handleOpenImport={handleOpenImport}
-                                                handleOpenEvidence={(targetItem) => {
-                                                    setEvidenceTargetParent(targetItem || null);
-                                                    setEvidenceModalOpen(true);
-                                                }}
-                                                handleOpenFloorBatchModal={handleOpenFloorBatchModal}
-                                                handleDeleteCategory={handleDeleteCategory}
-                                                selectedItemIds={selectedItemIds}
-                                                toggleSelectItem={toggleSelectItem}
-                                                startSelectionDrag={startSelectionDrag}
-                                                dragSelectItem={dragSelectItem}
-                                                workDayType={workDayType}
-                                                handleChange={handleChange}
-                                                handleGroupFieldChange={handleGroupFieldChange}
-                                                handleDeleteItem={handleDeleteItem}
-                                                handleOpenRowClassEdit={handleOpenRowClassEdit}
-                                                handleActivateItem={handleActivateItem}
-                                                spanInfoMap={spanInfoMap}
-                                                standardItems={standardItems}
-                                                handleApplyStandardToRow={handleApplyStandardToRow}
-                                                activeId={activeId}
-                                                dragMovingItemSet={dragMovingItemSet}
-                                                dropTargetId={dropTargetId}
-                                                dropPosition={dropPosition}
-                                                isDropInvalid={isDropInvalid}
-                                                activeEditingItemId={activeEditingItemId}
-                                            />
-                                        )),
-                                        ...(Object.keys(groupedItems).length === 0
-                                            ? [(
-                                                <tr key="empty-filter-result">
-                                                    <td colSpan="19" className="px-4 py-8 text-center text-sm text-[var(--navy-text-muted)]">
-                                                        검색/필터 조건에 맞는 항목이 없습니다.
-                                                    </td>
-                                                </tr>
-                                            )]
-                                            : [])
-                                    ];
-                                })()}
-                            </tbody>
-                        </SortableContext>
-
-                    </table>
-                </DndContext>
-            </div>
-            {!forPrint && hasHorizontalOverflow && canScrollLeft && (
-                <div className="pointer-events-none absolute inset-y-0 left-0 z-20 flex items-center">
-                    <div className="h-full w-12 bg-gradient-to-r from-[var(--navy-bg)] to-transparent" />
-                    <div className="absolute left-2 rounded-full border border-[var(--navy-border)] bg-[rgb(30_30_47/0.9)] p-1 text-[var(--navy-text)]">
-                        <ChevronLeft size={14} />
-                    </div>
-                </div>
-            )}
-            {!forPrint && hasHorizontalOverflow && canScrollRight && (
-                <div className="pointer-events-none absolute inset-y-0 right-0 z-20 flex items-center justify-end">
-                    <div className="h-full w-12 bg-gradient-to-l from-[var(--navy-bg)] to-transparent" />
-                    <div className="absolute right-2 rounded-full border border-[var(--navy-border)] bg-[rgb(30_30_47/0.9)] p-1 text-[var(--navy-text)]">
-                        <ChevronRight size={14} />
-                    </div>
-                </div>
-            )}
-            {!forPrint && showHorizontalHint && hasHorizontalOverflow && (
-                <div className="ui-hint absolute right-3 top-3 z-30 flex items-center gap-2">
-                    <span>좌우 이동: Shift + 휠 또는 하단 스크롤바 사용, 좌측 2열은 고정됩니다.</span>
-                    <button
-                        type="button"
-                        className="rounded p-0.5 text-[var(--navy-text)] hover:bg-[rgb(75_85_99/0.25)]"
-                        onClick={dismissHorizontalHint}
-                        aria-label="가로 스크롤 힌트 닫기"
-                    >
-                        <X size={12} />
-                    </button>
-                </div>
-            )}
-        </div>
-    );
-
     return (
         <div className="h-screen w-full flex flex-col bg-[var(--navy-bg)] overflow-hidden text-[var(--navy-text)]">
             {/* Header Section (Fixed) */}
@@ -1834,7 +777,37 @@ export default function ScheduleMasterList() {
                         onDeleteSubtask={handleDeleteSubtask}
                     />
                 ) : (
-                    renderTableView()
+                    <ScheduleMasterTablePage
+                        items={items}
+                        operatingRates={operatingRates}
+                        links={links}
+                        subTasks={subTasks}
+                        projectId={projectId}
+                        containerId={containerId}
+                        viewMode={viewMode}
+                        confirm={confirm}
+                        addItem={addItem}
+                        addItemAtIndex={addItemAtIndex}
+                        deleteItems={deleteItems}
+                        reorderItems={reorderItems}
+                        updateItem={updateItem}
+                        updateItemsField={updateItemsField}
+                        applyItemFieldChanges={applyItemFieldChanges}
+                        updateOperatingRate={updateOperatingRate}
+                        setStoreOperatingRates={setStoreOperatingRates}
+                        canUndo={canUndo}
+                        canRedo={canRedo}
+                        onUndo={runUndo}
+                        onRedo={runRedo}
+                        onOpenImport={handleOpenImport}
+                        onOpenEvidence={(targetItem) => {
+                            setEvidenceTargetParent(targetItem || null);
+                            setEvidenceModalOpen(true);
+                        }}
+                        onOpenFloorBatchModal={handleOpenFloorBatchModal}
+                        onOpenRowClassEdit={handleOpenRowClassEdit}
+                        standardItems={standardItems}
+                    />
                 )}
             </div>
 

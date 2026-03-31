@@ -392,6 +392,88 @@ code {
     border-color: var(--table-editable-disabled-border);
   }
 
+  .schedule-cell-active {
+    position: relative;
+    box-shadow: inset 0 0 0 2px var(--table-editable-focus-border);
+    background: color-mix(in srgb, var(--table-editable-focus-fill) 75%, transparent);
+    z-index: 3;
+  }
+
+  .schedule-cell-selected {
+    position: relative;
+    background: color-mix(in srgb, var(--table-editable-focus-fill) 92%, transparent);
+    z-index: 2;
+  }
+
+  .schedule-cell-range-top {
+    box-shadow: inset 0 2px 0 0 var(--table-editable-focus-border);
+  }
+
+  .schedule-cell-range-bottom {
+    box-shadow: inset 0 -2px 0 0 var(--table-editable-focus-border);
+  }
+
+  .schedule-cell-range-left {
+    box-shadow: inset 2px 0 0 0 var(--table-editable-focus-border);
+  }
+
+  .schedule-cell-range-right {
+    box-shadow: inset -2px 0 0 0 var(--table-editable-focus-border);
+  }
+
+  .schedule-cell-range-top.schedule-cell-range-left {
+    box-shadow:
+      inset 0 2px 0 0 var(--table-editable-focus-border),
+      inset 2px 0 0 0 var(--table-editable-focus-border);
+  }
+
+  .schedule-cell-range-top.schedule-cell-range-right {
+    box-shadow:
+      inset 0 2px 0 0 var(--table-editable-focus-border),
+      inset -2px 0 0 0 var(--table-editable-focus-border);
+  }
+
+  .schedule-cell-range-bottom.schedule-cell-range-left {
+    box-shadow:
+      inset 0 -2px 0 0 var(--table-editable-focus-border),
+      inset 2px 0 0 0 var(--table-editable-focus-border);
+  }
+
+  .schedule-cell-range-bottom.schedule-cell-range-right {
+    box-shadow:
+      inset 0 -2px 0 0 var(--table-editable-focus-border),
+      inset -2px 0 0 0 var(--table-editable-focus-border);
+  }
+
+  .schedule-cell-range-handle::after {
+    content: "";
+    position: absolute;
+    right: -2px;
+    bottom: -2px;
+    width: 8px;
+    height: 8px;
+    border-radius: 9999px;
+    border: 2px solid var(--navy-surface);
+    background: var(--table-editable-focus-border);
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--table-editable-focus-border) 55%, transparent);
+    pointer-events: none;
+  }
+
+  .schedule-cell-selected.schedule-cell-active {
+    background: color-mix(in srgb, var(--table-editable-focus-fill) 100%, transparent);
+  }
+
+  .schedule-cell-invalid {
+    position: relative;
+    box-shadow: inset 0 0 0 2px rgb(248 113 113 / 0.92);
+    background: color-mix(in srgb, rgb(248 113 113 / 0.18) 100%, transparent);
+    z-index: 4;
+  }
+
+  .schedule-cell-selected.schedule-cell-invalid {
+    background: color-mix(in srgb, rgb(248 113 113 / 0.16) 55%, var(--table-editable-focus-fill));
+  }
+
   .schedule-row-active > td {
     box-shadow:
       inset 0 1px 0 var(--table-row-active-border),
@@ -1348,4 +1430,59 @@ code {
   [class*="group-hover:text-lime-"]
 ):not([data-theme="navy"] *):not([data-theme="mid"] *) {
   color: #111827 !important;
+}
+
+.schedule-suggest-popup {
+  border: 1px solid var(--navy-border-soft);
+  background: var(--navy-surface);
+  color: var(--navy-text);
+  opacity: 1;
+  box-shadow: 0 24px 48px rgba(15, 23, 42, 0.42);
+}
+
+.schedule-suggest-detail-popup {
+  background: var(--navy-surface-2);
+}
+
+.schedule-suggest-popup-header {
+  border-bottom: 1px solid var(--navy-border-soft);
+  background: var(--navy-surface-3);
+}
+
+.schedule-suggest-popup-badge {
+  border: 1px solid var(--navy-border-soft);
+  background: var(--navy-surface-2);
+  color: var(--navy-text-muted);
+}
+
+.schedule-suggest-card {
+  background: var(--navy-surface-2);
+  border-color: var(--navy-border-soft);
+}
+
+.schedule-suggest-title {
+  color: var(--navy-text);
+}
+
+.schedule-suggest-subtitle {
+  color: var(--navy-text-muted);
+}
+
+.schedule-suggest-body {
+  color: var(--navy-text);
+}
+
+.schedule-suggest-row {
+  border-color: color-mix(in srgb, var(--navy-border-soft) 82%, transparent);
+  color: var(--navy-text);
+  background: var(--navy-surface);
+}
+
+.schedule-suggest-row:hover {
+  background: color-mix(in srgb, var(--navy-surface-3) 72%, transparent);
+}
+
+.schedule-suggest-row-active {
+  background: color-mix(in srgb, rgb(37 99 235) 22%, var(--navy-surface));
+  color: var(--navy-text);
 }

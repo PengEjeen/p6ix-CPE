@@ -30,7 +30,7 @@ export default function ScheduleHeader({
             <div>
                 <h1 className="text-2xl font-bold text-[var(--navy-text)] mb-1 tracking-tight">공사기간 산정 기준</h1>
                 <div className="flex items-center gap-4">
-                    <p className="text-sm text-[var(--navy-text-muted)]">같은 대공종 내 드래그 이동, 자동 셀 병합, Shift+드래그 다중선택</p>
+                    <p className="text-sm text-[var(--navy-text-muted)]">같은 대공종 내 드래그 이동, 전체 셀 편집, Shift+드래그 다중선택, Ctrl/Cmd+Enter 일괄 적용</p>
                     <div className="ui-tab-group">
                         <button
                             className={`ui-tab ${viewMode === "table"

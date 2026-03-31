@@ -13,17 +13,21 @@ const ScheduleTableRow = ({
     onStartSelectionDrag,
     onDragSelectionEnter,
     handleChange,
-    handleGroupFieldChange,
     handleDeleteItem,
     onOpenRowClassEdit,
-    handleAddItem,
     onActivateItem,
-    handleOpenImport,
-    spanInfo,
+    activeCell,
+    cellSelectionRange,
+    onActivateCell,
+    onCellKeyDown,
+    onCellPaste,
+    onCellSelectionEnter,
+    onCellSelectionStart,
+    getCellSelectionClassName,
+    isCellSelected,
     isOverlay,
     rowClassName = "",
     operatingRates = [],
-    workDayType = "6d",
     standardItems = [],
     onApplyStandard,
     isDropTarget = false,
@@ -32,7 +36,8 @@ const ScheduleTableRow = ({
     isPartOfDraggingGroup = false,
     isDragActive = false,
     disableDrag = false,
-    isActive = false
+    isActive = false,
+    spanInfo = null
 }) => {
     const STICKY_LEFT_SELECT = 0;
     const STICKY_LEFT_DRAG = 40;
@@ -77,15 +82,11 @@ const ScheduleTableRow = ({
             : `inset 0 -3px 0 0 ${indicatorColor}`;
         style.boxShadow = style.boxShadow ? `${style.boxShadow}, ${dropShadow}` : dropShadow;
     }
-    if (!isOverlay && isActive) {
-        const activeShadow = "inset 0 0 0 1px rgba(56, 189, 248, 0.75)";
-        style.boxShadow = style.boxShadow ? `${style.boxShadow}, ${activeShadow}` : activeShadow;
-    }
-
     const [activeField, setActiveField] = useState(null);
     const [processQuery, setProcessQuery] = useState("");
     const [subProcessQuery, setSubProcessQuery] = useState("");
     const [workTypeQuery, setWorkTypeQuery] = useState("");
+    const [suggestionField, setSuggestionField] = useState(null);
     const [activeIndex, setActiveIndex] = useState(0);
     const blurTimeoutRef = useRef(null);
     const editOriginRef = useRef({});
@@ -98,6 +99,59 @@ const ScheduleTableRow = ({
     const editableInputBaseClass = "ui-table-editable-input text-gray-100";
     const focusRingClass = "ring-1 ring-cyan-400/70";
     const multilineInputClass = "resize-none overflow-hidden whitespace-pre-wrap break-words leading-snug";
+    const getEditableStateClass = (field) => (
+        activeCell?.itemId === item.id && activeCell?.field === field ? focusRingClass : ""
+    );
+    const getCellWrapperClass = (field, baseClass) => {
+        const selectionClassName = getCellSelectionClassName?.(item.id, field)
+            || `${isCellSelected?.(item.id, field) ? "schedule-cell-selected" : ""} ${activeCell?.itemId === item.id && activeCell?.field === field ? "schedule-cell-active" : ""}`;
+        return `${baseClass} ${selectionClassName}`.trim();
+    };
+
+    const getCellWrapperProps = (field) => ({
+        onMouseDownCapture: (e) => {
+            if (isOverlay || e.button !== 0) return;
+            onCellSelectionStart?.(item.id, field);
+        },
+        onMouseEnter: (e) => {
+            if (isOverlay || (e.buttons & 1) !== 1) return;
+            onCellSelectionEnter?.(item.id, field);
+        }
+    });
+
+    const handleCellFocus = (field, currentValue) => {
+        handleInputFocus(field, currentValue);
+        onActivateCell?.(item.id, field);
+    };
+
+    const handleFieldKeyDown = (e, field, currentValue, options = {}) => {
+        const {
+            revertField = null,
+            afterRevert = null,
+            suggestions = null
+        } = options;
+
+        if (revertField && handleEscRevert(e, revertField, afterRevert)) {
+            return;
+        }
+        if (suggestions) {
+            handleSuggestionKeyDown(e, suggestions);
+        }
+        if (e.defaultPrevented) return;
+        onCellKeyDown?.({ event: e, rowId: item.id, field, value: currentValue });
+    };
+
+    const handleFieldPaste = (e, field) => {
+        const pastedText = e.clipboardData?.getData("text/plain");
+        const intercepted = onCellPaste?.({
+            rowId: item.id,
+            field,
+            text: pastedText
+        });
+        if (intercepted) {
+            e.preventDefault();
+        }
+    };
 
     const rememberFieldOrigin = (field, value) => {
         if (!(field in editOriginRef.current)) {
@@ -112,13 +166,7 @@ const ScheduleTableRow = ({
     const revertField = (field) => {
         if (!(field in editOriginRef.current)) return undefined;
         const original = editOriginRef.current[field];
-        if (field === "process" && handleGroupFieldChange && spanInfo?.processGroupIds?.length > 1) {
-            handleGroupFieldChange(item.id, field, original, spanInfo.processGroupIds);
-        } else if (field === "sub_process" && handleGroupFieldChange && spanInfo?.subProcessGroupIds?.length > 1) {
-            handleGroupFieldChange(item.id, field, original, spanInfo.subProcessGroupIds);
-        } else {
-            handleChange(item.id, field, original);
-        }
+        handleChange(item.id, field, original);
         clearFieldOrigin(field);
         return original;
     };
@@ -128,6 +176,7 @@ const ScheduleTableRow = ({
         const reverted = revertField(field);
         if (afterRevert) afterRevert(reverted);
         setActiveField(null);
+        setSuggestionField(null);
         e.preventDefault();
         e.stopPropagation();
         e.currentTarget.blur();
@@ -173,29 +222,35 @@ const ScheduleTableRow = ({
         if (field === 'work_type') setWorkTypeQuery(item.work_type || "");
         setActiveIndex(0);
         setActiveField(field);
+        setSuggestionField(null);
     };
 
     const handleInputBlur = (field) => {
         clearFieldOrigin(field);
         blurTimeoutRef.current = setTimeout(() => {
             setActiveField(null);
+            setSuggestionField(null);
         }, 220);
     };
 
     const handleSuggestionSelect = (std) => {
         if (onApplyStandard) onApplyStandard(item, std);
         setActiveField(null);
+        setSuggestionField(null);
     };
 
     const handleSuggestionKeyDown = (e, suggestions) => {
         if (!suggestions || suggestions.length === 0) return;
         if (e.key === "ArrowDown") {
             e.preventDefault();
+            setSuggestionField(activeField);
             setActiveIndex((prev) => Math.min(prev + 1, suggestions.length - 1));
         } else if (e.key === "ArrowUp") {
             e.preventDefault();
+            setSuggestionField(activeField);
             setActiveIndex((prev) => Math.max(prev - 1, 0));
         } else if (e.key === "Enter") {
+            if (suggestionField !== activeField) return;
             e.preventDefault();
             const selected = suggestions[activeIndex] || suggestions[0];
             if (selected) handleSuggestionSelect(selected);
@@ -217,11 +272,18 @@ const ScheduleTableRow = ({
         resizeTextarea(noteInputRef.current);
     }, [item.process, item.sub_process, item.work_type, item.quantity_formula, item.unit, item.note]);
 
+    const normalizedSpanInfo = spanInfo || {
+        isProcessFirst: true,
+        processRowSpan: 1,
+        isSubProcessFirst: true,
+        subProcessRowSpan: 1
+    };
+
     return (
         <tr
             ref={setNodeRef}
             style={style}
-            className={`hover:bg-white/5 transition-colors text-base ${rowClassName} ${isSelected ? "bg-blue-900/50" : ""} ${isDragging && !isOverlay ? "bg-blue-900/25" : ""} ${isPartOfDraggingGroup && !isDragging ? "bg-blue-900/30" : ""} ${isDropTarget ? (isDropInvalid ? "bg-red-900/25" : "bg-cyan-900/25") : ""} ${isActive ? "schedule-row-active" : ""}`}
+            className={`hover:bg-white/5 transition-colors text-base ${rowClassName} ${isSelected ? "bg-blue-900/50" : ""} ${isDragging && !isOverlay ? "bg-blue-900/25" : ""} ${isPartOfDraggingGroup && !isDragging ? "bg-blue-900/30" : ""} ${isDropTarget ? (isDropInvalid ? "bg-red-900/25" : "bg-cyan-900/25") : ""}`}
             onMouseDownCapture={(e) => {
                 if (isOverlay || e.button !== 0) return;
                 onActivateItem?.(item);
@@ -283,40 +345,43 @@ const ScheduleTableRow = ({
                 </button>
             </td>
 
-            {/* Classification (중공종) - keep using process data */}
-            {(isOverlay || spanInfo?.isProcessFirst !== false) && (
+            {/* Classification (중공종) */}
+            {normalizedSpanInfo.isProcessFirst && (
                 <td
-                    rowSpan={isOverlay ? 1 : (spanInfo?.processRowSpan || 1)}
-                    className="border-r border-gray-700 bg-[#2c2c3a] p-1 align-top"
+                    rowSpan={normalizedSpanInfo.processRowSpan}
+                    className={getCellWrapperClass('process', "border-r border-gray-700 bg-[#2c2c3a] p-1 align-top")}
+                    {...getCellWrapperProps('process')}
                 >
                     <div className="relative">
                         <textarea
                             ref={processInputRef}
                             rows={1}
-                            className={`${editableInputBaseClass} ${multilineInputClass} px-1 py-1 font-medium text-center text-base ${activeField === 'process' ? focusRingClass : ''}`}
+                            className={`${editableInputBaseClass} ${multilineInputClass} px-1 py-1 font-medium text-center text-base ${getEditableStateClass('process')}`}
+                            data-schedule-cell="true"
+                            data-schedule-row-id={item.id}
+                            data-schedule-field="process"
                             value={item.process}
                             onChange={(e) => {
-                                if (handleGroupFieldChange && spanInfo?.processGroupIds?.length > 1) {
-                                    handleGroupFieldChange(item.id, 'process', e.target.value, spanInfo.processGroupIds);
-                                } else {
-                                    handleChange(item.id, 'process', e.target.value);
-                                }
+                                handleChange(item.id, 'process', e.target.value);
                                 setProcessQuery(e.target.value);
+                                setSuggestionField('process');
                                 resizeTextarea(e.currentTarget);
                             }}
                             onFocus={(e) => {
-                                handleInputFocus('process', item.process || "");
+                                handleCellFocus('process', item.process || "");
                                 resizeTextarea(e.currentTarget);
                             }}
                             onBlur={() => handleInputBlur('process')}
-                            onKeyDown={(e) => {
-                                if (handleEscRevert(e, 'process', (value) => setProcessQuery(value ?? ""))) return;
-                                handleSuggestionKeyDown(e, processSuggestions);
-                            }}
+                            onKeyDown={(e) => handleFieldKeyDown(e, 'process', e.currentTarget.value, {
+                                revertField: 'process',
+                                afterRevert: (value) => setProcessQuery(value ?? ""),
+                                suggestions: processSuggestions
+                            })}
+                            onPaste={(e) => handleFieldPaste(e, 'process')}
                         />
                         <StandardSuggestList
                             items={processSuggestions}
-                            isOpen={!isOverlay && activeField === 'process'}
+                            isOpen={!isOverlay && activeField === 'process' && suggestionField === 'process'}
                             activeIndex={activeIndex}
                             onActiveIndexChange={setActiveIndex}
                             onSelect={handleSuggestionSelect}
@@ -328,39 +393,42 @@ const ScheduleTableRow = ({
             )}
 
             {/* Sub Process (공정) */}
-            {(isOverlay || spanInfo?.isSubProcessFirst !== false) && (
+            {normalizedSpanInfo.isSubProcessFirst && (
                 <td
-                    rowSpan={isOverlay ? 1 : (spanInfo?.subProcessRowSpan || 1)}
-                    className="border-r border-gray-700 bg-[#2c2c3a] p-1 align-top"
+                    rowSpan={normalizedSpanInfo.subProcessRowSpan}
+                    className={getCellWrapperClass('sub_process', "border-r border-gray-700 bg-[#2c2c3a] p-1 align-top")}
+                    {...getCellWrapperProps('sub_process')}
                 >
                     <div className="relative">
                         <textarea
                             ref={subProcessInputRef}
                             rows={1}
-                            className={`${editableInputBaseClass} ${multilineInputClass} px-1 py-1 font-medium text-center text-base ${activeField === 'sub_process' ? focusRingClass : ''}`}
+                            className={`${editableInputBaseClass} ${multilineInputClass} px-1 py-1 font-medium text-center text-base ${getEditableStateClass('sub_process')}`}
+                            data-schedule-cell="true"
+                            data-schedule-row-id={item.id}
+                            data-schedule-field="sub_process"
                             value={item.sub_process || ""}
                             onChange={(e) => {
-                                if (handleGroupFieldChange && spanInfo?.subProcessGroupIds?.length > 1) {
-                                    handleGroupFieldChange(item.id, 'sub_process', e.target.value, spanInfo.subProcessGroupIds);
-                                } else {
-                                    handleChange(item.id, 'sub_process', e.target.value);
-                                }
+                                handleChange(item.id, 'sub_process', e.target.value);
                                 setSubProcessQuery(e.target.value);
+                                setSuggestionField('sub_process');
                                 resizeTextarea(e.currentTarget);
                             }}
                             onFocus={(e) => {
-                                handleInputFocus('sub_process', item.sub_process || "");
+                                handleCellFocus('sub_process', item.sub_process || "");
                                 resizeTextarea(e.currentTarget);
                             }}
                             onBlur={() => handleInputBlur('sub_process')}
-                            onKeyDown={(e) => {
-                                if (handleEscRevert(e, 'sub_process', (value) => setSubProcessQuery(value ?? ""))) return;
-                                handleSuggestionKeyDown(e, subProcessSuggestions);
-                            }}
+                            onKeyDown={(e) => handleFieldKeyDown(e, 'sub_process', e.currentTarget.value, {
+                                revertField: 'sub_process',
+                                afterRevert: (value) => setSubProcessQuery(value ?? ""),
+                                suggestions: subProcessSuggestions
+                            })}
+                            onPaste={(e) => handleFieldPaste(e, 'sub_process')}
                         />
                         <StandardSuggestList
                             items={subProcessSuggestions}
-                            isOpen={!isOverlay && activeField === 'sub_process'}
+                            isOpen={!isOverlay && activeField === 'sub_process' && suggestionField === 'sub_process'}
                             activeIndex={activeIndex}
                             onActiveIndexChange={setActiveIndex}
                             onSelect={handleSuggestionSelect}
@@ -372,7 +440,10 @@ const ScheduleTableRow = ({
             )}
 
             {/* Work Type (세부공종) */}
-            <td className="border-r border-gray-700 px-2 py-1">
+            <td
+                className={getCellWrapperClass('work_type', "border-r border-gray-700 px-2 py-1")}
+                {...getCellWrapperProps('work_type')}
+            >
                 <div className="flex items-center gap-1 relative">
                     {isLinked && (
                         <span className="inline-flex items-center gap-1 rounded-md border border-blue-400/40 bg-blue-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-blue-200" title="외부 모듈과 연결된 항목">
@@ -383,26 +454,32 @@ const ScheduleTableRow = ({
                     <textarea
                         ref={workTypeInputRef}
                         rows={1}
-                        className={`${editableInputBaseClass} ${multilineInputClass} p-1 text-base font-medium ${activeField === 'work_type' ? focusRingClass : ''}`}
+                        className={`${editableInputBaseClass} ${multilineInputClass} p-1 text-base font-medium ${getEditableStateClass('work_type')}`}
+                        data-schedule-cell="true"
+                        data-schedule-row-id={item.id}
+                        data-schedule-field="work_type"
                         value={item.work_type}
                         onChange={(e) => {
                             handleChange(item.id, 'work_type', e.target.value);
                             setWorkTypeQuery(e.target.value);
+                            setSuggestionField('work_type');
                             resizeTextarea(e.currentTarget);
                         }}
                         onFocus={(e) => {
-                            handleInputFocus('work_type', item.work_type || "");
+                            handleCellFocus('work_type', item.work_type || "");
                             resizeTextarea(e.currentTarget);
                         }}
                         onBlur={() => handleInputBlur('work_type')}
-                        onKeyDown={(e) => {
-                            if (handleEscRevert(e, 'work_type', (value) => setWorkTypeQuery(value ?? ""))) return;
-                            handleSuggestionKeyDown(e, workTypeSuggestions);
-                        }}
+                        onKeyDown={(e) => handleFieldKeyDown(e, 'work_type', e.currentTarget.value, {
+                            revertField: 'work_type',
+                            afterRevert: (value) => setWorkTypeQuery(value ?? ""),
+                            suggestions: workTypeSuggestions
+                        })}
+                        onPaste={(e) => handleFieldPaste(e, 'work_type')}
                     />
                     <StandardSuggestList
                         items={workTypeSuggestions}
-                        isOpen={!isOverlay && activeField === 'work_type'}
+                        isOpen={!isOverlay && activeField === 'work_type' && suggestionField === 'work_type'}
                         activeIndex={activeIndex}
                         onActiveIndexChange={setActiveIndex}
                         onSelect={handleSuggestionSelect}
@@ -413,11 +490,17 @@ const ScheduleTableRow = ({
             </td>
 
             {/* Formula */}
-            <td className="border-r border-gray-700 p-1">
+            <td
+                className={getCellWrapperClass('quantity_formula', "border-r border-gray-700 p-1")}
+                {...getCellWrapperProps('quantity_formula')}
+            >
                 <textarea
                     ref={formulaInputRef}
                     rows={1}
-                    className={`${editableInputBaseClass} ${multilineInputClass} p-1 text-right text-sm font-medium`}
+                    className={`${editableInputBaseClass} ${multilineInputClass} p-1 text-right text-sm font-medium ${getEditableStateClass('quantity_formula')}`}
+                    data-schedule-cell="true"
+                    data-schedule-row-id={item.id}
+                    data-schedule-field="quantity_formula"
                     value={item.quantity_formula || ''}
                     placeholder="-"
                     onChange={(e) => {
@@ -425,52 +508,81 @@ const ScheduleTableRow = ({
                         resizeTextarea(e.currentTarget);
                     }}
                     onFocus={(e) => {
+                        onActivateCell?.(item.id, 'quantity_formula');
                         rememberFieldOrigin('quantity_formula', item.quantity_formula || "");
                         resizeTextarea(e.currentTarget);
                     }}
                     onBlur={() => clearFieldOrigin('quantity_formula')}
-                    onKeyDown={(e) => handleEscRevert(e, 'quantity_formula')}
+                    onKeyDown={(e) => handleFieldKeyDown(e, 'quantity_formula', e.currentTarget.value, {
+                        revertField: 'quantity_formula'
+                    })}
+                    onPaste={(e) => handleFieldPaste(e, 'quantity_formula')}
                 />
             </td>
 
             {/* Unit */}
-            <td className="border-r border-gray-700 p-1">
+            <td
+                className={getCellWrapperClass('unit', "border-r border-gray-700 p-1")}
+                {...getCellWrapperProps('unit')}
+            >
                 <textarea
                     ref={unitInputRef}
                     rows={1}
-                    className={`${editableInputBaseClass} ${multilineInputClass} p-1 text-center text-base font-medium`}
+                    className={`${editableInputBaseClass} ${multilineInputClass} p-1 text-center text-base font-medium ${getEditableStateClass('unit')}`}
+                    data-schedule-cell="true"
+                    data-schedule-row-id={item.id}
+                    data-schedule-field="unit"
                     value={item.unit}
                     onChange={(e) => {
                         handleChange(item.id, 'unit', e.target.value);
                         resizeTextarea(e.currentTarget);
                     }}
                     onFocus={(e) => {
+                        onActivateCell?.(item.id, 'unit');
                         rememberFieldOrigin('unit', item.unit || "");
                         resizeTextarea(e.currentTarget);
                     }}
                     onBlur={() => clearFieldOrigin('unit')}
-                    onKeyDown={(e) => handleEscRevert(e, 'unit')}
+                    onKeyDown={(e) => handleFieldKeyDown(e, 'unit', e.currentTarget.value, {
+                        revertField: 'unit'
+                    })}
+                    onPaste={(e) => handleFieldPaste(e, 'unit')}
                 />
             </td>
 
             {/* Quantity */}
-            <td className="border-r border-gray-700 p-1">
+            <td
+                className={getCellWrapperClass('quantity', "border-r border-gray-700 p-1")}
+                {...getCellWrapperProps('quantity')}
+            >
                 <input
                     type="number"
                     min="0"
                     step="any"
                     inputMode="decimal"
-                    className={`${editableInputBaseClass} p-1 text-right font-bold text-base tracking-tight`}
+                    className={`${editableInputBaseClass} p-1 text-right font-bold text-base tracking-tight ${getEditableStateClass('quantity')}`}
+                    data-schedule-cell="true"
+                    data-schedule-row-id={item.id}
+                    data-schedule-field="quantity"
                     value={item.quantity}
                     onChange={(e) => handleChange(item.id, 'quantity', e.target.value)}
-                    onFocus={() => rememberFieldOrigin('quantity', item.quantity ?? "")}
+                    onFocus={() => {
+                        onActivateCell?.(item.id, 'quantity');
+                        rememberFieldOrigin('quantity', item.quantity ?? "");
+                    }}
                     onBlur={() => clearFieldOrigin('quantity')}
-                    onKeyDown={(e) => handleEscRevert(e, 'quantity')}
+                    onKeyDown={(e) => handleFieldKeyDown(e, 'quantity', e.currentTarget.value, {
+                        revertField: 'quantity'
+                    })}
+                    onPaste={(e) => handleFieldPaste(e, 'quantity')}
                 />
             </td>
 
             {/* Productivity */}
-            <td className={`border-r border-gray-700 p-1 ${isLinked ? 'bg-blue-900/20' : ''}`}>
+            <td
+                className={getCellWrapperClass('productivity', `border-r border-gray-700 p-1 ${isLinked ? 'bg-blue-900/20' : ''}`)}
+                {...getCellWrapperProps('productivity')}
+            >
                 <input
                     type="number"
                     min="0"
@@ -478,30 +590,51 @@ const ScheduleTableRow = ({
                     inputMode="decimal"
                     className={`w-full text-right outline-none p-1 text-base rounded ${isLinked
                         ? 'ui-table-editable-input-disabled text-blue-300 font-bold cursor-not-allowed'
-                        : 'ui-table-editable-input text-gray-200 font-semibold'}`}
+                        : `ui-table-editable-input text-gray-200 font-semibold ${getEditableStateClass('productivity')}`}`}
+                    data-schedule-cell="true"
+                    data-schedule-row-id={item.id}
+                    data-schedule-field="productivity"
                     value={item.productivity}
                     disabled={isLinked}
                     onChange={(e) => handleChange(item.id, 'productivity', e.target.value)}
-                    onFocus={() => rememberFieldOrigin('productivity', item.productivity ?? "")}
+                    onFocus={() => {
+                        onActivateCell?.(item.id, 'productivity');
+                        rememberFieldOrigin('productivity', item.productivity ?? "");
+                    }}
                     onBlur={() => clearFieldOrigin('productivity')}
-                    onKeyDown={(e) => handleEscRevert(e, 'productivity')}
+                    onKeyDown={(e) => handleFieldKeyDown(e, 'productivity', e.currentTarget.value, {
+                        revertField: 'productivity'
+                    })}
+                    onPaste={(e) => handleFieldPaste(e, 'productivity')}
                     title={isLinked ? "연결 모듈 항목은 생산량을 직접 수정할 수 없습니다." : undefined}
                 />
             </td>
 
             {/* Crew */}
-            <td className="border-r border-gray-700 p-1">
+            <td
+                className={getCellWrapperClass('crew_size', "border-r border-gray-700 p-1")}
+                {...getCellWrapperProps('crew_size')}
+            >
                 <input
                     type="number"
                     min="0"
                     step="1"
                     inputMode="numeric"
-                    className={`${editableInputBaseClass} p-1 text-center text-base font-semibold`}
+                    className={`${editableInputBaseClass} p-1 text-center text-base font-semibold ${getEditableStateClass('crew_size')}`}
+                    data-schedule-cell="true"
+                    data-schedule-row-id={item.id}
+                    data-schedule-field="crew_size"
                     value={item.crew_size}
                     onChange={(e) => handleChange(item.id, 'crew_size', e.target.value)}
-                    onFocus={() => rememberFieldOrigin('crew_size', item.crew_size ?? "")}
+                    onFocus={() => {
+                        onActivateCell?.(item.id, 'crew_size');
+                        rememberFieldOrigin('crew_size', item.crew_size ?? "");
+                    }}
                     onBlur={() => clearFieldOrigin('crew_size')}
-                    onKeyDown={(e) => handleEscRevert(e, 'crew_size')}
+                    onKeyDown={(e) => handleFieldKeyDown(e, 'crew_size', e.currentTarget.value, {
+                        revertField: 'crew_size'
+                    })}
+                    onPaste={(e) => handleFieldPaste(e, 'crew_size')}
                 />
             </td>
 
@@ -511,25 +644,46 @@ const ScheduleTableRow = ({
             </td>
 
             {/* CP Check */}
-            <td className="border-r border-gray-700 p-1 text-center">
+            <td
+                className={getCellWrapperClass('cp_checked', "border-r border-gray-700 p-1 text-center")}
+                {...getCellWrapperProps('cp_checked')}
+            >
                 <input
                     type="checkbox"
+                    data-schedule-cell="true"
+                    data-schedule-row-id={item.id}
+                    data-schedule-field="cp_checked"
                     checked={item.cp_checked !== false}
                     onChange={(e) => handleChange(item.id, 'cp_checked', e.target.checked)}
+                    onFocus={() => {
+                        onActivateCell?.(item.id, 'cp_checked');
+                        rememberFieldOrigin('cp_checked', item.cp_checked !== false);
+                    }}
+                    onBlur={() => clearFieldOrigin('cp_checked')}
+                    onKeyDown={(e) => handleFieldKeyDown(e, 'cp_checked', e.currentTarget.checked, {
+                        revertField: 'cp_checked'
+                    })}
+                    onPaste={(e) => handleFieldPaste(e, 'cp_checked')}
                     className="h-4 w-4 accent-blue-500 cursor-pointer"
                     aria-label="CP 체크"
                 />
             </td>
 
             {/* Parallel Rate */}
-            <td className="border-r border-gray-700 p-1">
+            <td
+                className={getCellWrapperClass('parallel_rate', "border-r border-gray-700 p-1")}
+                {...getCellWrapperProps('parallel_rate')}
+            >
                 <div className="relative">
                     <input
-                        className={`${editableInputBaseClass} p-1 pr-5 text-right text-base font-semibold ${item.cp_checked === false ? "bg-[#1f1f2b] text-gray-300" : ""}`}
+                        className={`${editableInputBaseClass} p-1 pr-5 text-right text-base font-semibold ${item.cp_checked === false ? "bg-[#1f1f2b] text-gray-300" : ""} ${getEditableStateClass('parallel_rate')}`}
                         type="number"
                         min="0"
                         max="100"
                         step="0.1"
+                        data-schedule-cell="true"
+                        data-schedule-row-id={item.id}
+                        data-schedule-field="parallel_rate"
                         value={item.cp_checked === false ? 100 : (item.parallel_rate ?? item.application_rate ?? 100)}
                         onChange={(e) => {
                             if (item.cp_checked === false) {
@@ -538,10 +692,14 @@ const ScheduleTableRow = ({
                             handleChange(item.id, 'parallel_rate', e.target.value);
                         }}
                         onFocus={() => {
+                            onActivateCell?.(item.id, 'parallel_rate');
                             rememberFieldOrigin('parallel_rate', item.parallel_rate ?? item.application_rate ?? 100);
                         }}
                         onBlur={() => clearFieldOrigin('parallel_rate')}
-                        onKeyDown={(e) => handleEscRevert(e, 'parallel_rate')}
+                        onKeyDown={(e) => handleFieldKeyDown(e, 'parallel_rate', e.currentTarget.value, {
+                            revertField: 'parallel_rate'
+                        })}
+                        onPaste={(e) => handleFieldPaste(e, 'parallel_rate')}
                         title={item.cp_checked === false ? "입력 시 CP 체크가 자동 활성화됩니다." : undefined}
                     />
                     <span className="absolute right-1.5 top-1/2 -translate-y-1/2 text-xs text-gray-400 pointer-events-none">%</span>
@@ -549,19 +707,31 @@ const ScheduleTableRow = ({
             </td>
 
             {/* Reflection Rate */}
-            <td className="border-r border-gray-700 p-1">
+            <td
+                className={getCellWrapperClass('reflection_rate', "border-r border-gray-700 p-1")}
+                {...getCellWrapperProps('reflection_rate')}
+            >
                 <div className="relative">
                     <input
-                        className={`${editableInputBaseClass} p-1 pr-5 text-right text-base font-semibold`}
+                        className={`${editableInputBaseClass} p-1 pr-5 text-right text-base font-semibold ${getEditableStateClass('reflection_rate')}`}
                         type="number"
                         min="0"
                         max="100"
                         step="0.1"
+                        data-schedule-cell="true"
+                        data-schedule-row-id={item.id}
+                        data-schedule-field="reflection_rate"
                         value={item.reflection_rate ?? 100}
                         onChange={(e) => handleChange(item.id, 'reflection_rate', e.target.value)}
-                        onFocus={() => rememberFieldOrigin('reflection_rate', item.reflection_rate ?? 100)}
+                        onFocus={() => {
+                            onActivateCell?.(item.id, 'reflection_rate');
+                            rememberFieldOrigin('reflection_rate', item.reflection_rate ?? 100);
+                        }}
                         onBlur={() => clearFieldOrigin('reflection_rate')}
-                        onKeyDown={(e) => handleEscRevert(e, 'reflection_rate')}
+                        onKeyDown={(e) => handleFieldKeyDown(e, 'reflection_rate', e.currentTarget.value, {
+                            revertField: 'reflection_rate'
+                        })}
+                        onPaste={(e) => handleFieldPaste(e, 'reflection_rate')}
                     />
                     <span className="absolute right-1.5 top-1/2 -translate-y-1/2 text-xs text-gray-400 pointer-events-none">%</span>
                 </div>
@@ -588,22 +758,32 @@ const ScheduleTableRow = ({
             </td>
 
             {/* Remarks (Note) */}
-            <td className="border-r border-gray-700 p-1">
+            <td
+                className={getCellWrapperClass('note', "border-r border-gray-700 p-1")}
+                {...getCellWrapperProps('note')}
+            >
                 <textarea
                     ref={noteInputRef}
                     rows={1}
-                    className={`${editableInputBaseClass} ${multilineInputClass} p-1 text-sm font-medium`}
+                    className={`${editableInputBaseClass} ${multilineInputClass} p-1 text-sm font-medium ${getEditableStateClass('note')}`}
+                    data-schedule-cell="true"
+                    data-schedule-row-id={item.id}
+                    data-schedule-field="note"
                     value={item.note || ""}
                     onChange={(e) => {
                         handleChange(item.id, 'note', e.target.value);
                         resizeTextarea(e.currentTarget);
                     }}
                     onFocus={(e) => {
+                        onActivateCell?.(item.id, 'note');
                         rememberFieldOrigin('note', item.note || "");
                         resizeTextarea(e.currentTarget);
                     }}
                     onBlur={() => clearFieldOrigin('note')}
-                    onKeyDown={(e) => handleEscRevert(e, 'note')}
+                    onKeyDown={(e) => handleFieldKeyDown(e, 'note', e.currentTarget.value, {
+                        revertField: 'note'
+                    })}
+                    onPaste={(e) => handleFieldPaste(e, 'note')}
                 />
             </td>
 

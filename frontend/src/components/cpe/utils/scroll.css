@@ -1,5 +1,6 @@
 .scroll-container::-webkit-scrollbar {
   width: 6px;
+  height: 8px;
 }
 
 .scroll-container::-webkit-scrollbar-track {
@@ -25,4 +26,31 @@
 
 .scroll-container.scrolling {
   scrollbar-color: #4b5563 transparent;
+}
+
+.operating-rate-horizontal-scroll::-webkit-scrollbar {
+  height: 10px;
+}
+
+.operating-rate-horizontal-scroll::-webkit-scrollbar-track {
+  background: color-mix(in srgb, var(--navy-surface-3) 70%, transparent);
+  border-radius: 9999px;
+}
+
+.operating-rate-horizontal-scroll::-webkit-scrollbar-thumb {
+  background: var(--navy-border);
+  border-radius: 9999px;
+}
+
+.operating-rate-horizontal-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: var(--navy-border) color-mix(in srgb, var(--navy-surface-3) 70%, transparent);
+}
+
+.operating-rate-table-scroll::-webkit-scrollbar:horizontal {
+  height: 0;
+}
+
+.operating-rate-table-scroll {
+  scrollbar-gutter: stable;
 }

@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useMemo } from "react";
+import React, { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { useParams } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -31,6 +31,7 @@ import {
   makeProcessOperatingRateKey,
   parseOperatingRateKey,
 } from "../utils/operatingRateKeys";
+import { calculateTotalCalendarDays } from "../utils/scheduleCalculations";
 
 const WEIGHT_FIELDS = [
   "winter_threshold",
@@ -245,8 +246,16 @@ export default function OperatingRate() {
     dataYears: "10년",
     workWeekDays: 6,
   });
+  const scrollContainerRef = useRef(null);
+  const horizontalScrollbarRef = useRef(null);
+  const syncingScrollRef = useRef(false);
+  const scrollingTimeoutRef = useRef(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [isScrolling, setIsScrolling] = useState(false);
+  const [hasHorizontalOverflow, setHasHorizontalOverflow] = useState(false);
+  const [scrollContentWidth, setScrollContentWidth] = useState(0);
+  const [scrollViewportWidth, setScrollViewportWidth] = useState(0);
   const { alert } = useConfirm();
 
   // FTUE: 가동률 페이지 방문 시 TOTAL step 완료
@@ -278,6 +287,22 @@ export default function OperatingRate() {
 
       const scheduleItems = scheduleData?.items || [];
       const existing = Array.isArray(weightData) ? weightData : [];
+      const visibleMainCategories = new Set();
+
+      const scheduleItemsByMain = new Map();
+      scheduleItems.forEach((item) => {
+        const main = String(item?.main_category || "기타").trim() || "기타";
+        if (!scheduleItemsByMain.has(main)) {
+          scheduleItemsByMain.set(main, []);
+        }
+        scheduleItemsByMain.get(main).push(item);
+      });
+
+      scheduleItemsByMain.forEach((categoryItems, mainCategory) => {
+        if (calculateTotalCalendarDays(categoryItems) > 0) {
+          visibleMainCategories.add(mainCategory);
+        }
+      });
 
       const existingMap = new Map();
       existing.forEach((row) => {
@@ -290,6 +315,7 @@ export default function OperatingRate() {
 
       const addMain = (mainCategory) => {
         const main = String(mainCategory || "기타").trim() || "기타";
+        if (!visibleMainCategories.has(main)) return null;
         if (!mainOrder.includes(main)) {
           mainOrder.push(main);
           processByMain.set(main, []);
@@ -299,6 +325,7 @@ export default function OperatingRate() {
 
       const addProcess = (mainCategory, processName) => {
         const main = addMain(mainCategory);
+        if (!main) return;
         const process = String(processName || "").trim();
         if (!process) return;
         const list = processByMain.get(main) || [];
@@ -310,12 +337,14 @@ export default function OperatingRate() {
 
       scheduleItems.forEach((item) => {
         const main = addMain(item.main_category || "기타");
+        if (!main) return;
         addProcess(main, item.process || "");
       });
 
       existing.forEach((row) => {
         const parsed = parseOperatingRateKey(row.main_category);
         const main = addMain(parsed.mainCategory || row.main_category || "기타");
+        if (!main) return;
         if (parsed.isProcessKey && parsed.process) {
           addProcess(main, parsed.process);
         }
@@ -434,6 +463,111 @@ export default function OperatingRate() {
       (column) => column.level === "main" || expandedMainCategories[column.parent_key]
     );
   }, [workTypes, columnViewMode, expandedMainCategories]);
+
+  const updateHorizontalScrollState = useCallback(() => {
+    const element = scrollContainerRef.current;
+    if (!element) return;
+
+    const maxScrollLeft = Math.max(0, element.scrollWidth - element.clientWidth);
+    setHasHorizontalOverflow(maxScrollLeft > 1);
+    setScrollContentWidth(element.scrollWidth);
+    setScrollViewportWidth(element.clientWidth);
+
+    if (horizontalScrollbarRef.current && !syncingScrollRef.current) {
+      horizontalScrollbarRef.current.scrollLeft = element.scrollLeft;
+    }
+  }, []);
+
+  const handleTableScroll = useCallback(() => {
+    const element = scrollContainerRef.current;
+    if (!element) return;
+
+    setIsScrolling(true);
+    if (scrollingTimeoutRef.current) {
+      window.clearTimeout(scrollingTimeoutRef.current);
+    }
+    scrollingTimeoutRef.current = window.setTimeout(() => {
+      setIsScrolling(false);
+      scrollingTimeoutRef.current = null;
+    }, 1000);
+
+    if (horizontalScrollbarRef.current) {
+      syncingScrollRef.current = true;
+      horizontalScrollbarRef.current.scrollLeft = element.scrollLeft;
+      window.requestAnimationFrame(() => {
+        syncingScrollRef.current = false;
+      });
+    }
+
+    updateHorizontalScrollState();
+  }, [updateHorizontalScrollState]);
+
+  const handleHorizontalScrollbarScroll = useCallback(() => {
+    const scrollbar = horizontalScrollbarRef.current;
+    const element = scrollContainerRef.current;
+    if (!scrollbar || !element || syncingScrollRef.current) return;
+
+    setIsScrolling(true);
+    if (scrollingTimeoutRef.current) {
+      window.clearTimeout(scrollingTimeoutRef.current);
+    }
+    scrollingTimeoutRef.current = window.setTimeout(() => {
+      setIsScrolling(false);
+      scrollingTimeoutRef.current = null;
+    }, 1000);
+
+    syncingScrollRef.current = true;
+    element.scrollLeft = scrollbar.scrollLeft;
+    window.requestAnimationFrame(() => {
+      syncingScrollRef.current = false;
+    });
+  }, []);
+
+  const handleHorizontalWheel = useCallback((event) => {
+    const element = scrollContainerRef.current;
+    if (!element) return;
+
+    const horizontalDelta = event.shiftKey ? event.deltaY : event.deltaX;
+    if (!horizontalDelta) return;
+
+    const maxScrollLeft = Math.max(0, element.scrollWidth - element.clientWidth);
+    if (maxScrollLeft <= 0) return;
+
+    event.preventDefault();
+
+    const nextScrollLeft = Math.max(0, Math.min(maxScrollLeft, element.scrollLeft + horizontalDelta));
+    if (nextScrollLeft === element.scrollLeft) return;
+
+    element.scrollLeft = nextScrollLeft;
+    handleTableScroll();
+  }, [handleTableScroll]);
+
+  useEffect(() => {
+    return () => {
+      if (scrollingTimeoutRef.current) {
+        window.clearTimeout(scrollingTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    updateHorizontalScrollState();
+
+    const handleResize = () => updateHorizontalScrollState();
+    window.addEventListener("resize", handleResize);
+
+    return () => {
+      window.removeEventListener("resize", handleResize);
+    };
+  }, [updateHorizontalScrollState]);
+
+  useEffect(() => {
+    const frameId = window.requestAnimationFrame(() => {
+      updateHorizontalScrollState();
+    });
+
+    return () => window.cancelAnimationFrame(frameId);
+  }, [visibleWorkTypes, updateHorizontalScrollState]);
 
   const handleCellChange = useCallback((rowKey, field, value) => {
     setWorkTypes((prev) => {
@@ -757,8 +891,13 @@ export default function OperatingRate() {
         <SaveButton onSave={handleSave} saving={saving} className="btn-blue px-6 py-2" />
       </div>
 
-      <div className="flex-1 overflow-hidden bg-[#2a2a35] rounded-lg border border-gray-700 shadow-lg flex flex-col">
-        <div className="overflow-auto flex-1 custom-scrollbar">
+      <div className="relative flex-1 overflow-hidden rounded-lg border border-[var(--navy-border-soft)] bg-[var(--navy-surface)] shadow-lg flex flex-col">
+        <div
+          ref={scrollContainerRef}
+          onScroll={handleTableScroll}
+          onWheel={handleHorizontalWheel}
+          className={`scroll-container operating-rate-table-scroll overflow-y-auto overflow-x-hidden flex-1 ${isScrolling ? "scrolling" : ""}`}
+        >
           <table className="w-full text-sm border-collapse">
             <thead className="sticky top-0 z-20 shadow-md">
               <tr className="bg-[#323240] border-b border-gray-600">
@@ -995,6 +1134,24 @@ export default function OperatingRate() {
             </tfoot>
           </table>
         </div>
+
+        {hasHorizontalOverflow && (
+          <div className="border-t border-[var(--navy-border-soft)] bg-[var(--navy-surface)] px-2 py-1.5">
+            <div
+              ref={horizontalScrollbarRef}
+              onScroll={handleHorizontalScrollbarScroll}
+              onWheel={handleHorizontalWheel}
+              className="operating-rate-horizontal-scroll overflow-x-auto overflow-y-hidden"
+            >
+              <div
+                style={{
+                  width: `${Math.max(scrollContentWidth, scrollViewportWidth)}px`,
+                  height: "1px",
+                }}
+              />
+            </div>
+          </div>
+        )}
       </div>
 
       {workTypes.length === 0 && !loading && (

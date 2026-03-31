@@ -44,13 +44,19 @@ export default function ScheduleCategorySection({
     toggleSelectItem,
     startSelectionDrag,
     dragSelectItem,
-    workDayType,
     handleChange,
-    handleGroupFieldChange,
     handleDeleteItem,
     handleOpenRowClassEdit,
     handleActivateItem,
-    spanInfoMap,
+    activeCell,
+    cellSelectionRange,
+    handleActivateCell,
+    handleCellKeyDown,
+    handleCellPaste,
+    handleCellSelectionEnter,
+    handleCellSelectionStart,
+    getCellSelectionClassName,
+    isCellSelected,
     standardItems,
     handleApplyStandardToRow,
     activeId,
@@ -134,6 +140,62 @@ export default function ScheduleCategorySection({
         handleOpenFloorBatchModal(category, allCategoryItems);
         setOpenCategoryMenu(null);
     }, [allCategoryItems, canGenerateFloorBatch, category, handleOpenFloorBatchModal, setOpenCategoryMenu]);
+
+    const spanInfoMap = useMemo(() => {
+        const map = {};
+
+        let processStart = 0;
+        while (processStart < categoryItems.length) {
+            const processValue = String(categoryItems[processStart]?.process || "");
+            let processEnd = processStart + 1;
+            while (
+                processEnd < categoryItems.length &&
+                String(categoryItems[processEnd]?.process || "") === processValue
+            ) {
+                processEnd += 1;
+            }
+
+            const processRowSpan = processEnd - processStart;
+            for (let index = processStart; index < processEnd; index += 1) {
+                const itemId = categoryItems[index]?.id;
+                if (!itemId) continue;
+                map[itemId] = {
+                    ...(map[itemId] || {}),
+                    isProcessFirst: index === processStart,
+                    processRowSpan
+                };
+            }
+
+            let subProcessStart = processStart;
+            while (subProcessStart < processEnd) {
+                const subProcessValue = String(categoryItems[subProcessStart]?.sub_process || "");
+                let subProcessEnd = subProcessStart + 1;
+                while (
+                    subProcessEnd < processEnd &&
+                    String(categoryItems[subProcessEnd]?.sub_process || "") === subProcessValue
+                ) {
+                    subProcessEnd += 1;
+                }
+
+                const subProcessRowSpan = subProcessEnd - subProcessStart;
+                for (let index = subProcessStart; index < subProcessEnd; index += 1) {
+                    const itemId = categoryItems[index]?.id;
+                    if (!itemId) continue;
+                    map[itemId] = {
+                        ...(map[itemId] || {}),
+                        isSubProcessFirst: index === subProcessStart,
+                        subProcessRowSpan
+                    };
+                }
+
+                subProcessStart = subProcessEnd;
+            }
+
+            processStart = processEnd;
+        }
+
+        return map;
+    }, [categoryItems]);
 
     return (
         <React.Fragment>
@@ -429,23 +491,20 @@ export default function ScheduleCategorySection({
                     onDragSelectionEnter={dragSelectItem}
                     rowClassName={`${rowIndex % 2 === 0 ? "bg-[var(--navy-bg)]" : "bg-[var(--navy-surface)]"} ${hasSearchKeyword ? "outline outline-1 -outline-offset-1 outline-emerald-500/40" : ""}`}
                     operatingRates={operatingRates}
-                    workDayType={workDayType}
                     isLinked={item.link_module_type && item.link_module_type !== "NONE"}
                     handleChange={handleChange}
-                    handleGroupFieldChange={handleGroupFieldChange}
                     handleDeleteItem={handleDeleteItem}
                     onOpenRowClassEdit={handleOpenRowClassEdit}
-                    handleAddItem={handleAddItem}
                     onActivateItem={handleActivateItem}
-                    handleOpenImport={handleOpenImport}
-                    spanInfo={spanInfoMap[item.id] || {
-                        isProcessFirst: true,
-                        isSubProcessFirst: true,
-                        processRowSpan: 1,
-                        subProcessRowSpan: 1,
-                        processGroupIds: [item.id],
-                        subProcessGroupIds: [item.id]
-                    }}
+                    activeCell={activeCell}
+                    cellSelectionRange={cellSelectionRange}
+                    onActivateCell={handleActivateCell}
+                    onCellKeyDown={handleCellKeyDown}
+                    onCellPaste={handleCellPaste}
+                    onCellSelectionEnter={handleCellSelectionEnter}
+                    onCellSelectionStart={handleCellSelectionStart}
+                    getCellSelectionClassName={getCellSelectionClassName}
+                    isCellSelected={isCellSelected}
                     standardItems={standardItems}
                     onApplyStandard={handleApplyStandardToRow}
                     isDragActive={Boolean(activeId)}
@@ -455,6 +514,12 @@ export default function ScheduleCategorySection({
                     isDropInvalid={isDropInvalid && dropTargetId === item.id}
                     disableDrag={isFilterActive}
                     isActive={activeEditingItemId === item.id}
+                    spanInfo={spanInfoMap[item.id] || {
+                        isProcessFirst: true,
+                        processRowSpan: 1,
+                        isSubProcessFirst: true,
+                        subProcessRowSpan: 1
+                    }}
                 />
             ))}
         </React.Fragment>
