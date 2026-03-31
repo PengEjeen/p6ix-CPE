@@ -9,6 +9,7 @@ import { FTUE_STEP_IDS } from "../config/ftueSteps";
 import StandardImportModal from "../components/cpe/StandardImportModal";
 import ScheduleHeader from "../components/cpe/schedule/ScheduleHeader";
 import ScheduleGanttPanel from "../components/cpe/schedule/ScheduleGanttPanel";
+import AiSuggestionPanel from "../components/cpe/schedule/AiSuggestionPanel";
 import EvidenceResultModal from "../components/cpe/schedule/EvidenceResultModal";
 import SnapshotManager from "../components/cpe/schedule/SnapshotManager";
 import ScheduleMasterTablePage from "../components/cpe/masterTable/ScheduleMasterTablePage";
@@ -171,11 +172,24 @@ export default function ScheduleMasterList() {
         aiShowCompare,
         setAiShowCompare,
         aiDisplayItems,
+        aiThreadMessages,
+        aiProposalCards,
+        pendingProposalCount,
         aiOriginalRef,
         runAiAdjustment,
         handleAiCancel,
-        handleAiApply
-    } = useAIScheduleOptimizer(items, operatingRates, workDayType, projectName, setStoreItems);
+        handleAiApply,
+        handleProposalApply,
+        handleProposalReject,
+        resetAiSession
+    } = useAIScheduleOptimizer(
+        items,
+        operatingRates,
+        workDayType,
+        projectName,
+        setStoreItems,
+        applyItemFieldChanges
+    );
 
     // Calculated Values
     const totalCalendarDays = useMemo(() => calculateTotalCalendarDays(items), [items]);
@@ -189,6 +203,7 @@ export default function ScheduleMasterList() {
     const [snapshotModalOpen, setSnapshotModalOpen] = useState(false);
     const [importTargetParent, setImportTargetParent] = useState(null);
     const [viewMode, setViewMode] = useState("table"); // "table" or "gantt"
+    const [aiPanelOpen, setAiPanelOpen] = useState(false);
     const [standardItems, setStandardItems] = useState([]);
     const [rowClassEditModal, setRowClassEditModal] = useState({
         open: false,
@@ -746,8 +761,13 @@ export default function ScheduleMasterList() {
                     onAiTargetDaysChange={setAiTargetDays}
                     onAiRun={runAiAdjustment}
                     aiMode={aiMode}
-                    onAiCancel={handleAiCancel}
+                    onAiCancel={() => {
+                        handleAiCancel();
+                        setAiPanelOpen(false);
+                    }}
                     onExportExcel={handleExportExcel}
+                    aiPanelOpen={aiPanelOpen}
+                    onAiPanelToggle={() => setAiPanelOpen((prev) => !prev)}
                 />
             </div>
 
@@ -755,60 +775,79 @@ export default function ScheduleMasterList() {
             <div
                 className="flex-1 min-h-0 w-full max-w-[2400px] mx-auto p-6 pt-2 overflow-hidden flex flex-col"
             >
-                {viewMode === "gantt" ? (
-                    <ScheduleGanttPanel
-                        items={aiDisplayItems}
-                        links={links}
-                        startDate={startDate}
-                        onResize={handleGanttResize}
-                        onSmartResize={handleSmartResize}
-                        aiPreviewItems={aiPreviewItems}
-                        aiOriginalItems={aiOriginalRef.current}
-                        aiActiveItemId={aiActiveItemId}
-                        aiMode={aiMode}
-                        aiLogs={aiLogs}
-                        aiSummary={aiSummary}
-                        aiShowCompare={aiShowCompare}
-                        onToggleCompare={() => setAiShowCompare((prev) => !prev)}
-                        onApply={() => handleAiApply(confirm)}
-                        subTasks={subTasks}
-                        onCreateSubtask={handleCreateSubtask}
-                        onUpdateSubtask={handleUpdateSubtask}
-                        onDeleteSubtask={handleDeleteSubtask}
-                    />
-                ) : (
-                    <ScheduleMasterTablePage
-                        items={items}
-                        operatingRates={operatingRates}
-                        links={links}
-                        subTasks={subTasks}
-                        projectId={projectId}
-                        containerId={containerId}
-                        viewMode={viewMode}
-                        confirm={confirm}
-                        addItem={addItem}
-                        addItemAtIndex={addItemAtIndex}
-                        deleteItems={deleteItems}
-                        reorderItems={reorderItems}
-                        updateItem={updateItem}
-                        updateItemsField={updateItemsField}
-                        applyItemFieldChanges={applyItemFieldChanges}
-                        updateOperatingRate={updateOperatingRate}
-                        setStoreOperatingRates={setStoreOperatingRates}
-                        canUndo={canUndo}
-                        canRedo={canRedo}
-                        onUndo={runUndo}
-                        onRedo={runRedo}
-                        onOpenImport={handleOpenImport}
-                        onOpenEvidence={(targetItem) => {
-                            setEvidenceTargetParent(targetItem || null);
-                            setEvidenceModalOpen(true);
-                        }}
-                        onOpenFloorBatchModal={handleOpenFloorBatchModal}
-                        onOpenRowClassEdit={handleOpenRowClassEdit}
-                        standardItems={standardItems}
-                    />
-                )}
+                <div className="flex-1 min-h-0 flex gap-4">
+                    {viewMode === "gantt" ? (
+                        <ScheduleGanttPanel
+                            items={aiDisplayItems}
+                            links={links}
+                            startDate={startDate}
+                            onResize={handleGanttResize}
+                            onSmartResize={handleSmartResize}
+                            aiPreviewItems={aiPreviewItems}
+                            aiOriginalItems={aiOriginalRef.current}
+                            aiActiveItemId={aiActiveItemId}
+                            subTasks={subTasks}
+                            onCreateSubtask={handleCreateSubtask}
+                            onUpdateSubtask={handleUpdateSubtask}
+                            onDeleteSubtask={handleDeleteSubtask}
+                        />
+                    ) : (
+                        <ScheduleMasterTablePage
+                            items={items}
+                            operatingRates={operatingRates}
+                            links={links}
+                            subTasks={subTasks}
+                            projectId={projectId}
+                            containerId={containerId}
+                            viewMode={viewMode}
+                            confirm={confirm}
+                            addItem={addItem}
+                            addItemAtIndex={addItemAtIndex}
+                            deleteItems={deleteItems}
+                            reorderItems={reorderItems}
+                            updateItem={updateItem}
+                            updateItemsField={updateItemsField}
+                            applyItemFieldChanges={applyItemFieldChanges}
+                            updateOperatingRate={updateOperatingRate}
+                            setStoreOperatingRates={setStoreOperatingRates}
+                            canUndo={canUndo}
+                            canRedo={canRedo}
+                            onUndo={runUndo}
+                            onRedo={runRedo}
+                            onOpenImport={handleOpenImport}
+                            onOpenEvidence={(targetItem) => {
+                                setEvidenceTargetParent(targetItem || null);
+                                setEvidenceModalOpen(true);
+                            }}
+                            onOpenFloorBatchModal={handleOpenFloorBatchModal}
+                            onOpenRowClassEdit={handleOpenRowClassEdit}
+                            standardItems={standardItems}
+                        />
+                    )}
+
+                    {(aiPanelOpen || aiThreadMessages.length > 0 || aiProposalCards.length > 0) && (
+                        <AiSuggestionPanel
+                            aiMode={aiMode}
+                            aiThreadMessages={aiThreadMessages}
+                            aiProposalCards={aiProposalCards}
+                            pendingProposalCount={pendingProposalCount}
+                            aiTargetDays={aiTargetDays}
+                            onSubmitRequest={async (text) => {
+                                setAiPanelOpen(true);
+                                await runAiAdjustment(text);
+                            }}
+                            onApplyProposal={(proposal) => handleProposalApply(proposal, confirm)}
+                            onRejectProposal={handleProposalReject}
+                            onApplyAll={() => handleAiApply(confirm)}
+                            onReset={() => {
+                                resetAiSession();
+                                setAiPanelOpen(false);
+                            }}
+                            onToggleCompare={() => setAiShowCompare((prev) => !prev)}
+                            aiShowCompare={aiShowCompare}
+                        />
+                    )}
+                </div>
             </div>
 
             {/* --- Modals --- */}

@@ -1,8 +1,128 @@
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useMemo } from "react";
 import { calculateItem } from "../utils/solver";
 import { summarizeScheduleAiLog } from "../api/cpe/schedule_ai";
 import toast from "react-hot-toast";
 import { calculateTotalCalendarDays, getCriticalIds } from "../utils/scheduleCalculations";
+
+const PROPOSAL_FIELDS = [
+    { key: "crew_size", label: "투입 인원", type: "number", digits: 1 },
+    { key: "productivity", label: "생산성", type: "number", digits: 2 },
+    { key: "parallel_rate", label: "병행률", type: "number", digits: 1 },
+    { key: "reflection_rate", label: "반영률", type: "number", digits: 1 },
+    { key: "note", label: "비고", type: "text" }
+];
+
+const toNumber = (value) => {
+    const parsed = parseFloat(value);
+    return Number.isFinite(parsed) ? parsed : null;
+};
+
+const valuesEqual = (before, after, type) => {
+    if (type === "number") {
+        const left = toNumber(before);
+        const right = toNumber(after);
+        if (left === null || right === null) return String(before ?? "") === String(after ?? "");
+        return Math.abs(left - right) < 0.0001;
+    }
+    return String(before ?? "") === String(after ?? "");
+};
+
+const formatValue = (value, type, digits = 1) => {
+    if (type === "number") {
+        const parsed = toNumber(value);
+        if (parsed === null) return "-";
+        return parsed.toFixed(digits).replace(/\.0+$/, "").replace(/(\.\d*?)0+$/, "$1");
+    }
+    return String(value ?? "").trim() || "-";
+};
+
+const buildProposalReason = (changes) => {
+    const changedFields = changes.map((change) => change.field);
+    if (changedFields.includes("crew_size") && changedFields.includes("productivity")) {
+        return "크리티컬 공정 단축을 위해 인력과 생산성을 함께 조정한 제안입니다.";
+    }
+    if (changedFields.includes("crew_size")) {
+        return "크리티컬 공정 병목 완화를 위해 투입 인원을 조정한 제안입니다.";
+    }
+    if (changedFields.includes("productivity")) {
+        return "추가 인력 증원보다 생산성 조정이 유효한 구간으로 판단한 제안입니다.";
+    }
+    return "선택 범위의 일정 단축 가능성을 기준으로 생성한 제안입니다.";
+};
+
+const buildProposalCards = (originalItems, previewItems) => {
+    if (!Array.isArray(originalItems) || !Array.isArray(previewItems)) return [];
+
+    return previewItems
+        .map((preview) => {
+            const original = originalItems.find((item) => String(item.id) === String(preview.id));
+            if (!original) return null;
+
+            const changes = PROPOSAL_FIELDS
+                .map((field) => {
+                    const before = original[field.key];
+                    const after = preview[field.key];
+                    if (valuesEqual(before, after, field.type)) return null;
+                    return {
+                        field: field.key,
+                        label: field.label,
+                        before,
+                        after,
+                        beforeText: formatValue(before, field.type, field.digits),
+                        afterText: formatValue(after, field.type, field.digits)
+                    };
+                })
+                .filter(Boolean);
+
+            if (changes.length === 0) return null;
+
+            const beforeDays = toNumber(original.calendar_days) || 0;
+            const afterDays = toNumber(preview.calendar_days) || 0;
+            const savedDays = beforeDays - afterDays;
+            const label = [preview.process, preview.work_type].filter(Boolean).join(" / ") || "공정";
+
+            return {
+                id: `proposal-${preview.id}`,
+                itemId: preview.id,
+                label,
+                changes,
+                status: "pending",
+                reason: buildProposalReason(changes),
+                impactSummary:
+                    savedDays > 0
+                        ? `예상 공기 ${savedDays.toFixed(1)}일 단축`
+                        : "필드 조정 제안"
+            };
+        })
+        .filter(Boolean);
+};
+
+const extractTargetDays = (requestText, currentTotal) => {
+    const text = String(requestText || "").trim();
+    if (!text) return null;
+
+    const reduceMatch = text.match(/(\d+(?:\.\d+)?)\s*일\s*(단축|줄이|줄여|감축)/);
+    if (reduceMatch) {
+        const reducedDays = parseFloat(reduceMatch[1]);
+        if (Number.isFinite(reducedDays) && Number.isFinite(currentTotal)) {
+            return Math.max(1, Math.round(currentTotal - reducedDays));
+        }
+    }
+
+    const targetMatch = text.match(/목표\s*공기[^\d]*(\d+(?:\.\d+)?)\s*일/);
+    if (targetMatch) {
+        const target = parseFloat(targetMatch[1]);
+        if (Number.isFinite(target) && target > 0) return Math.round(target);
+    }
+
+    const toMatch = text.match(/(\d+(?:\.\d+)?)\s*일\s*로/);
+    if (toMatch) {
+        const target = parseFloat(toMatch[1]);
+        if (Number.isFinite(target) && target > 0) return Math.round(target);
+    }
+
+    return null;
+};
 
 /**
  * Custom hook for AI-powered schedule optimization
@@ -11,19 +131,33 @@ import { calculateTotalCalendarDays, getCriticalIds } from "../utils/scheduleCal
  * @param {string} workDayType - Work day type (e.g., "6d")
  * @param {string} projectName - Project name for AI summary
  * @param {Function} setStoreItems - Store setter for items
+ * @param {Function} applyItemFieldChanges - Partial update helper for item fields
  * @returns {Object} AI optimizer state and handlers
  */
-export const useAIScheduleOptimizer = (items, operatingRates, workDayType, projectName, setStoreItems) => {
+export const useAIScheduleOptimizer = (
+    items,
+    operatingRates,
+    workDayType,
+    projectName,
+    setStoreItems,
+    applyItemFieldChanges
+) => {
     const aiOriginalRef = useRef(null);
     const [aiTargetDays, setAiTargetDays] = useState("");
-    const [aiMode, setAiMode] = useState("idle"); // idle | running | success | fail | cancelled
+    const [aiMode, setAiMode] = useState("idle"); // idle | running | success | fail
     const [aiLogs, setAiLogs] = useState([]);
     const [aiPreviewItems, setAiPreviewItems] = useState(null);
     const [aiActiveItemId, setAiActiveItemId] = useState(null);
     const [aiSummary, setAiSummary] = useState({ savedDays: 0, remainingDays: 0 });
     const [aiShowCompare, setAiShowCompare] = useState(false);
+    const [aiThreadMessages, setAiThreadMessages] = useState([]);
+    const [aiProposalCards, setAiProposalCards] = useState([]);
 
-    // Helper to calculate total days for items (duplicated from main for encapsulation)
+    const pendingProposalCount = useMemo(
+        () => aiProposalCards.filter((proposal) => proposal.status === "pending").length,
+        [aiProposalCards]
+    );
+
     const totalDaysForItems = useCallback((list) => {
         return calculateTotalCalendarDays(list);
     }, []);
@@ -35,12 +169,58 @@ export const useAIScheduleOptimizer = (items, operatingRates, workDayType, proje
         ]);
     }, []);
 
-    const runAiAdjustment = useCallback(async () => {
-        const target = parseFloat(aiTargetDays);
+    const appendAiThreadMessage = useCallback((role, text) => {
+        if (!String(text || "").trim()) return;
+        setAiThreadMessages((prev) => [
+            ...prev,
+            {
+                id: `thread-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+                role,
+                text
+            }
+        ]);
+    }, []);
+
+    const syncOriginalRowFromPreview = useCallback((itemId, previewRow) => {
+        if (!aiOriginalRef.current || !previewRow) return;
+        aiOriginalRef.current = aiOriginalRef.current.map((item) =>
+            String(item.id) === String(itemId) ? { ...previewRow } : item
+        );
+    }, []);
+
+    const resetAiSession = useCallback(() => {
+        setAiMode("idle");
+        setAiPreviewItems(null);
+        setAiActiveItemId(null);
+        setAiLogs([]);
+        setAiSummary({ savedDays: 0, remainingDays: 0 });
+        setAiShowCompare(false);
+        setAiThreadMessages([]);
+        setAiProposalCards([]);
+        aiOriginalRef.current = null;
+    }, []);
+
+    const runAiAdjustment = useCallback(async (requestText = "") => {
+        const currentTotalDays = totalDaysForItems(items);
+        const manualTarget = parseFloat(aiTargetDays);
+        const derivedTarget = extractTargetDays(requestText, currentTotalDays);
+        const target = Number.isFinite(manualTarget) && manualTarget > 0
+            ? manualTarget
+            : derivedTarget;
+
         if (!Number.isFinite(target) || target <= 0) {
-            toast.error("목표 공기(일)를 입력해주세요.");
+            toast.error("목표 공기(일)를 입력하거나 요청 문장에 포함해주세요.");
             return;
         }
+
+        if ((!Number.isFinite(manualTarget) || manualTarget <= 0) && derivedTarget) {
+            setAiTargetDays(String(derivedTarget));
+        }
+
+        const requestMessage = String(requestText || "").trim()
+            || `목표 공기 ${target}일 기준으로 조정안을 제안해줘.`;
+        appendAiThreadMessage("user", requestMessage);
+        appendAiThreadMessage("assistant", `선택된 공정을 검토해 목표 공기 ${target}일 기준의 수정 제안을 계산합니다.`);
 
         const aiItems = items.map((item) => ({
             ...item,
@@ -50,6 +230,7 @@ export const useAIScheduleOptimizer = (items, operatingRates, workDayType, proje
         setAiPreviewItems(aiItems);
         setAiActiveItemId(null);
         setAiLogs([]);
+        setAiProposalCards([]);
         setAiShowCompare(false);
         setAiMode("running");
         appendAiLog("목표 공기 달성을 위한 조정안을 계산 중입니다…", "status");
@@ -277,6 +458,15 @@ export const useAIScheduleOptimizer = (items, operatingRates, workDayType, proje
                 "reason"
             );
         }
+
+        const proposals = buildProposalCards(aiOriginalRef.current, aiItems);
+        setAiProposalCards(proposals);
+        if (proposals.length > 0) {
+            appendAiThreadMessage("assistant", `${proposals.length}개의 수정 제안을 준비했습니다. 카드별로 사용 여부를 결정해주세요.`);
+        } else {
+            appendAiThreadMessage("assistant", "적용 가능한 수정 제안을 찾지 못했습니다. 목표 공기 또는 요청 조건을 조정해 다시 시도해주세요.");
+        }
+
         try {
             const response = await summarizeScheduleAiLog({
                 project_name: projectName || "프로젝트",
@@ -297,28 +487,73 @@ export const useAIScheduleOptimizer = (items, operatingRates, workDayType, proje
             const summaryText = response?.data?.summary;
             if (summaryText) {
                 appendAiLog(summaryText, "summary");
+                appendAiThreadMessage("assistant", summaryText);
             }
         } catch (error) {
             console.error("AI 요약 생성 실패:", error);
         }
-    }, [aiTargetDays, appendAiLog, items, operatingRates, projectName, totalDaysForItems, workDayType]);
+    }, [aiTargetDays, appendAiLog, appendAiThreadMessage, items, operatingRates, projectName, totalDaysForItems, workDayType]);
 
     const handleAiCancel = useCallback(() => {
-        setAiMode("cancelled");
-        setAiPreviewItems(null);
-        setAiActiveItemId(null);
-        setAiLogs([]);
-        setAiSummary({ savedDays: 0, remainingDays: 0 });
-        setAiShowCompare(false);
-    }, []);
+        resetAiSession();
+    }, [resetAiSession]);
 
     const handleAiApply = useCallback(async (confirm) => {
-        if (!aiPreviewItems || aiPreviewItems.length === 0) return;
-        const ok = await confirm("AI 조정안을 적용하시겠습니까?");
+        if (!aiPreviewItems || aiPreviewItems.length === 0 || pendingProposalCount === 0) return;
+        const ok = await confirm(`대기 중인 ${pendingProposalCount}개 제안을 모두 적용하시겠습니까?`);
         if (!ok) return;
+
         setStoreItems(aiPreviewItems);
-        handleAiCancel();
-    }, [aiPreviewItems, handleAiCancel, setStoreItems]);
+        aiOriginalRef.current = aiPreviewItems.map((item) => ({ ...item }));
+        setAiProposalCards((prev) => prev.map((proposal) => (
+            proposal.status === "pending" ? { ...proposal, status: "applied" } : proposal
+        )));
+        appendAiThreadMessage("assistant", `대기 중인 ${pendingProposalCount}개 제안을 모두 반영했습니다.`);
+    }, [aiPreviewItems, appendAiThreadMessage, pendingProposalCount, setStoreItems]);
+
+    const handleProposalApply = useCallback(async (proposal, confirm) => {
+        if (!proposal || proposal.status !== "pending") return;
+        const ok = await confirm(`${proposal.label} 제안을 적용하시겠습니까?`);
+        if (!ok) return;
+
+        const fieldChanges = proposal.changes.map((change) => ({
+            id: proposal.itemId,
+            field: change.field,
+            value: change.after
+        }));
+        applyItemFieldChanges(fieldChanges);
+
+        const previewRow = aiPreviewItems?.find((item) => String(item.id) === String(proposal.itemId));
+        if (previewRow) {
+            syncOriginalRowFromPreview(proposal.itemId, previewRow);
+            setAiPreviewItems((prev) => prev?.map((item) =>
+                String(item.id) === String(proposal.itemId) ? { ...previewRow } : item
+            ) || prev);
+        }
+
+        setAiProposalCards((prev) => prev.map((item) =>
+            item.id === proposal.id ? { ...item, status: "applied" } : item
+        ));
+        appendAiThreadMessage("assistant", `${proposal.label} 제안을 반영했습니다.`);
+        setAiActiveItemId(null);
+    }, [aiPreviewItems, appendAiThreadMessage, applyItemFieldChanges, syncOriginalRowFromPreview]);
+
+    const handleProposalReject = useCallback((proposal) => {
+        if (!proposal || proposal.status !== "pending") return;
+
+        const originalRow = aiOriginalRef.current?.find((item) => String(item.id) === String(proposal.itemId));
+        if (originalRow) {
+            setAiPreviewItems((prev) => prev?.map((item) =>
+                String(item.id) === String(proposal.itemId) ? { ...originalRow } : item
+            ) || prev);
+        }
+
+        setAiProposalCards((prev) => prev.map((item) =>
+            item.id === proposal.id ? { ...item, status: "rejected" } : item
+        ));
+        appendAiThreadMessage("assistant", `${proposal.label} 제안을 거절했습니다.`);
+        setAiActiveItemId(null);
+    }, [appendAiThreadMessage]);
 
     const aiDisplayItems = aiPreviewItems || items;
 
@@ -334,8 +569,14 @@ export const useAIScheduleOptimizer = (items, operatingRates, workDayType, proje
         aiShowCompare,
         setAiShowCompare,
         aiDisplayItems,
+        aiThreadMessages,
+        aiProposalCards,
+        pendingProposalCount,
         runAiAdjustment,
         handleAiCancel,
-        handleAiApply
+        handleAiApply,
+        handleProposalApply,
+        handleProposalReject,
+        resetAiSession
     };
 };

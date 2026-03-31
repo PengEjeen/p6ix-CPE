@@ -1,7 +1,7 @@
 const ABSOLUTE_URL_RE = /^https?:\/\//i;
 const APP_ROUTE_ROOTS = new Set(["login", "register", "guide", "profile", "projects"]);
 const APP_BASE_STORAGE_KEY = "p6ix_app_base";
-const KNOWN_P6IX_HOSTS = new Set(["www.p6ix.co.kr", "p6ix.co.kr"]);
+const LEGACY_APP_BASES = new Set(["/p6ix-cpe"]);
 
 function normalizePath(value, fallback = "/") {
   const raw = String(value || "").trim();
@@ -59,26 +59,26 @@ function inferAppBaseFromAssets() {
 function readStoredAppBase() {
   if (typeof window === "undefined") return "/";
   try {
-    return normalizePath(window.localStorage.getItem(APP_BASE_STORAGE_KEY) || "", "/");
+    const storedBase = normalizePath(window.localStorage.getItem(APP_BASE_STORAGE_KEY) || "", "/");
+    if (LEGACY_APP_BASES.has(storedBase)) return "/";
+    return storedBase;
   } catch {
     return "/";
   }
 }
 
 function persistAppBase(path) {
-  if (typeof window === "undefined" || !path || path === "/") return;
+  if (typeof window === "undefined") return;
   try {
-    window.localStorage.setItem(APP_BASE_STORAGE_KEY, path);
+    const normalizedPath = normalizePath(path, "/");
+    if (normalizedPath === "/" || LEGACY_APP_BASES.has(normalizedPath)) {
+      window.localStorage.removeItem(APP_BASE_STORAGE_KEY);
+      return;
+    }
+    window.localStorage.setItem(APP_BASE_STORAGE_KEY, normalizedPath);
   } catch {
     // ignore storage failures
   }
-}
-
-function inferKnownDeploymentBase() {
-  if (typeof window === "undefined") return "/";
-  const hostname = String(window.location.hostname || "").toLowerCase();
-  if (KNOWN_P6IX_HOSTS.has(hostname)) return "/p6ix-cpe";
-  return "/";
 }
 
 export function resolveAppBase() {
@@ -100,13 +100,11 @@ export function resolveAppBase() {
     return locationBase;
   }
 
-  const knownBase = inferKnownDeploymentBase();
-  if (knownBase !== "/") {
-    persistAppBase(knownBase);
-    return knownBase;
-  }
+  const storedBase = readStoredAppBase();
+  if (storedBase !== "/") return storedBase;
 
-  return readStoredAppBase();
+  persistAppBase("/");
+  return "/";
 }
 
 export function resolveApiBase() {

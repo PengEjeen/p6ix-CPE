@@ -23,7 +23,9 @@ export default function ScheduleHeader({
     onAiRun,
     aiMode,
     onAiCancel,
-    onExportExcel
+    onExportExcel,
+    aiPanelOpen,
+    onAiPanelToggle
 }) {
     return (
         <div className="flex justify-between items-end mb-4 flex-shrink-0">
@@ -117,6 +119,12 @@ export default function ScheduleHeader({
                         }`}
                 >
                     기간 조정
+                </button>
+                <button
+                    onClick={onAiPanelToggle}
+                    className={`ui-btn-secondary ${aiPanelOpen ? "border-[var(--navy-accent)] text-[var(--navy-accent)]" : ""}`}
+                >
+                    AI 제안 패널
                 </button>
                 {aiMode !== "idle" && (
                     <button
