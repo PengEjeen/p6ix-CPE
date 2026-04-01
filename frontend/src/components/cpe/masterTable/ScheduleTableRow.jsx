@@ -45,6 +45,7 @@ const ScheduleTableRow = ({
     isDragActive = false,
     disableDrag = false,
     isActive = false,
+    visibleColumnKeySet,
     spanInfo = null
 }) => {
     const STICKY_LEFT_SELECT = 0;
@@ -108,6 +109,7 @@ const ScheduleTableRow = ({
     const editableInputBaseClass = "ui-table-editable-input text-gray-100";
     const focusRingClass = "ring-1 ring-cyan-400/70";
     const multilineInputClass = "resize-none overflow-hidden whitespace-pre-wrap break-words leading-snug";
+    const isColumnVisible = (key) => key === "select" || key === "drag" || key === "action" || visibleColumnKeySet?.has(key);
     const getEditableStateClass = (field) => (
         activeCell?.itemId === item.id && activeCell?.field === field ? focusRingClass : ""
     );
@@ -139,15 +141,26 @@ const ScheduleTableRow = ({
             suggestions = null
         } = options;
         const isNavigationKey = ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Enter", "Tab"].includes(e.key);
+        const isSuggestionListOpen = Boolean(
+            suggestions?.length
+            && activeField === field
+            && suggestionField === field
+        );
+        const isSuggestionPriorityKey = isSuggestionListOpen
+            && ["ArrowUp", "ArrowDown", "Enter"].includes(e.key);
 
         if (revertField && handleEscRevert(e, revertField, afterRevert)) {
             return;
+        }
+        if (isSuggestionPriorityKey) {
+            handleSuggestionKeyDown(e, suggestions);
+            if (e.defaultPrevented) return;
         }
         if (isNavigationKey) {
             onCellKeyDown?.({ event: e, rowId: item.id, field, value: currentValue });
             if (e.defaultPrevented) return;
         }
-        if (suggestions) {
+        if (suggestions && !isSuggestionPriorityKey) {
             handleSuggestionKeyDown(e, suggestions);
         }
         if (e.defaultPrevented) return;
@@ -413,7 +426,7 @@ const ScheduleTableRow = ({
             </td>
 
             {/* Classification (중공종) */}
-            {shouldRenderProcessCell && (
+            {isColumnVisible("process") && shouldRenderProcessCell && (
                 <td
                     rowSpan={processCellRowSpan}
                     className={getCellWrapperClass('process', "border-r border-gray-700 bg-[#2c2c3a] p-1 align-top", {
@@ -462,7 +475,7 @@ const ScheduleTableRow = ({
             )}
 
             {/* Sub Process (공정) */}
-            {shouldRenderSubProcessCell && (
+            {isColumnVisible("sub_process") && shouldRenderSubProcessCell && (
                 <td
                     rowSpan={subProcessCellRowSpan}
                     className={getCellWrapperClass('sub_process', "border-r border-gray-700 bg-[#2c2c3a] p-1 align-top", {
@@ -511,6 +524,7 @@ const ScheduleTableRow = ({
             )}
 
             {/* Work Type (세부공종) */}
+            {isColumnVisible("work_type") && (
             <td
                 className={getCellWrapperClass('work_type', "border-r border-gray-700 px-2 py-1")}
                 {...getCellWrapperProps('work_type')}
@@ -559,8 +573,10 @@ const ScheduleTableRow = ({
                     />
                 </div>
             </td>
+            )}
 
             {/* Formula */}
+            {isColumnVisible("quantity_formula") && (
             <td
                 className={getCellWrapperClass('quantity_formula', "border-r border-gray-700 p-1")}
                 {...getCellWrapperProps('quantity_formula')}
@@ -590,8 +606,10 @@ const ScheduleTableRow = ({
                     onPaste={(e) => handleFieldPaste(e, 'quantity_formula')}
                 />
             </td>
+            )}
 
             {/* Unit */}
+            {isColumnVisible("unit") && (
             <td
                 className={getCellWrapperClass('unit', "border-r border-gray-700 p-1")}
                 {...getCellWrapperProps('unit')}
@@ -620,8 +638,10 @@ const ScheduleTableRow = ({
                     onPaste={(e) => handleFieldPaste(e, 'unit')}
                 />
             </td>
+            )}
 
             {/* Quantity */}
+            {isColumnVisible("quantity") && (
             <td
                 className={getCellWrapperClass('quantity', "border-r border-gray-700 p-1")}
                 {...getCellWrapperProps('quantity')}
@@ -648,8 +668,10 @@ const ScheduleTableRow = ({
                     onPaste={(e) => handleFieldPaste(e, 'quantity')}
                 />
             </td>
+            )}
 
             {/* Productivity */}
+            {isColumnVisible("productivity") && (
             <td
                 className={getCellWrapperClass('productivity', `border-r border-gray-700 p-1 ${isLinked ? 'bg-blue-900/20' : ''}`)}
                 {...getCellWrapperProps('productivity')}
@@ -680,8 +702,10 @@ const ScheduleTableRow = ({
                     title={isLinked ? "연결 모듈 항목은 생산량을 직접 수정할 수 없습니다." : undefined}
                 />
             </td>
+            )}
 
             {/* Crew */}
+            {isColumnVisible("crew_size") && (
             <td
                 className={getCellWrapperClass('crew_size', "border-r border-gray-700 p-1")}
                 {...getCellWrapperProps('crew_size')}
@@ -708,13 +732,17 @@ const ScheduleTableRow = ({
                     onPaste={(e) => handleFieldPaste(e, 'crew_size')}
                 />
             </td>
+            )}
 
             {/* Daily Prod */}
+            {isColumnVisible("daily_production") && (
             <td className="border-r border-gray-700 px-2 py-1 text-right text-gray-200 font-mono bg-[#1f1f2b] text-base font-semibold">
                 {item.daily_production?.toLocaleString()}
             </td>
+            )}
 
             {/* CP Check */}
+            {isColumnVisible("cp_checked") && (
             <td
                 className={getCellWrapperClass('cp_checked', "border-r border-gray-700 p-1 text-center")}
                 {...getCellWrapperProps('cp_checked')}
@@ -739,8 +767,10 @@ const ScheduleTableRow = ({
                     aria-label="CP 체크"
                 />
             </td>
+            )}
 
             {/* Parallel Rate */}
+            {isColumnVisible("parallel_rate") && (
             <td
                 className={getCellWrapperClass('parallel_rate', "border-r border-gray-700 p-1")}
                 {...getCellWrapperProps('parallel_rate')}
@@ -776,8 +806,10 @@ const ScheduleTableRow = ({
                     <span className="absolute right-1.5 top-1/2 -translate-y-1/2 text-xs text-gray-400 pointer-events-none">%</span>
                 </div>
             </td>
+            )}
 
             {/* Reflection Rate */}
+            {isColumnVisible("reflection_rate") && (
             <td
                 className={getCellWrapperClass('reflection_rate', "border-r border-gray-700 p-1")}
                 {...getCellWrapperProps('reflection_rate')}
@@ -807,14 +839,18 @@ const ScheduleTableRow = ({
                     <span className="absolute right-1.5 top-1/2 -translate-y-1/2 text-xs text-gray-400 pointer-events-none">%</span>
                 </div>
             </td>
+            )}
 
             {/* Working Days */}
+            {isColumnVisible("working_days") && (
             <td className="border-r border-gray-700 px-2 py-1 text-right text-gray-200 font-mono bg-[#1f1f2b] text-base font-semibold">
                 {item.working_days ? parseFloat(item.working_days).toFixed(1) : "0.0"}
                 <span className="ml-[2px] text-xs text-gray-400">일</span>
             </td>
+            )}
 
             {/* Op Rate */}
+            {isColumnVisible("operating_rate_key") && (
             <td
                 className={getCellWrapperClass(OPERATING_RATE_FIELD, "border-r border-gray-700 p-1")}
                 {...getCellWrapperProps(OPERATING_RATE_FIELD)}
@@ -882,15 +918,19 @@ const ScheduleTableRow = ({
                     </button>
                 )}
             </td>
+            )}
 
             {/* Cal Days */}
-            <td className="border-r border-gray-700 px-2 py-1 text-right text-blue-300 font-bold font-mono bg-blue-900/20 text-base">
+            {isColumnVisible("calendar_days") && (
+            <td className="border-r border-gray-700 px-2 py-1 text-right text-blue-300 font-bold font-mono bg-blue-900/20 text-base whitespace-nowrap">
                 {item.calendar_days}
                 <span className="ml-1 text-sm text-blue-200 font-semibold">일</span>
                 <span className="ml-2 text-sm text-blue-200 font-semibold">({item.calendar_months}개월)</span>
             </td>
+            )}
 
             {/* Remarks (Note) */}
+            {isColumnVisible("note") && (
             <td
                 className={getCellWrapperClass('note', "border-r border-gray-700 p-1")}
                 {...getCellWrapperProps('note')}
@@ -919,6 +959,7 @@ const ScheduleTableRow = ({
                     onPaste={(e) => handleFieldPaste(e, 'note')}
                 />
             </td>
+            )}
 
             {/* Action */}
             <td className="p-1 text-center">

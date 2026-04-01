@@ -4,6 +4,7 @@ import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable"
 import { ChevronLeft, ChevronRight, X } from "lucide-react";
 import ScheduleMasterTableToolbarRow from "./ScheduleMasterTableToolbarRow";
 import ScheduleCategorySection from "./ScheduleCategorySection";
+import { SCHEDULE_MASTER_TABLE_COLUMNS } from "./scheduleMasterTableColumns";
 
 export default function ScheduleMasterTablePanel({
     activeCell,
@@ -83,6 +84,7 @@ export default function ScheduleMasterTablePanel({
     setIsTablePointerInside,
     setOpenCategoryMenu,
     showHorizontalHint,
+    showAllColumns,
     standardItems,
     startSelectionDrag,
     tableHeaderHeight,
@@ -91,12 +93,19 @@ export default function ScheduleMasterTablePanel({
     tableToolbarRef,
     tableInteractionRef,
     tableScrollRef,
+    toggleColumnVisibility,
     toggleSelectAllItems,
     toggleSelectItem,
     totalItemCount,
+    visibleColumnKeys,
+    visibleColumnKeySet,
     visibleItemIds,
     visibleItems,
 }) {
+    const visibleColumns = SCHEDULE_MASTER_TABLE_COLUMNS.filter(
+        (column) => column.alwaysVisible || visibleColumnKeySet?.has(column.key)
+    );
+
     return (
         <div
             className="relative h-full w-full"
@@ -122,56 +131,44 @@ export default function ScheduleMasterTablePanel({
                 >
                     <table className="w-full text-m box-border table-fixed border-collapse bg-[var(--navy-surface)] rounded-lg text-[var(--navy-text)]">
                         <colgroup>
-                            <col width="40" />
-                            <col width="36" />
-                            <col width="180" />
-                            <col width="180" />
-                            <col width="260" />
-                            <col width="130" />
-                            <col width="70" />
-                            <col width="90" />
-                            <col width="90" />
-                            <col width="72" />
-                            <col width="90" />
-                            <col width="72" />
-                            <col width="86" />
-                            <col width="86" />
-                            <col width="90" />
-                            <col width="80" />
-                            <col width="150" />
-                            <col width="280" />
-                            <col width="64" />
+                            {visibleColumns.map((column) => (
+                                <col key={column.key} width={column.width} />
+                            ))}
                         </colgroup>
                         <thead ref={tableHeaderRef} className="bg-[var(--navy-surface-3)] text-[var(--navy-text)]">
                             <tr className="bg-[var(--navy-surface)] text-[var(--navy-text-muted)] font-medium sticky top-0 z-[2] shadow-sm border-b border-[var(--navy-border-soft)]">
-                                <th className="sticky top-0 left-0 bg-[var(--navy-surface)] border-r border-[var(--navy-border-soft)] px-1 z-30">
-                                    <input
-                                        ref={selectAllRef}
-                                        type="checkbox"
-                                        checked={allSelected}
-                                        onChange={(e) => toggleSelectAllItems(e.target.checked)}
-                                        className="h-3.5 w-3.5 accent-[var(--navy-accent)] cursor-pointer"
-                                        aria-label="전체 선택"
-                                    />
-                                </th>
-                                <th className="sticky top-0 left-[40px] bg-[var(--navy-surface)] border-r border-[var(--navy-border-soft)] px-1 z-30"></th>
-                                <th className="sticky top-0 bg-[var(--navy-surface)] border-r border-[var(--navy-border-soft)] px-2 py-2 z-10">중공종</th>
-                                <th className="sticky top-0 bg-[var(--navy-surface)] border-r border-[var(--navy-border-soft)] px-2 py-2 z-10">공정</th>
-                                <th className="sticky top-0 bg-[var(--navy-surface)] border-r border-[var(--navy-border-soft)] px-2 py-2 z-10">세부공종</th>
-                                <th className="sticky top-0 bg-[var(--navy-surface)] border-r border-[var(--navy-border-soft)] px-2 py-2 z-10">수량산출(개산)</th>
-                                <th className="sticky top-0 bg-[var(--navy-surface)] border-r border-[var(--navy-border-soft)] px-2 py-2 z-10">단위</th>
-                                <th className="sticky top-0 bg-[var(--navy-surface)] border-r border-[var(--navy-border-soft)] px-2 py-2 z-10">내역수량</th>
-                                <th className="sticky top-0 bg-[var(--navy-surface)] border-r border-[var(--navy-border-soft)] px-2 py-2 z-10">단위 작업량</th>
-                                <th className="sticky top-0 bg-[var(--navy-surface)] border-r border-[var(--navy-border-soft)] px-2 py-2 z-10">투입조</th>
-                                <th className="sticky top-0 bg-[var(--navy-surface)] border-r border-[var(--navy-border-soft)] px-2 py-2 z-10">생산량/일</th>
-                                <th className="sticky top-0 bg-[var(--navy-surface)] border-r border-[var(--navy-border-soft)] px-2 py-2 z-10">CP</th>
-                                <th className="sticky top-0 bg-[var(--navy-surface)] border-r border-[var(--navy-border-soft)] px-2 py-2 z-10">병행률(%)</th>
-                                <th className="sticky top-0 bg-[var(--navy-surface)] border-r border-[var(--navy-border-soft)] px-2 py-2 z-10">반영률(%)</th>
-                                <th className="sticky top-0 bg-[var(--navy-surface)] border-r border-[var(--navy-border-soft)] px-2 py-2 z-10">작업기간 W/D</th>
-                                <th className="sticky top-0 bg-[var(--navy-surface)] border-r border-[var(--navy-border-soft)] px-2 py-2 z-10">가동률</th>
-                                <th className="sticky top-0 bg-[var(--navy-surface-3)] border-r border-[var(--navy-border-soft)] px-2 py-2 text-[var(--navy-text)] font-bold z-10">Cal Day</th>
-                                <th className="sticky top-0 bg-[var(--navy-surface)] border-r border-[var(--navy-border-soft)] px-2 py-2 z-10">비고</th>
-                                <th className="sticky top-0 bg-[var(--navy-surface)] border-r border-[var(--navy-border-soft)] px-2 py-2 z-10"></th>
+                                {visibleColumns.map((column) => {
+                                    const className = column.sticky === "select"
+                                        ? "sticky top-0 left-0 bg-[var(--navy-surface)] border-r border-[var(--navy-border-soft)] px-1 z-30"
+                                        : column.sticky === "drag"
+                                            ? "sticky top-0 left-[40px] bg-[var(--navy-surface)] border-r border-[var(--navy-border-soft)] px-1 z-30"
+                                            : `${column.accent ? "bg-[var(--navy-surface-3)] text-[var(--navy-text)] font-bold" : "bg-[var(--navy-surface)]"} sticky top-0 border-r border-[var(--navy-border-soft)] px-2 py-2 z-10`;
+
+                                    if (column.key === "select") {
+                                        return (
+                                            <th key={column.key} className={className}>
+                                                <input
+                                                    ref={selectAllRef}
+                                                    type="checkbox"
+                                                    checked={allSelected}
+                                                    onChange={(e) => toggleSelectAllItems(e.target.checked)}
+                                                    className="h-3.5 w-3.5 accent-[var(--navy-accent)] cursor-pointer"
+                                                    aria-label="전체 선택"
+                                                />
+                                            </th>
+                                        );
+                                    }
+
+                                    if (column.key === "drag" || column.key === "action") {
+                                        return <th key={column.key} className={className}></th>;
+                                    }
+
+                                    return (
+                                        <th key={column.key} className={className}>
+                                            {column.label}
+                                        </th>
+                                    );
+                                })}
                             </tr>
                         </thead>
                         <SortableContext items={visibleItemIds} strategy={verticalListSortingStrategy}>
@@ -183,6 +180,9 @@ export default function ScheduleMasterTablePanel({
                                             forPrint={forPrint}
                                             tableHeaderHeight={tableHeaderHeight}
                                             tableToolbarRef={tableToolbarRef}
+                                            visibleColumnKeys={visibleColumnKeys}
+                                            onToggleColumnVisibility={toggleColumnVisibility}
+                                            onShowAllColumns={showAllColumns}
                                             newMainCategory={newMainCategory}
                                             onNewMainCategoryChange={onNewMainCategoryChange}
                                             onAddMainCategory={handleAddMainCategory}
@@ -259,12 +259,14 @@ export default function ScheduleMasterTablePanel({
                                             isDropInvalid={isDropInvalid}
                                             activeEditingItemId={activeEditingItemId}
                                             stickyTopOffset={tableHeaderHeight + tableToolbarHeight}
+                                            visibleColumnKeySet={visibleColumnKeySet}
+                                            columnSpan={visibleColumns.length}
                                         />
                                     )),
                                     ...(Object.keys(groupedVisibleItems).length === 0
                                         ? [(
                                             <tr key="empty-filter-result">
-                                                <td colSpan="19" className="px-4 py-8 text-center text-sm text-[var(--navy-text-muted)]">
+                                                <td colSpan={visibleColumns.length} className="px-4 py-8 text-center text-sm text-[var(--navy-text-muted)]">
                                                     검색/필터 조건에 맞는 항목이 없습니다.
                                                 </td>
                                             </tr>

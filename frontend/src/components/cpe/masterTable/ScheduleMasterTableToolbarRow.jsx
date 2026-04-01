@@ -1,10 +1,14 @@
 import React from "react";
-import { Search, Trash2, X } from "lucide-react";
+import { Search, SlidersHorizontal, Trash2, X } from "lucide-react";
+import { SCHEDULE_MASTER_TABLE_COLUMNS, SCHEDULE_MASTER_TOGGLEABLE_COLUMNS } from "./scheduleMasterTableColumns";
 
 export default function ScheduleMasterTableToolbarRow({
     forPrint,
     tableHeaderHeight,
     tableToolbarRef,
+    visibleColumnKeys,
+    onToggleColumnVisibility,
+    onShowAllColumns,
     newMainCategory,
     onNewMainCategoryChange,
     onAddMainCategory,
@@ -21,11 +25,14 @@ export default function ScheduleMasterTableToolbarRow({
     selectedCount,
     onDeleteSelectedItems
 }) {
+    const visibleColumnKeySet = new Set(visibleColumnKeys || []);
+    const columnSpan = SCHEDULE_MASTER_TABLE_COLUMNS.length - SCHEDULE_MASTER_TOGGLEABLE_COLUMNS.length + (visibleColumnKeys?.length || 0);
+
     return (
         <tr className={`bg-[var(--navy-bg)] ${forPrint ? "no-print" : ""}`}>
             <td
                 ref={forPrint ? undefined : tableToolbarRef}
-                colSpan="19"
+                colSpan={columnSpan}
                 className={`px-4 py-3 ${forPrint ? "" : "sticky z-[6] bg-[var(--navy-bg)] border-b border-[var(--navy-border-soft)]"}`}
                 style={forPrint ? undefined : { top: `${tableHeaderHeight}px` }}
             >
@@ -97,6 +104,40 @@ export default function ScheduleMasterTableToolbarRow({
                         )}
 
                         <div className="sticky right-0 z-[8] -mr-2 ml-auto flex items-center gap-2 border-l border-[var(--navy-border-soft)] bg-[var(--navy-surface)] pl-2 pr-2">
+                            <details className="relative">
+                                <summary className="flex h-8 cursor-pointer list-none items-center gap-1.5 rounded-lg border border-[var(--navy-border)] px-3 text-xs font-semibold text-[var(--navy-text)] transition hover:bg-[var(--navy-surface-3)]">
+                                    <SlidersHorizontal size={14} />
+                                    컬럼
+                                </summary>
+                                <div className="absolute right-0 top-10 z-20 w-56 rounded-xl border border-[var(--navy-border-soft)] bg-[var(--navy-surface)] p-2 shadow-xl">
+                                    <div className="mb-2 flex items-center justify-between px-1">
+                                        <span className="text-[11px] font-semibold text-[var(--navy-text-muted)]">표시 컬럼</span>
+                                        <button
+                                            type="button"
+                                            onClick={onShowAllColumns}
+                                            className="text-[11px] font-semibold text-[var(--navy-accent)] hover:underline"
+                                        >
+                                            전체 표시
+                                        </button>
+                                    </div>
+                                    <div className="max-h-64 space-y-1 overflow-y-auto">
+                                        {SCHEDULE_MASTER_TOGGLEABLE_COLUMNS.map((column) => (
+                                            <label
+                                                key={column.key}
+                                                className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-xs text-[var(--navy-text)] hover:bg-[var(--navy-surface-2)]"
+                                            >
+                                                <input
+                                                    type="checkbox"
+                                                    checked={visibleColumnKeySet.has(column.key)}
+                                                    onChange={() => onToggleColumnVisibility?.(column.key)}
+                                                    className="h-3.5 w-3.5 accent-[var(--navy-accent)]"
+                                                />
+                                                <span>{column.label}</span>
+                                            </label>
+                                        ))}
+                                    </div>
+                                </div>
+                            </details>
                             <span className="inline-flex items-center rounded-full border border-[var(--navy-border-soft)] bg-[var(--navy-surface-2)] px-2 py-1 text-[11px] text-[var(--navy-text-muted)]">
                                 표시 행: {visibleItemCount} / 전체 {totalItemCount}
                             </span>
@@ -116,13 +157,19 @@ export default function ScheduleMasterTableToolbarRow({
                     </div>
                     <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[11px]">
                         <span className="inline-flex items-center rounded-full border border-blue-400/35 bg-blue-500/10 px-2 py-0.5 text-blue-200">
-                            선택: 체크박스 단일 선택, Shift+드래그 다중 선택, Ctrl/Cmd+A 현재 표시 행 전체 선택
+                            선택: 클릭으로 셀 선택, Shift+방향키/드래그 범위 선택, Ctrl/Cmd+A 현재 표시 행 전체 선택
                         </span>
                         <span className="inline-flex items-center rounded-full border border-emerald-400/35 bg-emerald-500/10 px-2 py-0.5 text-emerald-200">
-                            셀 편집: Ctrl/Cmd+Enter 선택 행 일괄 적용, 한 컬럼 여러 줄 붙여넣기 지원
+                            편집: 화살표/Enter/Tab 이동, Alt+Enter 줄바꿈, Ctrl/Cmd+Enter 선택 행 일괄 적용
                         </span>
                         <span className="inline-flex items-center rounded-full border border-amber-400/35 bg-amber-500/10 px-2 py-0.5 text-amber-200">
-                            삭제: 상단 버튼 또는 Delete 키
+                            병합 셀: 중공종/공정 선택 시 해당 구간만 임시로 풀려 아래 행도 바로 편집됩니다
+                        </span>
+                        <span className="inline-flex items-center rounded-full border border-fuchsia-400/35 bg-fuchsia-500/10 px-2 py-0.5 text-fuchsia-200">
+                            표시: 우측 상단 컬럼 메뉴에서 열 접기/펼치기, 대공종 행은 상단 툴바 아래에 고정
+                        </span>
+                        <span className="inline-flex items-center rounded-full border border-amber-400/35 bg-amber-500/10 px-2 py-0.5 text-amber-200">
+                            삭제/붙여넣기: 선택 삭제 버튼, 여러 셀 붙여넣기, 한 컬럼 다중 행 붙여넣기 지원
                         </span>
                         {selectedCount > 0 && (
                             <span className="inline-flex items-center rounded-full border border-red-400/35 bg-red-500/10 px-2 py-0.5 text-red-200">

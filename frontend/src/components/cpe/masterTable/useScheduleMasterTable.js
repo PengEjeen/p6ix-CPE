@@ -3,14 +3,17 @@ import toast from "react-hot-toast";
 import { PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
 import { useDragHandlers } from "../../../hooks/useDragHandlers";
 import {
-    getCellFieldIndex,
     isBatchEditableField,
     normalizeClipboardMatrix,
     parseScheduleCellValue,
     SCHEDULE_CELL_NAV_FIELDS
 } from "../../../utils/scheduleTableEditing";
+import {
+    SCHEDULE_MASTER_DEFAULT_VISIBLE_COLUMN_KEYS
+} from "./scheduleMasterTableColumns";
 
 const HORIZONTAL_HINT_STORAGE_KEY = "scheduleMaster.horizontalHintSeen";
+const COLUMN_VISIBILITY_STORAGE_KEY = "scheduleMaster.visibleColumns";
 
 export default function useScheduleMasterTable({
     items,
@@ -35,6 +38,23 @@ export default function useScheduleMasterTable({
     const [invalidCellKeys, setInvalidCellKeys] = useState(() => new Set());
     const [tableHeaderHeight, setTableHeaderHeight] = useState(44);
     const [tableToolbarHeight, setTableToolbarHeight] = useState(72);
+    const [visibleColumnKeys, setVisibleColumnKeys] = useState(() => {
+        if (typeof window === "undefined") {
+            return SCHEDULE_MASTER_DEFAULT_VISIBLE_COLUMN_KEYS;
+        }
+        try {
+            const raw = window.localStorage.getItem(COLUMN_VISIBILITY_STORAGE_KEY);
+            const parsed = raw ? JSON.parse(raw) : null;
+            if (!Array.isArray(parsed)) {
+                return SCHEDULE_MASTER_DEFAULT_VISIBLE_COLUMN_KEYS;
+            }
+            const allowed = new Set(SCHEDULE_MASTER_DEFAULT_VISIBLE_COLUMN_KEYS);
+            const normalized = parsed.filter((key) => allowed.has(key));
+            return normalized.length > 0 ? normalized : SCHEDULE_MASTER_DEFAULT_VISIBLE_COLUMN_KEYS;
+        } catch {
+            return SCHEDULE_MASTER_DEFAULT_VISIBLE_COLUMN_KEYS;
+        }
+    });
     const [categoryMenuPosition, setCategoryMenuPosition] = useState(null);
     const [hasHorizontalOverflow, setHasHorizontalOverflow] = useState(false);
     const [canScrollLeft, setCanScrollLeft] = useState(false);
@@ -57,6 +77,11 @@ export default function useScheduleMasterTable({
     const invalidCellTimeoutRef = useRef(null);
 
     const selectedIdSet = useMemo(() => new Set(selectedItemIds), [selectedItemIds]);
+    const visibleColumnKeySet = useMemo(() => new Set(visibleColumnKeys), [visibleColumnKeys]);
+    const visibleCellNavFields = useMemo(
+        () => SCHEDULE_CELL_NAV_FIELDS.filter((field) => visibleColumnKeySet.has(field)),
+        [visibleColumnKeySet]
+    );
     const normalizedSearchKeyword = useMemo(() => searchKeyword.trim().toLowerCase(), [searchKeyword]);
     const hasSearchKeyword = normalizedSearchKeyword.length > 0;
     const isFilterActive = categoryFilter !== "ALL" || normalizedSearchKeyword.length > 0;
@@ -316,9 +341,15 @@ export default function useScheduleMasterTable({
         }
     }, []);
 
+    const getVisibleCellFieldIndex = useCallback(
+        (field) => visibleCellNavFields.indexOf(field),
+        [visibleCellNavFields]
+    );
+
     const getAdjacentCellTarget = useCallback((rowId, field, rowDelta, fieldDelta) => {
         const currentRowIndex = visibleItems.findIndex((item) => item.id === rowId);
-        const currentFieldIndex = getCellFieldIndex(field);
+        const currentFieldIndex = getVisibleCellFieldIndex(field);
+        if (visibleCellNavFields.length === 0) return null;
         if (currentRowIndex === -1 || currentFieldIndex === -1) return null;
 
         let nextRowIndex = currentRowIndex + rowDelta;
@@ -327,23 +358,23 @@ export default function useScheduleMasterTable({
         if (fieldDelta !== 0) {
             while (nextFieldIndex < 0) {
                 nextRowIndex -= 1;
-                nextFieldIndex += SCHEDULE_CELL_NAV_FIELDS.length;
+                nextFieldIndex += visibleCellNavFields.length;
             }
-            while (nextFieldIndex >= SCHEDULE_CELL_NAV_FIELDS.length) {
+            while (nextFieldIndex >= visibleCellNavFields.length) {
                 nextRowIndex += 1;
-                nextFieldIndex -= SCHEDULE_CELL_NAV_FIELDS.length;
+                nextFieldIndex -= visibleCellNavFields.length;
             }
         }
 
         const nextItem = visibleItems[nextRowIndex];
-        const nextField = SCHEDULE_CELL_NAV_FIELDS[nextFieldIndex];
+        const nextField = visibleCellNavFields[nextFieldIndex];
         if (!nextItem || !nextField) return null;
 
         return {
             itemId: nextItem.id,
             field: nextField
         };
-    }, [visibleItems]);
+    }, [getVisibleCellFieldIndex, visibleCellNavFields, visibleItems]);
 
     const focusAdjacentCell = useCallback((rowId, field, rowDelta, fieldDelta) => {
         const nextTarget = getAdjacentCellTarget(rowId, field, rowDelta, fieldDelta);
@@ -358,8 +389,8 @@ export default function useScheduleMasterTable({
 
         const anchorRowIndex = visibleItemIndexMap.get(String(range.anchor.itemId));
         const focusRowIndex = visibleItemIndexMap.get(String(range.focus.itemId));
-        const anchorFieldIndex = getCellFieldIndex(range.anchor.field);
-        const focusFieldIndex = getCellFieldIndex(range.focus.field);
+        const anchorFieldIndex = getVisibleCellFieldIndex(range.anchor.field);
+        const focusFieldIndex = getVisibleCellFieldIndex(range.focus.field);
 
         if (
             anchorRowIndex === undefined
@@ -376,7 +407,7 @@ export default function useScheduleMasterTable({
             minField: Math.min(anchorFieldIndex, focusFieldIndex),
             maxField: Math.max(anchorFieldIndex, focusFieldIndex)
         };
-    }, [cellSelectionRange, visibleItemIndexMap]);
+    }, [cellSelectionRange, getVisibleCellFieldIndex, visibleItemIndexMap]);
 
     const getCellClipboardValue = useCallback((item, field) => {
         const value = item?.[field];
@@ -397,13 +428,13 @@ export default function useScheduleMasterTable({
             if (!item) continue;
             const columns = [];
             for (let fieldIndex = bounds.minField; fieldIndex <= bounds.maxField; fieldIndex += 1) {
-                const field = SCHEDULE_CELL_NAV_FIELDS[fieldIndex];
+                const field = visibleCellNavFields[fieldIndex];
                 columns.push(getCellClipboardValue(item, field));
             }
             rows.push(columns.join("\t"));
         }
         return rows.join("\n");
-    }, [getCellClipboardValue, getCellSelectionBounds, visibleItems]);
+    }, [getCellClipboardValue, getCellSelectionBounds, visibleCellNavFields, visibleItems]);
 
     const highlightInvalidCells = useCallback((keys) => {
         if (!Array.isArray(keys) || keys.length === 0) return;
@@ -534,7 +565,7 @@ export default function useScheduleMasterTable({
         const bounds = getCellSelectionBounds();
         if (!bounds) return false;
         const targetRowIndex = visibleItemIndexMap.get(String(itemId));
-        const targetFieldIndex = getCellFieldIndex(field);
+        const targetFieldIndex = getVisibleCellFieldIndex(field);
         const rowSpan = Math.max(1, Number(options?.rowSpan) || 1);
 
         if (targetRowIndex === undefined || targetFieldIndex === -1) {
@@ -547,14 +578,14 @@ export default function useScheduleMasterTable({
             && targetFieldIndex >= bounds.minField
             && targetFieldIndex <= bounds.maxField
         );
-    }, [getCellSelectionBounds, visibleItemIndexMap]);
+    }, [getCellSelectionBounds, getVisibleCellFieldIndex, visibleItemIndexMap]);
 
     const getCellSelectionClassName = useCallback((itemId, field, options = {}) => {
         if (!itemId || !field) return "";
 
         const bounds = getCellSelectionBounds();
         const targetRowIndex = visibleItemIndexMap.get(String(itemId));
-        const targetFieldIndex = getCellFieldIndex(field);
+        const targetFieldIndex = getVisibleCellFieldIndex(field);
         const rowSpan = Math.max(1, Number(options?.rowSpan) || 1);
         const targetEndRowIndex = targetRowIndex === undefined ? undefined : targetRowIndex + rowSpan - 1;
         const classNames = [];
@@ -593,14 +624,14 @@ export default function useScheduleMasterTable({
         classNames.push("schedule-cell-selected");
 
         return classNames.join(" ");
-    }, [activeCell, getCellSelectionBounds, invalidCellKeys, visibleItemIndexMap, visibleItems]);
+    }, [activeCell, getCellSelectionBounds, getVisibleCellFieldIndex, invalidCellKeys, visibleItemIndexMap, visibleItems]);
 
     const selectAllCells = useCallback(() => {
         if (visibleItems.length === 0) return false;
         const firstItem = visibleItems[0];
         const lastItem = visibleItems[visibleItems.length - 1];
-        const firstField = SCHEDULE_CELL_NAV_FIELDS[0];
-        const lastField = SCHEDULE_CELL_NAV_FIELDS[SCHEDULE_CELL_NAV_FIELDS.length - 1];
+        const firstField = visibleCellNavFields[0];
+        const lastField = visibleCellNavFields[visibleCellNavFields.length - 1];
         if (!firstItem || !lastItem || !firstField || !lastField) return false;
 
         setActiveEditingItemId(firstItem.id);
@@ -611,7 +642,7 @@ export default function useScheduleMasterTable({
         });
         window.requestAnimationFrame(() => focusCellElement(firstItem.id, firstField));
         return true;
-    }, [focusCellElement, visibleItems]);
+    }, [focusCellElement, visibleCellNavFields, visibleItems]);
 
     const clearSelectedCells = useCallback(() => {
         const bounds = getCellSelectionBounds();
@@ -623,7 +654,7 @@ export default function useScheduleMasterTable({
             if (!item) continue;
 
             for (let fieldIndex = bounds.minField; fieldIndex <= bounds.maxField; fieldIndex += 1) {
-                const field = SCHEDULE_CELL_NAV_FIELDS[fieldIndex];
+                const field = visibleCellNavFields[fieldIndex];
                 if (!field || !isBatchEditableField(field)) continue;
                 changes.push({
                     id: item.id,
@@ -643,7 +674,7 @@ export default function useScheduleMasterTable({
         }
 
         return applied;
-    }, [activeCell, applyValidatedFieldChanges, focusCellElement, getCellSelectionBounds, visibleItems]);
+    }, [activeCell, applyValidatedFieldChanges, focusCellElement, getCellSelectionBounds, visibleCellNavFields, visibleItems]);
 
     const extendCellSelection = useCallback((rowId, field, rowDelta, fieldDelta) => {
         const currentFocus = cellSelectionRange?.focus?.itemId && cellSelectionRange?.focus?.field
@@ -715,10 +746,10 @@ export default function useScheduleMasterTable({
                 const item = visibleItems[rowIndex];
                 if (!item) continue;
                 for (let fieldIndex = selectionBounds.minField; fieldIndex <= selectionBounds.maxField; fieldIndex += 1) {
-                    const nextField = SCHEDULE_CELL_NAV_FIELDS[fieldIndex];
-                    fillChanges.push({
-                        id: item.id,
-                        field: nextField,
+                const nextField = visibleCellNavFields[fieldIndex];
+                fillChanges.push({
+                    id: item.id,
+                    field: nextField,
                         value: singleValue
                     });
                 }
@@ -738,7 +769,7 @@ export default function useScheduleMasterTable({
             : visibleItems.findIndex((item) => item.id === rowId);
         const startFieldIndex = hasSelectionRange
             ? selectionBounds.minField
-            : getCellFieldIndex(field);
+            : getVisibleCellFieldIndex(field);
         if (startRowIndex === -1 || startFieldIndex === -1) return false;
 
         const changes = [];
@@ -746,7 +777,7 @@ export default function useScheduleMasterTable({
             const targetItem = visibleItems[startRowIndex + rowOffset];
             if (!targetItem) return;
             rowValues.forEach((cellValue, fieldOffset) => {
-                const targetField = SCHEDULE_CELL_NAV_FIELDS[startFieldIndex + fieldOffset];
+                const targetField = visibleCellNavFields[startFieldIndex + fieldOffset];
                 if (!targetField || !isBatchEditableField(targetField)) return;
                 changes.push({
                     id: targetItem.id,
@@ -765,15 +796,15 @@ export default function useScheduleMasterTable({
             const endRowIndex = Math.min(startRowIndex + matrix.length - 1, visibleItems.length - 1);
             const endFieldIndex = Math.min(
                 startFieldIndex + Math.max(...matrix.map((row) => row.length), 1) - 1,
-                SCHEDULE_CELL_NAV_FIELDS.length - 1
+                visibleCellNavFields.length - 1
             );
             const lastTargetItem = visibleItems[endRowIndex];
-            const lastTargetField = SCHEDULE_CELL_NAV_FIELDS[endFieldIndex];
+            const lastTargetField = visibleCellNavFields[endFieldIndex];
             if (lastTargetItem && lastTargetField) {
                 setCellSelectionRange({
                     anchor: {
                         itemId: visibleItems[startRowIndex].id,
-                        field: SCHEDULE_CELL_NAV_FIELDS[startFieldIndex]
+                        field: visibleCellNavFields[startFieldIndex]
                     },
                     focus: {
                         itemId: lastTargetItem.id,
@@ -789,9 +820,36 @@ export default function useScheduleMasterTable({
         focusCellElement,
         getCellSelectionBounds,
         isCellSelected,
+        getVisibleCellFieldIndex,
+        visibleCellNavFields,
         visibleItems,
         visibleSelectedItemIds
     ]);
+
+    const toggleColumnVisibility = useCallback((key) => {
+        if (!SCHEDULE_MASTER_DEFAULT_VISIBLE_COLUMN_KEYS.includes(key)) return;
+
+        setVisibleColumnKeys((prev) => {
+            const isVisible = prev.includes(key);
+            const next = isVisible ? prev.filter((item) => item !== key) : [...prev, key];
+            if (next.length === 0) {
+                toast.error("최소 1개 컬럼은 표시되어야 합니다.");
+                return prev;
+            }
+
+            const remainingNavFields = SCHEDULE_CELL_NAV_FIELDS.filter((field) => next.includes(field));
+            if (remainingNavFields.length === 0) {
+                toast.error("편집 가능한 컬럼은 최소 1개 이상 표시해야 합니다.");
+                return prev;
+            }
+
+            return next;
+        });
+    }, []);
+
+    const showAllColumns = useCallback(() => {
+        setVisibleColumnKeys(SCHEDULE_MASTER_DEFAULT_VISIBLE_COLUMN_KEYS);
+    }, []);
 
     const handleCellPaste = useCallback((payload) => applyClipboardMatrix(payload), [applyClipboardMatrix]);
 
@@ -1067,6 +1125,22 @@ export default function useScheduleMasterTable({
     }, [activeCell, visibleItemIdSet]);
 
     useEffect(() => {
+        if (!activeCell?.field) return;
+        if (visibleColumnKeySet.has(activeCell.field)) return;
+        setActiveCell(null);
+        setCellSelectionRange(null);
+    }, [activeCell, visibleColumnKeySet]);
+
+    useEffect(() => {
+        if (typeof window === "undefined") return;
+        try {
+            window.localStorage.setItem(COLUMN_VISIBILITY_STORAGE_KEY, JSON.stringify(visibleColumnKeys));
+        } catch {
+            // ignore storage errors
+        }
+    }, [visibleColumnKeys]);
+
+    useEffect(() => {
         if (viewMode !== "table") return;
         const raf = window.requestAnimationFrame(() => {
             updateHorizontalScrollState();
@@ -1268,6 +1342,7 @@ export default function useScheduleMasterTable({
         setSearchKeyword,
         setSelectedItemIds,
         showHorizontalHint,
+        showAllColumns,
         startSelectionDrag,
         tableHeaderHeight,
         tableHeaderRef,
@@ -1276,7 +1351,10 @@ export default function useScheduleMasterTable({
         tableInteractionRef,
         tableScrollRef,
         toggleSelectAllItems,
+        toggleColumnVisibility,
         toggleSelectItem,
+        visibleColumnKeys,
+        visibleColumnKeySet,
         visibleItemIdSet,
         visibleItemIds,
         visibleItems

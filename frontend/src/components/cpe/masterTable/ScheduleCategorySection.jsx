@@ -65,7 +65,9 @@ export default function ScheduleCategorySection({
     dropPosition,
     isDropInvalid,
     activeEditingItemId,
-    stickyTopOffset = 0
+    stickyTopOffset = 0,
+    visibleColumnKeySet,
+    columnSpan = 19
 }) {
     const categoryCalDays = calculateTotalCalendarDays(allCategoryItems);
     const categoryCalMonths = calculateTotalCalendarMonths(categoryCalDays);
@@ -206,7 +208,7 @@ export default function ScheduleCategorySection({
         <React.Fragment>
             <tr className="bg-gradient-to-r from-[var(--navy-surface)] to-[var(--navy-surface-2)] border-t border-[var(--navy-border-soft)]">
                 <td
-                    colSpan="19"
+                    colSpan={columnSpan}
                     className={`px-4 py-2.5 ${forPrint ? "" : "sticky z-[5] bg-gradient-to-r from-[var(--navy-surface)] to-[var(--navy-surface-2)] border-b border-[var(--navy-border-soft)]"}`}
                     style={forPrint ? undefined : { top: `${stickyTopOffset}px` }}
                 >
@@ -523,6 +525,7 @@ export default function ScheduleCategorySection({
                     isDropInvalid={isDropInvalid && dropTargetId === item.id}
                     disableDrag={isFilterActive}
                     isActive={activeEditingItemId === item.id}
+                    visibleColumnKeySet={visibleColumnKeySet}
                     spanInfo={spanInfoMap[item.id] || {
                         isProcessFirst: true,
                         processRowSpan: 1,

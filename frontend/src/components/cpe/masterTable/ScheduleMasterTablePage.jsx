@@ -83,6 +83,7 @@ export default function ScheduleMasterTablePage(props) {
             setIsTablePointerInside={feature.setIsTablePointerInside}
             setOpenCategoryMenu={feature.setOpenCategoryMenu}
             showHorizontalHint={feature.showHorizontalHint}
+            showAllColumns={feature.showAllColumns}
             standardItems={props.standardItems}
             startSelectionDrag={feature.startSelectionDrag}
             tableHeaderHeight={feature.tableHeaderHeight}
@@ -91,9 +92,12 @@ export default function ScheduleMasterTablePage(props) {
             tableToolbarRef={feature.tableToolbarRef}
             tableInteractionRef={feature.tableInteractionRef}
             tableScrollRef={feature.tableScrollRef}
+            toggleColumnVisibility={feature.toggleColumnVisibility}
             toggleSelectAllItems={feature.toggleSelectAllItems}
             toggleSelectItem={feature.toggleSelectItem}
             totalItemCount={props.items.length}
+            visibleColumnKeys={feature.visibleColumnKeys}
+            visibleColumnKeySet={feature.visibleColumnKeySet}
             visibleItemIds={feature.visibleItemIds}
             visibleItems={feature.visibleItems}
         />
