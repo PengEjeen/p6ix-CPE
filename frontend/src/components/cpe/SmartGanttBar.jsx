@@ -24,8 +24,6 @@ const SmartGanttBar = ({
     onLinkDragStart,
     linkDragActive,
     onLinkAnchorComplete,
-    aiPreview,
-    aiActive,
     greySegments = [],
     getBarSnapCandidate,
     dataChartRow,
@@ -201,7 +199,7 @@ const SmartGanttBar = ({
 
             {/* Smart Active Bar (Node Style) */}
             <div
-                className={`absolute top-2 h-7 flex items-center z-20 ${readOnly ? "cursor-default" : "cursor-grab"} ${aiActive ? "ring-2 ring-blue-400/80" : ""}`}
+                className={`absolute top-2 h-7 flex items-center z-20 ${readOnly ? "cursor-default" : "cursor-grab"}`}
                 style={{
                     left: `${leftPx}px`,
                     width: `${widthPx}px`,
@@ -261,13 +259,6 @@ const SmartGanttBar = ({
                         </div>
                     );
                 })()}
-
-                {aiPreview && (
-                    <div
-                        className="absolute inset-0 border border-dashed border-blue-400/80 rounded-full pointer-events-none"
-                        style={{ transform: "translateY(-50%)", top: "50%" }}
-                    ></div>
-                )}
 
                 {/* 2. Start Node (Circle) */}
                 <div className={`absolute left-0 w-3.5 h-3.5 bg-white border-2 border-slate-500 rounded-full shadow-sm -translate-x-1/2 z-20`}></div>

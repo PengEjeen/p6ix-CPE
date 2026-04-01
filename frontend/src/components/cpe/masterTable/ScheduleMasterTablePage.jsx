@@ -87,6 +87,8 @@ export default function ScheduleMasterTablePage(props) {
             startSelectionDrag={feature.startSelectionDrag}
             tableHeaderHeight={feature.tableHeaderHeight}
             tableHeaderRef={feature.tableHeaderRef}
+            tableToolbarHeight={feature.tableToolbarHeight}
+            tableToolbarRef={feature.tableToolbarRef}
             tableInteractionRef={feature.tableInteractionRef}
             tableScrollRef={feature.tableScrollRef}
             toggleSelectAllItems={feature.toggleSelectAllItems}

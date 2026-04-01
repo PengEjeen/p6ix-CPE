@@ -130,7 +130,7 @@ const DEMO_CONFIG = {
   ai_adjust: {
     path: "/projects/{id}/schedule-master",
     needsProject: true,
-    hint: "💡 [기간 조정] 버튼을 눌러 AI 자동 조정 결과를 확인해보세요.",
+    hint: "💡 공정표를 수정한 뒤 저장하고, 간트차트에서 기간 변화를 확인해보세요.",
     height: 620,
   },
   export: {

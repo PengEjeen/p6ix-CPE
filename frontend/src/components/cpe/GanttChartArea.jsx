@@ -38,9 +38,6 @@ const GanttChartArea = ({
     onLinkClick,
     selectedLinkId,
     onCreateLink,
-    aiPreviewItems,
-    aiOriginalItems,
-    aiActiveItemId,
     subtaskMode,
     subTasks,
     selectedSubtaskIds,
@@ -50,22 +47,6 @@ const GanttChartArea = ({
     onDeleteSubtask,
     readOnly = false
 }) => {
-    const aiPreviewMap = useMemo(() => {
-        if (!aiPreviewItems || !aiOriginalItems) return new Map();
-        const originalMap = new Map(aiOriginalItems.map(item => [item.id, item]));
-        const map = new Map();
-        aiPreviewItems.forEach(item => {
-            const original = originalMap.get(item.id);
-            if (!original) return;
-            const crewDiff = (parseFloat(item.crew_size) || 0) - (parseFloat(original.crew_size) || 0);
-            const prodDiff = (parseFloat(item.productivity) || 0) - (parseFloat(original.productivity) || 0);
-            const daysDiff = (parseFloat(item.calendar_days) || 0) - (parseFloat(original.calendar_days) || 0);
-            if (Math.abs(crewDiff) > 0.01 || Math.abs(prodDiff) > 0.01 || Math.abs(daysDiff) > 0.01) {
-                map.set(item.id, { crewDiff, prodDiff, daysDiff });
-            }
-        });
-        return map;
-    }, [aiPreviewItems, aiOriginalItems]);
     const [rowH, setRowH] = useState(44);
     const [rowCenter, setRowCenter] = useState(22);
     const [subtaskDraft, setSubtaskDraft] = useState(null);
@@ -662,8 +643,6 @@ const GanttChartArea = ({
                             onLinkDragStart={handleLinkDragStart}
                             onLinkAnchorComplete={handleLinkAnchorClick}
                             linkDragActive={!!linkDrag}
-                            aiPreview={aiPreviewMap.get(item.id)}
-                            aiActive={aiActiveItemId === item.id}
                             greySegments={parallelSegments}
                             getBarSnapCandidate={getBarSnapCandidate}
                             dataChartRow

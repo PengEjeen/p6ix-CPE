@@ -64,7 +64,8 @@ export default function ScheduleCategorySection({
     dropTargetId,
     dropPosition,
     isDropInvalid,
-    activeEditingItemId
+    activeEditingItemId,
+    stickyTopOffset = 0
 }) {
     const categoryCalDays = calculateTotalCalendarDays(allCategoryItems);
     const categoryCalMonths = calculateTotalCalendarMonths(categoryCalDays);
@@ -156,13 +157,15 @@ export default function ScheduleCategorySection({
             }
 
             const processRowSpan = processEnd - processStart;
+            const processGroupStartId = categoryItems[processStart]?.id;
             for (let index = processStart; index < processEnd; index += 1) {
                 const itemId = categoryItems[index]?.id;
                 if (!itemId) continue;
                 map[itemId] = {
                     ...(map[itemId] || {}),
                     isProcessFirst: index === processStart,
-                    processRowSpan
+                    processRowSpan,
+                    processGroupStartId
                 };
             }
 
@@ -178,13 +181,15 @@ export default function ScheduleCategorySection({
                 }
 
                 const subProcessRowSpan = subProcessEnd - subProcessStart;
+                const subProcessGroupStartId = categoryItems[subProcessStart]?.id;
                 for (let index = subProcessStart; index < subProcessEnd; index += 1) {
                     const itemId = categoryItems[index]?.id;
                     if (!itemId) continue;
                     map[itemId] = {
                         ...(map[itemId] || {}),
                         isSubProcessFirst: index === subProcessStart,
-                        subProcessRowSpan
+                        subProcessRowSpan,
+                        subProcessGroupStartId
                     };
                 }
 
@@ -200,7 +205,11 @@ export default function ScheduleCategorySection({
     return (
         <React.Fragment>
             <tr className="bg-gradient-to-r from-[var(--navy-surface)] to-[var(--navy-surface-2)] border-t border-[var(--navy-border-soft)]">
-                <td colSpan="19" className="px-4 py-2.5">
+                <td
+                    colSpan="19"
+                    className={`px-4 py-2.5 ${forPrint ? "" : "sticky z-[5] bg-gradient-to-r from-[var(--navy-surface)] to-[var(--navy-surface-2)] border-b border-[var(--navy-border-soft)]"}`}
+                    style={forPrint ? undefined : { top: `${stickyTopOffset}px` }}
+                >
                     <div className="flex items-center justify-between gap-2">
                         <div className="flex items-center gap-2">
                             <div className="ui-accent-dot w-1 h-5 rounded-full"></div>
@@ -517,8 +526,10 @@ export default function ScheduleCategorySection({
                     spanInfo={spanInfoMap[item.id] || {
                         isProcessFirst: true,
                         processRowSpan: 1,
+                        processGroupStartId: item.id,
                         isSubProcessFirst: true,
-                        subProcessRowSpan: 1
+                        subProcessRowSpan: 1,
+                        subProcessGroupStartId: item.id
                     }}
                 />
             ))}

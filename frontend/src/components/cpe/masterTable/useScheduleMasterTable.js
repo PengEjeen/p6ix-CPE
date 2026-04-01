@@ -34,6 +34,7 @@ export default function useScheduleMasterTable({
     const [isTableFocusInside, setIsTableFocusInside] = useState(false);
     const [invalidCellKeys, setInvalidCellKeys] = useState(() => new Set());
     const [tableHeaderHeight, setTableHeaderHeight] = useState(44);
+    const [tableToolbarHeight, setTableToolbarHeight] = useState(72);
     const [categoryMenuPosition, setCategoryMenuPosition] = useState(null);
     const [hasHorizontalOverflow, setHasHorizontalOverflow] = useState(false);
     const [canScrollLeft, setCanScrollLeft] = useState(false);
@@ -43,6 +44,7 @@ export default function useScheduleMasterTable({
 
     const selectAllRef = useRef(null);
     const tableHeaderRef = useRef(null);
+    const tableToolbarRef = useRef(null);
     const tableScrollRef = useRef(null);
     const tableInteractionRef = useRef(null);
     const categoryMenuRef = useRef(null);
@@ -525,7 +527,7 @@ export default function useScheduleMasterTable({
         return false;
     }, [activeCell, focusCellElement]);
 
-    const isCellSelected = useCallback((itemId, field) => {
+    const isCellSelected = useCallback((itemId, field, options = {}) => {
         if (!itemId || !field) {
             return false;
         }
@@ -533,32 +535,46 @@ export default function useScheduleMasterTable({
         if (!bounds) return false;
         const targetRowIndex = visibleItemIndexMap.get(String(itemId));
         const targetFieldIndex = getCellFieldIndex(field);
+        const rowSpan = Math.max(1, Number(options?.rowSpan) || 1);
 
         if (targetRowIndex === undefined || targetFieldIndex === -1) {
             return false;
         }
 
         return (
-            targetRowIndex >= bounds.minRow
-            && targetRowIndex <= bounds.maxRow
+            targetRowIndex <= bounds.maxRow
+            && targetRowIndex + rowSpan - 1 >= bounds.minRow
             && targetFieldIndex >= bounds.minField
             && targetFieldIndex <= bounds.maxField
         );
     }, [getCellSelectionBounds, visibleItemIndexMap]);
 
-    const getCellSelectionClassName = useCallback((itemId, field) => {
+    const getCellSelectionClassName = useCallback((itemId, field, options = {}) => {
         if (!itemId || !field) return "";
 
         const bounds = getCellSelectionBounds();
         const targetRowIndex = visibleItemIndexMap.get(String(itemId));
         const targetFieldIndex = getCellFieldIndex(field);
+        const rowSpan = Math.max(1, Number(options?.rowSpan) || 1);
+        const targetEndRowIndex = targetRowIndex === undefined ? undefined : targetRowIndex + rowSpan - 1;
         const classNames = [];
 
-        const isActiveCell = activeCell?.itemId === itemId && activeCell?.field === field;
+        const activeRowIndex = activeCell?.itemId ? visibleItemIndexMap.get(String(activeCell.itemId)) : undefined;
+        const isActiveCell = (
+            activeCell?.field === field
+            && activeRowIndex !== undefined
+            && targetRowIndex !== undefined
+            && activeRowIndex >= targetRowIndex
+            && activeRowIndex <= targetEndRowIndex
+        );
         if (isActiveCell) {
             classNames.push("schedule-cell-active");
         }
-        if (invalidCellKeys.has(`${itemId}::${field}`)) {
+        const hasInvalidInSpan = targetRowIndex !== undefined && Array.from({ length: rowSpan }).some((_, offset) => {
+            const targetItem = visibleItems[targetRowIndex + offset];
+            return targetItem ? invalidCellKeys.has(`${targetItem.id}::${field}`) : false;
+        });
+        if (hasInvalidInSpan) {
             classNames.push("schedule-cell-invalid");
         }
 
@@ -566,8 +582,8 @@ export default function useScheduleMasterTable({
             !bounds
             || targetRowIndex === undefined
             || targetFieldIndex === -1
-            || targetRowIndex < bounds.minRow
             || targetRowIndex > bounds.maxRow
+            || targetEndRowIndex < bounds.minRow
             || targetFieldIndex < bounds.minField
             || targetFieldIndex > bounds.maxField
         ) {
@@ -575,16 +591,9 @@ export default function useScheduleMasterTable({
         }
 
         classNames.push("schedule-cell-selected");
-        if (targetRowIndex === bounds.minRow) classNames.push("schedule-cell-range-top");
-        if (targetRowIndex === bounds.maxRow) classNames.push("schedule-cell-range-bottom");
-        if (targetFieldIndex === bounds.minField) classNames.push("schedule-cell-range-left");
-        if (targetFieldIndex === bounds.maxField) classNames.push("schedule-cell-range-right");
-        if (targetRowIndex === bounds.maxRow && targetFieldIndex === bounds.maxField) {
-            classNames.push("schedule-cell-range-handle");
-        }
 
         return classNames.join(" ");
-    }, [activeCell, getCellSelectionBounds, invalidCellKeys, visibleItemIndexMap]);
+    }, [activeCell, getCellSelectionBounds, invalidCellKeys, visibleItemIndexMap, visibleItems]);
 
     const selectAllCells = useCallback(() => {
         if (visibleItems.length === 0) return false;
@@ -802,9 +811,9 @@ export default function useScheduleMasterTable({
 
         if (event.shiftKey && ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key)) {
             let moved = false;
-            if (event.key === "ArrowLeft" && !isTextarea && !isCheckbox) {
+            if (event.key === "ArrowLeft" && !isCheckbox) {
                 moved = extendCellSelection(rowId, field, 0, -1);
-            } else if (event.key === "ArrowRight" && !isTextarea && !isCheckbox) {
+            } else if (event.key === "ArrowRight" && !isCheckbox) {
                 moved = extendCellSelection(rowId, field, 0, 1);
             } else if (event.key === "ArrowUp") {
                 moved = extendCellSelection(rowId, field, -1, 0);
@@ -822,33 +831,31 @@ export default function useScheduleMasterTable({
         }
 
         if (event.key === "Enter") {
-            if (isTextarea && !event.altKey) return;
+            if (isTextarea && event.altKey) return;
             const moved = focusAdjacentCell(rowId, field, event.shiftKey ? -1 : 1, 0);
             if (moved) event.preventDefault();
             return;
         }
 
-        if (event.key === "ArrowLeft" && !isTextarea && !isCheckbox) {
+        if (event.key === "ArrowLeft" && !isCheckbox) {
             const moved = focusAdjacentCell(rowId, field, 0, -1);
             if (moved) event.preventDefault();
             return;
         }
 
-        if (event.key === "ArrowRight" && !isTextarea && !isCheckbox) {
+        if (event.key === "ArrowRight" && !isCheckbox) {
             const moved = focusAdjacentCell(rowId, field, 0, 1);
             if (moved) event.preventDefault();
             return;
         }
 
         if (event.key === "ArrowUp") {
-            if (isTextarea && !event.altKey) return;
             const moved = focusAdjacentCell(rowId, field, -1, 0);
             if (moved) event.preventDefault();
             return;
         }
 
         if (event.key === "ArrowDown") {
-            if (isTextarea && !event.altKey) return;
             const moved = focusAdjacentCell(rowId, field, 1, 0);
             if (moved) event.preventDefault();
         }
@@ -1171,6 +1178,29 @@ export default function useScheduleMasterTable({
         };
     }, [viewMode]);
 
+    useEffect(() => {
+        const toolbarEl = tableToolbarRef.current;
+        if (!toolbarEl) return;
+
+        const updateToolbarHeight = () => {
+            const measured = Math.ceil(toolbarEl.getBoundingClientRect().height || 72);
+            setTableToolbarHeight((prev) => (prev === measured ? prev : measured));
+        };
+
+        updateToolbarHeight();
+        let resizeObserver = null;
+        if (typeof ResizeObserver !== "undefined") {
+            resizeObserver = new ResizeObserver(updateToolbarHeight);
+            resizeObserver.observe(toolbarEl);
+        }
+        window.addEventListener("resize", updateToolbarHeight);
+
+        return () => {
+            if (resizeObserver) resizeObserver.disconnect();
+            window.removeEventListener("resize", updateToolbarHeight);
+        };
+    }, [viewMode, visibleItems.length, selectedCount, searchKeyword, categoryFilter]);
+
     return {
         activeCell,
         cellSelectionRange,
@@ -1241,6 +1271,8 @@ export default function useScheduleMasterTable({
         startSelectionDrag,
         tableHeaderHeight,
         tableHeaderRef,
+        tableToolbarHeight,
+        tableToolbarRef,
         tableInteractionRef,
         tableScrollRef,
         toggleSelectAllItems,

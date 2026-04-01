@@ -4,6 +4,7 @@ import { Search, Trash2, X } from "lucide-react";
 export default function ScheduleMasterTableToolbarRow({
     forPrint,
     tableHeaderHeight,
+    tableToolbarRef,
     newMainCategory,
     onNewMainCategoryChange,
     onAddMainCategory,
@@ -23,6 +24,7 @@ export default function ScheduleMasterTableToolbarRow({
     return (
         <tr className={`bg-[var(--navy-bg)] ${forPrint ? "no-print" : ""}`}>
             <td
+                ref={forPrint ? undefined : tableToolbarRef}
                 colSpan="19"
                 className={`px-4 py-3 ${forPrint ? "" : "sticky z-[6] bg-[var(--navy-bg)] border-b border-[var(--navy-border-soft)]"}`}
                 style={forPrint ? undefined : { top: `${tableHeaderHeight}px` }}

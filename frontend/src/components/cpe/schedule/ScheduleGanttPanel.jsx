@@ -7,9 +7,6 @@ export default function ScheduleGanttPanel({
     startDate,
     onResize,
     onSmartResize,
-    aiPreviewItems,
-    aiOriginalItems,
-    aiActiveItemId,
     subTasks,
     onCreateSubtask,
     onUpdateSubtask,
@@ -24,9 +21,6 @@ export default function ScheduleGanttPanel({
                 startDate={startDate}
                 onResize={onResize}
                 onSmartResize={onSmartResize}
-                aiPreviewItems={aiPreviewItems}
-                aiOriginalItems={aiOriginalItems}
-                aiActiveItemId={aiActiveItemId}
                 subTasks={subTasks}
                 onCreateSubtask={onCreateSubtask}
                 onUpdateSubtask={onUpdateSubtask}

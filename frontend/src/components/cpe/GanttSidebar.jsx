@@ -2,24 +2,7 @@ import React, { useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ChevronRight, Layers, FileText, Clock } from "lucide-react";
 
-const GanttSidebar = ({ groupedItems, expandedCategories, setExpandedCategories, selectedItemIds, onItemClick, containerRef, aiPreviewItems, aiOriginalItems, aiActiveItemId }) => {
-    const aiPreviewMap = React.useMemo(() => {
-        if (!aiPreviewItems || !aiOriginalItems) return new Map();
-        const originalMap = new Map(aiOriginalItems.map(item => [item.id, item]));
-        const map = new Map();
-        aiPreviewItems.forEach(item => {
-            const original = originalMap.get(item.id);
-            if (!original) return;
-            const crewDiff = (parseFloat(item.crew_size) || 0) - (parseFloat(original.crew_size) || 0);
-            const prodDiff = (parseFloat(item.productivity) || 0) - (parseFloat(original.productivity) || 0);
-            const daysDiff = (parseFloat(item.calendar_days) || 0) - (parseFloat(original.calendar_days) || 0);
-            if (Math.abs(crewDiff) > 0.01 || Math.abs(prodDiff) > 0.01 || Math.abs(daysDiff) > 0.01) {
-                map.set(item.id, { crewDiff, prodDiff, daysDiff });
-            }
-        });
-        return map;
-    }, [aiPreviewItems, aiOriginalItems]);
-
+const GanttSidebar = ({ groupedItems, expandedCategories, setExpandedCategories, selectedItemIds, onItemClick, containerRef }) => {
     const [isScrolling, setIsScrolling] = useState(false);
 
     const handleScroll = useCallback(() => {
@@ -106,8 +89,6 @@ const GanttSidebar = ({ groupedItems, expandedCategories, setExpandedCategories,
                                                 {(Array.isArray(processGroup?.items) ? processGroup.items : []).map((item, itemIdx) => {
                                                     const calendarDays = item.calendar_days || item.durationDays || 0;
                                                     const isSelected = Array.isArray(selectedItemIds) && selectedItemIds.includes(item.id);
-                                                    const aiPreview = aiPreviewMap.get(item.id);
-                                                    const isAiActive = aiActiveItemId === item.id;
                                                     const isSingleTotalRollup = item?._singleTotalRollup === true;
 
                                                     return (
@@ -137,11 +118,6 @@ const GanttSidebar = ({ groupedItems, expandedCategories, setExpandedCategories,
                                                                         <div className={`text-base font-bold truncate ${isSelected ? 'text-blue-700' : 'text-slate-700'}`}>
                                                                             {item.main_category}
                                                                         </div>
-                                                                        {aiPreview && (
-                                                                            <span className={`text-[9px] px-1.5 py-0.5 rounded-full border ${isAiActive ? 'border-blue-500 text-blue-600' : 'border-gray-300 text-gray-500'}`}>
-                                                                                AI
-                                                                            </span>
-                                                                        )}
                                                                     </div>
                                                                 ) : (
                                                                     <>
@@ -150,11 +126,6 @@ const GanttSidebar = ({ groupedItems, expandedCategories, setExpandedCategories,
                                                                             <div className={`text-xs font-semibold truncate transition-colors ${isSelected ? 'text-blue-900' : 'text-slate-500'}`}>
                                                                                 {item.process}
                                                                             </div>
-                                                                            {aiPreview && (
-                                                                                <span className={`text-[9px] px-1.5 py-0.5 rounded-full border ${isAiActive ? 'border-blue-500 text-blue-600' : 'border-gray-300 text-gray-500'}`}>
-                                                                                    AI
-                                                                                </span>
-                                                                            )}
                                                                         </div>
                                                                         <div className={`text-base font-bold truncate ${isSelected ? 'text-blue-700' : 'text-slate-700'}`}>
                                                                             {item.work_type}

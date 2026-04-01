@@ -9,14 +9,12 @@ import { FTUE_STEP_IDS } from "../config/ftueSteps";
 import StandardImportModal from "../components/cpe/StandardImportModal";
 import ScheduleHeader from "../components/cpe/schedule/ScheduleHeader";
 import ScheduleGanttPanel from "../components/cpe/schedule/ScheduleGanttPanel";
-import AiSuggestionPanel from "../components/cpe/schedule/AiSuggestionPanel";
 import EvidenceResultModal from "../components/cpe/schedule/EvidenceResultModal";
 import SnapshotManager from "../components/cpe/schedule/SnapshotManager";
 import ScheduleMasterTablePage from "../components/cpe/masterTable/ScheduleMasterTablePage";
 
 import { useScheduleStore } from "../stores/scheduleStore";
 import { useConfirm } from "../contexts/ConfirmContext";
-import { useAIScheduleOptimizer } from "../hooks/useAIScheduleOptimizer";
 import { useScheduleData } from "../hooks/useScheduleData";
 import useScheduleMasterGantt from "../hooks/useScheduleMasterGantt";
 import { calculateTotalCalendarDays, calculateTotalCalendarMonths } from "../utils/scheduleCalculations";
@@ -161,36 +159,6 @@ export default function ScheduleMasterList() {
         setContainerId
     } = useScheduleData(projectId, setStoreItems, setStoreOperatingRates, setStoreLinks, setStoreWorkDayType, setStoreSubTasks);
 
-    const {
-        aiTargetDays,
-        setAiTargetDays,
-        aiMode,
-        aiLogs,
-        aiPreviewItems,
-        aiActiveItemId,
-        aiSummary,
-        aiShowCompare,
-        setAiShowCompare,
-        aiDisplayItems,
-        aiThreadMessages,
-        aiProposalCards,
-        pendingProposalCount,
-        aiOriginalRef,
-        runAiAdjustment,
-        handleAiCancel,
-        handleAiApply,
-        handleProposalApply,
-        handleProposalReject,
-        resetAiSession
-    } = useAIScheduleOptimizer(
-        items,
-        operatingRates,
-        workDayType,
-        projectName,
-        setStoreItems,
-        applyItemFieldChanges
-    );
-
     // Calculated Values
     const totalCalendarDays = useMemo(() => calculateTotalCalendarDays(items), [items]);
     const totalCalendarMonths = useMemo(() => calculateTotalCalendarMonths(totalCalendarDays), [totalCalendarDays]);
@@ -203,7 +171,6 @@ export default function ScheduleMasterList() {
     const [snapshotModalOpen, setSnapshotModalOpen] = useState(false);
     const [importTargetParent, setImportTargetParent] = useState(null);
     const [viewMode, setViewMode] = useState("table"); // "table" or "gantt"
-    const [aiPanelOpen, setAiPanelOpen] = useState(false);
     const [standardItems, setStandardItems] = useState([]);
     const [rowClassEditModal, setRowClassEditModal] = useState({
         open: false,
@@ -248,7 +215,7 @@ export default function ScheduleMasterList() {
             console.error("엑셀 내보내기 실패:", error);
             toast.error("엑셀 내보내기 실패");
         }
-    }, [projectId, projectName, ganttDateScale, aiDisplayItems, items]);
+    }, [projectId, projectName, ganttDateScale]);
 
     useEffect(() => {
         loadData();
@@ -757,17 +724,7 @@ export default function ScheduleMasterList() {
                     saving={saving}
                     totalCalendarDays={totalCalendarDays}
                     totalCalendarMonths={totalCalendarMonths}
-                    aiTargetDays={aiTargetDays}
-                    onAiTargetDaysChange={setAiTargetDays}
-                    onAiRun={runAiAdjustment}
-                    aiMode={aiMode}
-                    onAiCancel={() => {
-                        handleAiCancel();
-                        setAiPanelOpen(false);
-                    }}
                     onExportExcel={handleExportExcel}
-                    aiPanelOpen={aiPanelOpen}
-                    onAiPanelToggle={() => setAiPanelOpen((prev) => !prev)}
                 />
             </div>
 
@@ -778,14 +735,11 @@ export default function ScheduleMasterList() {
                 <div className="flex-1 min-h-0 flex gap-4">
                     {viewMode === "gantt" ? (
                         <ScheduleGanttPanel
-                            items={aiDisplayItems}
+                            items={items}
                             links={links}
                             startDate={startDate}
                             onResize={handleGanttResize}
                             onSmartResize={handleSmartResize}
-                            aiPreviewItems={aiPreviewItems}
-                            aiOriginalItems={aiOriginalRef.current}
-                            aiActiveItemId={aiActiveItemId}
                             subTasks={subTasks}
                             onCreateSubtask={handleCreateSubtask}
                             onUpdateSubtask={handleUpdateSubtask}
@@ -822,29 +776,6 @@ export default function ScheduleMasterList() {
                             onOpenFloorBatchModal={handleOpenFloorBatchModal}
                             onOpenRowClassEdit={handleOpenRowClassEdit}
                             standardItems={standardItems}
-                        />
-                    )}
-
-                    {(aiPanelOpen || aiThreadMessages.length > 0 || aiProposalCards.length > 0) && (
-                        <AiSuggestionPanel
-                            aiMode={aiMode}
-                            aiThreadMessages={aiThreadMessages}
-                            aiProposalCards={aiProposalCards}
-                            pendingProposalCount={pendingProposalCount}
-                            aiTargetDays={aiTargetDays}
-                            onSubmitRequest={async (text) => {
-                                setAiPanelOpen(true);
-                                await runAiAdjustment(text);
-                            }}
-                            onApplyProposal={(proposal) => handleProposalApply(proposal, confirm)}
-                            onRejectProposal={handleProposalReject}
-                            onApplyAll={() => handleAiApply(confirm)}
-                            onReset={() => {
-                                resetAiSession();
-                                setAiPanelOpen(false);
-                            }}
-                            onToggleCompare={() => setAiShowCompare((prev) => !prev)}
-                            aiShowCompare={aiShowCompare}
                         />
                     )}
                 </div>

@@ -111,9 +111,9 @@ const ScheduleTableRow = ({
     const getEditableStateClass = (field) => (
         activeCell?.itemId === item.id && activeCell?.field === field ? focusRingClass : ""
     );
-    const getCellWrapperClass = (field, baseClass) => {
-        const selectionClassName = getCellSelectionClassName?.(item.id, field)
-            || `${isCellSelected?.(item.id, field) ? "schedule-cell-selected" : ""} ${activeCell?.itemId === item.id && activeCell?.field === field ? "schedule-cell-active" : ""}`;
+    const getCellWrapperClass = (field, baseClass, options = {}) => {
+        const selectionClassName = getCellSelectionClassName?.(item.id, field, options)
+            || `${isCellSelected?.(item.id, field, options) ? "schedule-cell-selected" : ""} ${activeCell?.itemId === item.id && activeCell?.field === field ? "schedule-cell-active" : ""}`;
         return `${baseClass} ${selectionClassName}`.trim();
     };
 
@@ -127,7 +127,6 @@ const ScheduleTableRow = ({
             onCellSelectionEnter?.(item.id, field);
         }
     });
-
     const handleCellFocus = (field, currentValue) => {
         handleInputFocus(field, currentValue);
         onActivateCell?.(item.id, field);
@@ -139,15 +138,22 @@ const ScheduleTableRow = ({
             afterRevert = null,
             suggestions = null
         } = options;
+        const isNavigationKey = ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Enter", "Tab"].includes(e.key);
 
         if (revertField && handleEscRevert(e, revertField, afterRevert)) {
             return;
+        }
+        if (isNavigationKey) {
+            onCellKeyDown?.({ event: e, rowId: item.id, field, value: currentValue });
+            if (e.defaultPrevented) return;
         }
         if (suggestions) {
             handleSuggestionKeyDown(e, suggestions);
         }
         if (e.defaultPrevented) return;
-        onCellKeyDown?.({ event: e, rowId: item.id, field, value: currentValue });
+        if (!isNavigationKey) {
+            onCellKeyDown?.({ event: e, rowId: item.id, field, value: currentValue });
+        }
     };
 
     const handleFieldPaste = (e, field) => {
@@ -320,9 +326,25 @@ const ScheduleTableRow = ({
     const normalizedSpanInfo = spanInfo || {
         isProcessFirst: true,
         processRowSpan: 1,
+        processGroupStartId: item.id,
         isSubProcessFirst: true,
-        subProcessRowSpan: 1
+        subProcessRowSpan: 1,
+        subProcessGroupStartId: item.id
     };
+    const isProcessGroupExpanded = Boolean(
+        isCellSelected?.(normalizedSpanInfo.processGroupStartId || item.id, 'process', {
+            rowSpan: normalizedSpanInfo.processRowSpan
+        })
+    );
+    const shouldRenderProcessCell = normalizedSpanInfo.isProcessFirst || isProcessGroupExpanded;
+    const processCellRowSpan = isProcessGroupExpanded ? 1 : normalizedSpanInfo.processRowSpan;
+    const isSubProcessGroupExpanded = Boolean(
+        isCellSelected?.(normalizedSpanInfo.subProcessGroupStartId || item.id, 'sub_process', {
+            rowSpan: normalizedSpanInfo.subProcessRowSpan
+        })
+    );
+    const shouldRenderSubProcessCell = normalizedSpanInfo.isSubProcessFirst || isSubProcessGroupExpanded;
+    const subProcessCellRowSpan = isSubProcessGroupExpanded ? 1 : normalizedSpanInfo.subProcessRowSpan;
 
     return (
         <tr
@@ -391,10 +413,12 @@ const ScheduleTableRow = ({
             </td>
 
             {/* Classification (중공종) */}
-            {normalizedSpanInfo.isProcessFirst && (
+            {shouldRenderProcessCell && (
                 <td
-                    rowSpan={normalizedSpanInfo.processRowSpan}
-                    className={getCellWrapperClass('process', "border-r border-gray-700 bg-[#2c2c3a] p-1 align-top")}
+                    rowSpan={processCellRowSpan}
+                    className={getCellWrapperClass('process', "border-r border-gray-700 bg-[#2c2c3a] p-1 align-top", {
+                        rowSpan: processCellRowSpan
+                    })}
                     {...getCellWrapperProps('process')}
                 >
                     <div className="relative">
@@ -438,10 +462,12 @@ const ScheduleTableRow = ({
             )}
 
             {/* Sub Process (공정) */}
-            {normalizedSpanInfo.isSubProcessFirst && (
+            {shouldRenderSubProcessCell && (
                 <td
-                    rowSpan={normalizedSpanInfo.subProcessRowSpan}
-                    className={getCellWrapperClass('sub_process', "border-r border-gray-700 bg-[#2c2c3a] p-1 align-top")}
+                    rowSpan={subProcessCellRowSpan}
+                    className={getCellWrapperClass('sub_process', "border-r border-gray-700 bg-[#2c2c3a] p-1 align-top", {
+                        rowSpan: subProcessCellRowSpan
+                    })}
                     {...getCellWrapperProps('sub_process')}
                 >
                     <div className="relative">
@@ -835,7 +861,16 @@ const ScheduleTableRow = ({
                     <button
                         type="button"
                         className={`w-full rounded bg-[#1f1f2b] py-1 text-center text-base font-medium text-gray-200 transition hover:bg-[#2a2a38] ${getEditableStateClass(OPERATING_RATE_FIELD)}`}
+                        data-schedule-cell="true"
+                        data-schedule-row-id={item.id}
+                        data-schedule-field={OPERATING_RATE_FIELD}
                         title={operatingRateSelectOptions.find((option) => option.value === operatingRateSelectValue)?.label || "가동률 선택"}
+                        onFocus={() => {
+                            onActivateCell?.(item.id, OPERATING_RATE_FIELD);
+                        }}
+                        onKeyDown={(e) => handleFieldKeyDown(e, OPERATING_RATE_FIELD, operatingRateSelectValue, {
+                            revertField: OPERATING_RATE_FIELD
+                        })}
                         onClick={() => {
                             onActivateCell?.(item.id, OPERATING_RATE_FIELD);
                             rememberFieldOrigin(OPERATING_RATE_FIELD, explicitOperatingRateKey);

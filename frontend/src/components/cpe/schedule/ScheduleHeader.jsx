@@ -18,14 +18,7 @@ export default function ScheduleHeader({
     saving,
     totalCalendarDays,
     totalCalendarMonths,
-    aiTargetDays,
-    onAiTargetDaysChange,
-    onAiRun,
-    aiMode,
-    onAiCancel,
-    onExportExcel,
-    aiPanelOpen,
-    onAiPanelToggle
+    onExportExcel
 }) {
     return (
         <div className="flex justify-between items-end mb-4 flex-shrink-0">
@@ -94,46 +87,6 @@ export default function ScheduleHeader({
                         onChange={(e) => onStartDateChange(e.target.value)}
                     />
                 </div>
-
-                <div className="flex flex-col gap-1">
-                    <label className="ui-label pl-1">목표 공기</label>
-                    <div className="flex items-center gap-2">
-                        <input
-                            type="number"
-                            min="1"
-                            placeholder={`${totalCalendarDays}`}
-                            value={aiTargetDays}
-                            onChange={(e) => onAiTargetDaysChange(e.target.value)}
-                            className="ui-input w-24"
-                        />
-                        <span className="text-xs text-[var(--navy-text-muted)]">일</span>
-                    </div>
-                </div>
-
-                <button
-                    onClick={onAiRun}
-                    disabled={aiMode === "running"}
-                    className={`ui-btn-primary ${aiMode === "running"
-                        ? "cursor-not-allowed opacity-40"
-                        : ""
-                        }`}
-                >
-                    기간 조정
-                </button>
-                <button
-                    onClick={onAiPanelToggle}
-                    className={`ui-btn-secondary ${aiPanelOpen ? "border-[var(--navy-accent)] text-[var(--navy-accent)]" : ""}`}
-                >
-                    AI 제안 패널
-                </button>
-                {aiMode !== "idle" && (
-                    <button
-                        onClick={onAiCancel}
-                        className="ui-btn-secondary"
-                    >
-                        취소/되돌리기
-                    </button>
-                )}
                 <button
                     onClick={onExportExcel}
                     className="ui-btn-secondary"

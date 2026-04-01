@@ -87,6 +87,8 @@ export default function ScheduleMasterTablePanel({
     startSelectionDrag,
     tableHeaderHeight,
     tableHeaderRef,
+    tableToolbarHeight,
+    tableToolbarRef,
     tableInteractionRef,
     tableScrollRef,
     toggleSelectAllItems,
@@ -180,6 +182,7 @@ export default function ScheduleMasterTablePanel({
                                             key="add-main-category"
                                             forPrint={forPrint}
                                             tableHeaderHeight={tableHeaderHeight}
+                                            tableToolbarRef={tableToolbarRef}
                                             newMainCategory={newMainCategory}
                                             onNewMainCategoryChange={onNewMainCategoryChange}
                                             onAddMainCategory={handleAddMainCategory}
@@ -255,6 +258,7 @@ export default function ScheduleMasterTablePanel({
                                             dropPosition={dropPosition}
                                             isDropInvalid={isDropInvalid}
                                             activeEditingItemId={activeEditingItemId}
+                                            stickyTopOffset={tableHeaderHeight + tableToolbarHeight}
                                         />
                                     )),
                                     ...(Object.keys(groupedVisibleItems).length === 0

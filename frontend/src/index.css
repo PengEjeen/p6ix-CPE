@@ -402,65 +402,13 @@ code {
   .schedule-cell-selected {
     position: relative;
     background: color-mix(in srgb, var(--table-editable-focus-fill) 92%, transparent);
+    box-shadow: inset 0 0 0 2px var(--table-editable-focus-border);
     z-index: 2;
-  }
-
-  .schedule-cell-range-top {
-    box-shadow: inset 0 2px 0 0 var(--table-editable-focus-border);
-  }
-
-  .schedule-cell-range-bottom {
-    box-shadow: inset 0 -2px 0 0 var(--table-editable-focus-border);
-  }
-
-  .schedule-cell-range-left {
-    box-shadow: inset 2px 0 0 0 var(--table-editable-focus-border);
-  }
-
-  .schedule-cell-range-right {
-    box-shadow: inset -2px 0 0 0 var(--table-editable-focus-border);
-  }
-
-  .schedule-cell-range-top.schedule-cell-range-left {
-    box-shadow:
-      inset 0 2px 0 0 var(--table-editable-focus-border),
-      inset 2px 0 0 0 var(--table-editable-focus-border);
-  }
-
-  .schedule-cell-range-top.schedule-cell-range-right {
-    box-shadow:
-      inset 0 2px 0 0 var(--table-editable-focus-border),
-      inset -2px 0 0 0 var(--table-editable-focus-border);
-  }
-
-  .schedule-cell-range-bottom.schedule-cell-range-left {
-    box-shadow:
-      inset 0 -2px 0 0 var(--table-editable-focus-border),
-      inset 2px 0 0 0 var(--table-editable-focus-border);
-  }
-
-  .schedule-cell-range-bottom.schedule-cell-range-right {
-    box-shadow:
-      inset 0 -2px 0 0 var(--table-editable-focus-border),
-      inset -2px 0 0 0 var(--table-editable-focus-border);
-  }
-
-  .schedule-cell-range-handle::after {
-    content: "";
-    position: absolute;
-    right: -2px;
-    bottom: -2px;
-    width: 8px;
-    height: 8px;
-    border-radius: 9999px;
-    border: 2px solid var(--navy-surface);
-    background: var(--table-editable-focus-border);
-    box-shadow: 0 0 0 1px color-mix(in srgb, var(--table-editable-focus-border) 55%, transparent);
-    pointer-events: none;
   }
 
   .schedule-cell-selected.schedule-cell-active {
     background: color-mix(in srgb, var(--table-editable-focus-fill) 100%, transparent);
+    box-shadow: inset 0 0 0 2px var(--table-editable-focus-border);
   }
 
   .schedule-cell-invalid {

@@ -198,9 +198,6 @@ export default function GanttChart({
     startDate,
     onResize,
     onSmartResize,
-    aiPreviewItems,
-    aiOriginalItems,
-    aiActiveItemId,
     subTasks,
     onCreateSubtask,
     onUpdateSubtask,
@@ -653,12 +650,6 @@ export default function GanttChart({
         setSelectedItemIds((prev) => prev.filter((id) => visibleIds.has(id)));
     }, [itemsWithTiming]);
 
-    React.useEffect(() => {
-        if (!aiActiveItemId) return;
-        if (!itemsWithTiming.some((item) => item.id === aiActiveItemId)) return;
-        handleItemClick(aiActiveItemId, 'sidebar');
-    }, [aiActiveItemId, handleItemClick, itemsWithTiming]);
-
     const handleCreateSubtask = useCallback((itemId, startDay, durationDays) => {
         if (!canEdit) return;
         if (onCreateSubtask) onCreateSubtask(itemId, startDay, durationDays);
@@ -984,9 +975,6 @@ export default function GanttChart({
                         setExpandedCategories={setExpandedCategories}
                         selectedItemIds={selectedItemIds}
                         onItemClick={handleItemClick}
-                        aiPreviewItems={aiPreviewItems}
-                        aiOriginalItems={aiOriginalItems}
-                        aiActiveItemId={aiActiveItemId}
                     />
                 </div>
 
@@ -1031,9 +1019,6 @@ export default function GanttChart({
                             onLinkAnchorClick={handleLinkAnchorClick}
                             onLinkClick={canEdit ? handleLinkClick : undefined}
                             selectedLinkId={canEdit ? selectedLinkId : null}
-                            aiPreviewItems={aiPreviewItems}
-                            aiOriginalItems={aiOriginalItems}
-                            aiActiveItemId={aiActiveItemId}
                             onCreateLink={handleCreateLink}
                             subtaskMode={canEdit ? subtaskMode : false}
                             subTasks={subTasks}
