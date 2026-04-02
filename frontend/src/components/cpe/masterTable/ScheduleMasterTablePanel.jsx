@@ -73,6 +73,7 @@ export default function ScheduleMasterTablePanel({
     onSearchKeywordChange,
     openCategoryMenu,
     operatingRates,
+    selectableOperatingRates,
     searchKeyword,
     selectedCount,
     selectedItemIds,
@@ -218,6 +219,7 @@ export default function ScheduleMasterTablePanel({
                                             isFilterActive={isFilterActive}
                                             hasSearchKeyword={hasSearchKeyword}
                                             operatingRates={operatingRates}
+                                            selectableOperatingRates={selectableOperatingRates}
                                             handleCategoryRunRateChange={handleCategoryRunRateChange}
                                             handleCategoryTotalDaysChange={handleCategoryTotalDaysChange}
                                             openCategoryMenu={openCategoryMenu}

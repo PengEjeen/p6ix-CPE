@@ -1,8 +1,31 @@
 PROCESS_KEY_DELIMITER = "|||"
 
+DEFAULT_OPERATING_RATE_CATEGORIES = [
+    "토공사",
+    "골조공사",
+    "외부 마감공사",
+    "내부 마감공사",
+    "내부마감(건식)",
+    "내부마감(습식)",
+    "골조 타설",
+]
+
 
 def normalize_category_key(value):
     return "".join(str(value or "").split()).lower()
+
+
+INTERNAL_FINISH_PROCESS_KEYS = {
+    normalize_category_key("내부마감"),
+    normalize_category_key("내부마감(건식)"),
+    normalize_category_key("내부마감(습식)"),
+    normalize_category_key("내부마감건식"),
+    normalize_category_key("내부마감습식"),
+}
+INTERNAL_FINISH_VARIANT_PROCESSES = [
+    "내부마감(건식)",
+    "내부마감(습식)",
+]
 
 
 def _format_winter_threshold(criteria, value, enabled=True):
@@ -208,3 +231,38 @@ def apply_operating_rate_defaults(main_category, payload=None):
     for key, value in defaults.items():
         result.setdefault(key, value)
     return result
+
+
+def get_additional_operating_rate_keys(main_category, process=None):
+    raw_main = str(main_category or "").strip()
+    raw_process = str(process or "").strip()
+    if not raw_main or not raw_process:
+        return []
+
+    normalized_process = normalize_category_key(raw_process)
+    if normalized_process not in INTERNAL_FINISH_PROCESS_KEYS:
+        return []
+
+    return [
+        f"{raw_main}{PROCESS_KEY_DELIMITER}{variant_process}"
+        for variant_process in INTERNAL_FINISH_VARIANT_PROCESSES
+    ]
+
+
+def ensure_project_default_operating_rate_weights(project):
+    from ..models.operating_rate_models import WorkScheduleWeight
+
+    ensured_weights = []
+    created_weights = []
+
+    for main_category in DEFAULT_OPERATING_RATE_CATEGORIES:
+        weight, created = WorkScheduleWeight.objects.get_or_create(
+            project=project,
+            main_category=main_category,
+            defaults=build_operating_rate_defaults(main_category),
+        )
+        ensured_weights.append(weight)
+        if created:
+            created_weights.append(weight)
+
+    return ensured_weights, created_weights

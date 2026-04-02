@@ -233,7 +233,7 @@ function Projects() {
       });
     } catch (error) {
       console.error("삭제 실패:", error);
-      await alert("프로젝트 삭제에 실패했습니다. 잠시 후 다시 시도해 주세요.");
+      await alert(error?.response?.data?.detail || "프로젝트 삭제에 실패했습니다. 잠시 후 다시 시도해 주세요.");
     }
   };
 

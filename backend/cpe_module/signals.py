@@ -5,6 +5,7 @@ from .models import WorkScheduleWeight
 from .utils.operating_rate_defaults import (
     PROCESS_KEY_DELIMITER,
     build_operating_rate_defaults,
+    get_additional_operating_rate_keys,
     resolve_operating_rate_preset_code,
 )
 
@@ -39,6 +40,8 @@ def create_operating_rates_for_new_categories(sender, instance, **kwargs):
             process_key = f"{main_category}{PROCESS_KEY_DELIMITER}{process}"
             if resolve_operating_rate_preset_code(process_key):
                 data_categories.add(process_key)
+            for extra_key in get_additional_operating_rate_keys(main_category, process):
+                data_categories.add(extra_key)
 
     # 새로운 카테고리만 생성 (중복 안전)
     for category in data_categories:

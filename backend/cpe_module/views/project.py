@@ -63,4 +63,4 @@ def delete_project(request, project_id):
     project = get_object_or_404(Project, id=project_id, user=request.user, is_delete=False)
     project.is_delete = True
     project.save()
-    return Response({"detail": "프로젝트가 삭제되었습니다."}, status=status.HTTP_204_NO_CONTENT)
+    return Response({"detail": "프로젝트가 삭제되었습니다."}, status=status.HTTP_200_OK)

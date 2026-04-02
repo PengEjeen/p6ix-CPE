@@ -6,7 +6,6 @@ import StandardSuggestList from "./StandardSuggestList";
 import {
     findOperatingRateForItem,
     getOperatingRateOptionLabel,
-    getSelectableOperatingRates,
     normalizeOperatingRateKey
 } from "../../../utils/operatingRateKeys";
 
@@ -36,6 +35,7 @@ const ScheduleTableRow = ({
     isOverlay,
     rowClassName = "",
     operatingRates = [],
+    selectableOperatingRates = [],
     standardItems = [],
     onApplyStandard,
     isDropTarget = false,
@@ -59,6 +59,10 @@ const ScheduleTableRow = ({
     if (rateObj) {
         rateValue = rateObj.operating_rate || 100;
     }
+    const calendarDaysValue = Number.parseFloat(item?.calendar_days);
+    const displayRateValue = Number.isFinite(calendarDaysValue) && calendarDaysValue <= 0
+        ? 100
+        : rateValue;
     const {
         attributes,
         listeners,
@@ -238,10 +242,6 @@ const ScheduleTableRow = ({
     const processSuggestions = useMemo(() => buildSuggestions(processQuery), [processQuery, standardItems]);
     const subProcessSuggestions = useMemo(() => buildSuggestions(subProcessQuery), [subProcessQuery, standardItems]);
     const workTypeSuggestions = useMemo(() => buildSuggestions(workTypeQuery), [workTypeQuery, standardItems]);
-    const selectableOperatingRates = useMemo(
-        () => getSelectableOperatingRates(operatingRates),
-        [operatingRates]
-    );
     const explicitOperatingRateKey = normalizeOperatingRateKey(item?.operating_rate_key);
     const operatingRateSelectOptions = useMemo(() => {
         const options = [{
@@ -857,7 +857,7 @@ const ScheduleTableRow = ({
             >
                 {isOverlay ? (
                     <div className="w-full text-base text-center text-gray-200 bg-[#1f1f2b] rounded font-medium py-1">
-                        {rateValue}%
+                        {displayRateValue}%
                     </div>
                 ) : activeField === OPERATING_RATE_FIELD ? (
                     <select
@@ -914,7 +914,7 @@ const ScheduleTableRow = ({
                             setActiveField(OPERATING_RATE_FIELD);
                         }}
                     >
-                        {rateValue}%
+                        {displayRateValue}%
                     </button>
                 )}
             </td>

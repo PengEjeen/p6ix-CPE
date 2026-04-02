@@ -81,6 +81,21 @@ const INHERIT_COMPARE_FIELDS = [
 
 const PROCESS_INHERIT_TYPE = "INHERIT";
 const PROCESS_SPLIT_TYPE = "CUSTOM";
+const DEFAULT_INTERNAL_FINISH_PROCESSES = ["내부마감(건식)", "내부마감(습식)"];
+const INTERNAL_FINISH_PROCESS_ALIASES = new Set([
+  "내부마감",
+  "내부마감(건식)",
+  "내부마감(습식)",
+  "내부마감건식",
+  "내부마감습식",
+]);
+
+const normalizeCategoryLabel = (value) => String(value || "").replace(/\s+/g, "").toLowerCase();
+
+const getDefaultProcessesForMain = (mainCategory, internalFinishMainSet) => {
+  if (!internalFinishMainSet?.has(mainCategory)) return [];
+  return DEFAULT_INTERNAL_FINISH_PROCESSES;
+};
 
 const defaultWeightData = (rowKey) => ({
   id: null,
@@ -312,6 +327,7 @@ export default function OperatingRate() {
 
       const mainOrder = [];
       const processByMain = new Map();
+      const internalFinishMainSet = new Set();
 
       const addMain = (mainCategory) => {
         const main = String(mainCategory || "기타").trim() || "기타";
@@ -338,7 +354,11 @@ export default function OperatingRate() {
       scheduleItems.forEach((item) => {
         const main = addMain(item.main_category || "기타");
         if (!main) return;
-        addProcess(main, item.process || "");
+        const processName = item.process || "";
+        addProcess(main, processName);
+        if (INTERNAL_FINISH_PROCESS_ALIASES.has(normalizeCategoryLabel(processName))) {
+          internalFinishMainSet.add(main);
+        }
       });
 
       existing.forEach((row) => {
@@ -347,7 +367,16 @@ export default function OperatingRate() {
         if (!main) return;
         if (parsed.isProcessKey && parsed.process) {
           addProcess(main, parsed.process);
+          if (INTERNAL_FINISH_PROCESS_ALIASES.has(normalizeCategoryLabel(parsed.process))) {
+            internalFinishMainSet.add(main);
+          }
         }
+      });
+
+      mainOrder.forEach((mainCategory) => {
+        getDefaultProcessesForMain(mainCategory, internalFinishMainSet).forEach((processName) => {
+          addProcess(mainCategory, processName);
+        });
       });
 
       const mergedColumns = [];
@@ -397,7 +426,7 @@ export default function OperatingRate() {
             column.parent_key === mainCategory &&
             !column.inherit_from_main
         );
-        defaultExpanded[mainCategory] = hasCustomProcess;
+        defaultExpanded[mainCategory] = hasCustomProcess || getDefaultProcessesForMain(mainCategory, internalFinishMainSet).length > 0;
       });
 
       setWorkTypes(mergedColumns);

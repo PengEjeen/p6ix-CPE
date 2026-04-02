@@ -1,9 +1,14 @@
-import React from "react";
+import React, { useMemo } from "react";
 import ScheduleMasterTablePanel from "./ScheduleMasterTablePanel";
 import useScheduleMasterTableFeature from "./useScheduleMasterTableFeature";
+import { getVisibleOperatingRateOptions } from "../../../utils/operatingRateKeys";
 
 export default function ScheduleMasterTablePage(props) {
     const feature = useScheduleMasterTableFeature(props);
+    const selectableOperatingRates = useMemo(
+        () => getVisibleOperatingRateOptions(props.operatingRates, props.items),
+        [props.operatingRates, props.items]
+    );
 
     return (
         <ScheduleMasterTablePanel
@@ -72,6 +77,7 @@ export default function ScheduleMasterTablePage(props) {
             onSearchKeywordChange={feature.setSearchKeyword}
             openCategoryMenu={feature.openCategoryMenu}
             operatingRates={props.operatingRates}
+            selectableOperatingRates={selectableOperatingRates}
             searchKeyword={feature.searchKeyword}
             selectedCount={feature.selectedCount}
             selectedItemIds={feature.selectedItemIds}

@@ -447,7 +447,7 @@ export default function Home() {
       emitProjectsChanged({ type: PROJECT_EVENT_TYPES.DELETED, projectId: p.id });
     } catch (e) {
       console.error("프로젝트 삭제 실패:", e);
-      await alert("프로젝트 삭제에 실패했습니다.");
+      await alert(e?.response?.data?.detail || "프로젝트 삭제에 실패했습니다.");
     }
   }, [alert, confirm, persistPinned, pinnedIds]);
 
@@ -485,13 +485,13 @@ export default function Home() {
         <div className="flex items-center justify-center h-64">
           <Loader2 size={24} className="animate-spin text-[var(--navy-text-muted)]" />
         </div>
-      ) : showFtueGuide ? (
+      ) : (showFtueGuide || isEmpty) ? (
         <NewUserView
           ftueTotal={ftueTotal}
           ftueApartment={ftueApartment}
           onOpenCreate={openCreateWithType}
           onOpenGuide={openGuide}
-          onBack={showFtueGuide ? () => setShowFtueGuide(false) : null}
+          onBack={showFtueGuide && !isEmpty ? () => setShowFtueGuide(false) : null}
         />
       ) : (
         <ReturningUserView

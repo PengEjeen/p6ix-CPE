@@ -8,8 +8,16 @@ from rest_framework import status
 from django.shortcuts import get_object_or_404
 
 from ..models.operating_rate_models import WorkScheduleWeight
+from cpe_all_module.models.construction_schedule_models import ConstructionScheduleItem
+from ..models.project_models import Project
 from ..models.calc_models import WorkCondition
 from ..serializers.operating_rate_serializers import WorkScheduleWeightSerializer
+from ..utils.operating_rate_defaults import (
+    PROCESS_KEY_DELIMITER,
+    build_operating_rate_defaults,
+    get_additional_operating_rate_keys,
+    resolve_operating_rate_preset_code,
+)
 from operatio.models import WeatherDailyRecord, WeatherStation, PublicHoliday
 
 
@@ -31,10 +39,49 @@ def detail_work_schedule_weight(request, project_id):
     if not project_id:
         return Response({"error": "project_id parameter is required"}, status=400)
 
+    project = get_object_or_404(Project, id=project_id, user=request.user)
+
+    schedule_container = ConstructionScheduleItem.objects.filter(project=project).first()
+    raw_data = schedule_container.data if schedule_container else []
+    schedule_items = raw_data.get("items", []) if isinstance(raw_data, dict) else raw_data
+    created_weights = []
+
+    for item in schedule_items:
+        if not isinstance(item, dict):
+            continue
+
+        main_category = item.get("main_category")
+        process = item.get("process")
+        if not main_category:
+            continue
+
+        candidate_keys = {main_category}
+        if process:
+            process_key = f"{main_category}{PROCESS_KEY_DELIMITER}{process}"
+            if resolve_operating_rate_preset_code(process_key):
+                candidate_keys.add(process_key)
+            candidate_keys.update(get_additional_operating_rate_keys(main_category, process))
+
+        for category_key in candidate_keys:
+            weight, created = WorkScheduleWeight.objects.get_or_create(
+                project=project,
+                main_category=category_key,
+                defaults=build_operating_rate_defaults(category_key),
+            )
+            if created:
+                created_weights.append(weight)
+
+    if created_weights:
+        default_settings = {
+            "region": "서울",
+            "dataYears": 10,
+            "workWeekDays": 6,
+        }
+        calculate_operating_rates(project.id, created_weights, default_settings)
+
     # main_category 기반으로 여러 개 조회
     weights = WorkScheduleWeight.objects.filter(
-        project__id=project_id,
-        project__user=request.user
+        project=project
     ).order_by('main_category')
 
     # 데이터가 없어도 빈 배열 반환 (404 대신)

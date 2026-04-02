@@ -25,6 +25,7 @@ export default function ScheduleCategorySection({
     isFilterActive,
     hasSearchKeyword,
     operatingRates,
+    selectableOperatingRates,
     handleCategoryRunRateChange,
     handleCategoryTotalDaysChange,
     openCategoryMenu,
@@ -502,6 +503,7 @@ export default function ScheduleCategorySection({
                     onDragSelectionEnter={dragSelectItem}
                     rowClassName={`${rowIndex % 2 === 0 ? "bg-[var(--navy-bg)]" : "bg-[var(--navy-surface)]"} ${hasSearchKeyword ? "outline outline-1 -outline-offset-1 outline-emerald-500/40" : ""}`}
                     operatingRates={operatingRates}
+                    selectableOperatingRates={selectableOperatingRates}
                     isLinked={item.link_module_type && item.link_module_type !== "NONE"}
                     handleChange={handleChange}
                     handleDeleteItem={handleDeleteItem}
