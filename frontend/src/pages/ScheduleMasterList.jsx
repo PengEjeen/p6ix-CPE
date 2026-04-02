@@ -2,6 +2,11 @@ import React, { useEffect, useState, useMemo, useCallback, useRef } from "react"
 import { useParams } from "react-router-dom";
 import { saveScheduleData, initializeDefaultItems, fetchScheduleItems, exportScheduleExcel } from "../api/cpe_all/construction_schedule";
 import { updateWorkCondition } from "../api/cpe/calc";
+import {
+    createFloorBatchTemplate,
+    fetchFloorBatchTemplates,
+    updateFloorBatchTemplate
+} from "../api/cpe/floor_batch_template";
 import toast from "react-hot-toast";
 import { markFtueDone } from "../utils/ftue";
 import { FTUE_STEP_IDS } from "../config/ftueSteps";
@@ -12,6 +17,7 @@ import ScheduleGanttPanel from "../components/cpe/schedule/ScheduleGanttPanel";
 import EvidenceResultModal from "../components/cpe/schedule/EvidenceResultModal";
 import SnapshotManager from "../components/cpe/schedule/SnapshotManager";
 import ScheduleMasterTablePage from "../components/cpe/masterTable/ScheduleMasterTablePage";
+import StandardSuggestList from "../components/cpe/masterTable/StandardSuggestList";
 
 import { useScheduleStore } from "../stores/scheduleStore";
 import { useConfirm } from "../contexts/ConfirmContext";
@@ -19,6 +25,110 @@ import { useScheduleData } from "../hooks/useScheduleData";
 import useScheduleMasterGantt from "../hooks/useScheduleMasterGantt";
 import { calculateTotalCalendarDays, calculateTotalCalendarMonths } from "../utils/scheduleCalculations";
 import { fetchProductivities } from "../api/cpe_all/productivity";
+
+const DEFAULT_RC_FLOOR_TEMPLATE_ROWS = [
+    { process: "RC공사", work_type: "철근 현장가공 및 조립", unit: "TON", quantity: "44.631", productivity: "4", crew_size: "5", note: "", remarks: "", quantity_formula: "", standard_code: "" },
+    { process: "RC공사", work_type: "유로폼, 합판, 경사 등", unit: "M2", quantity: "1861", productivity: "35", crew_size: "8", note: "", remarks: "", quantity_formula: "", standard_code: "" },
+    { process: "RC공사", work_type: "데크플레이트", unit: "M2", quantity: "912", productivity: "20", crew_size: "6", note: "", remarks: "", quantity_formula: "", standard_code: "" },
+    { process: "RC공사", work_type: "콘크리트 펌프차 타설(철근)", unit: "M3", quantity: "522", productivity: "156", crew_size: "2", note: "", remarks: "", quantity_formula: "", standard_code: "" },
+    { process: "RC공사", work_type: "양생", unit: "", quantity: "1", productivity: "1", crew_size: "1", note: "", remarks: "", quantity_formula: "", standard_code: "" }
+];
+
+const createFloorBatchTemplateRow = (overrides = {}) => ({
+    id: overrides.id || `floor-template-row-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+    process: overrides.process ?? "RC공사",
+    work_type: overrides.work_type ?? "",
+    unit: overrides.unit ?? "",
+    quantity: overrides.quantity ?? "",
+    productivity: overrides.productivity ?? "",
+    crew_size: overrides.crew_size ?? "",
+    note: overrides.note ?? "",
+    remarks: overrides.remarks ?? "",
+    quantity_formula: overrides.quantity_formula ?? "",
+    standard_code: overrides.standard_code ?? ""
+});
+
+const normalizeFloorBatchTemplateRows = (rows = []) => {
+    if (!Array.isArray(rows)) return [];
+    return rows.map((row) => createFloorBatchTemplateRow(row));
+};
+
+const isFloorLikeName = (value) => {
+    const raw = String(value || "").trim();
+    if (!raw) return false;
+    return /^(지하|지상)\s*\d+\s*층$/i.test(raw) || /^B\d+F$/i.test(raw) || /^\d+F$/i.test(raw);
+};
+
+const deriveFloorBatchTemplateRows = (categoryItems = []) => {
+    const seenWorkTypes = new Set();
+    const rows = (Array.isArray(categoryItems) ? categoryItems : [])
+        .filter((row) => String(row?.work_type || "").trim().length > 0)
+        .filter((row) => {
+            const workType = String(row?.work_type || "").trim();
+            if (!workType || seenWorkTypes.has(workType)) return false;
+            seenWorkTypes.add(workType);
+            return true;
+        })
+        .map((row) => createFloorBatchTemplateRow({
+            process: row.process || "RC공사",
+            work_type: row.work_type || "",
+            unit: row.unit || "",
+            quantity: row.quantity ?? "",
+            productivity: row.productivity ?? "",
+            crew_size: row.crew_size ?? "",
+            note: row.note || "",
+            remarks: row.remarks || "",
+            quantity_formula: row.quantity_formula || "",
+            standard_code: row.standard_code || ""
+        }));
+
+    if (rows.length > 0) return rows;
+    return DEFAULT_RC_FLOOR_TEMPLATE_ROWS.map((row) => createFloorBatchTemplateRow(row));
+};
+
+const parseTemplateNumber = (value, fallbackValue) => {
+    const raw = String(value ?? "").trim();
+    if (raw === "") return fallbackValue;
+    const parsed = Number(raw);
+    return Number.isFinite(parsed) ? parsed : fallbackValue;
+};
+
+const buildStandardSuggestions = (standardItems = [], query = "") => {
+    const term = String(query || "").trim().toLowerCase();
+    if (!term || !Array.isArray(standardItems) || standardItems.length === 0) return [];
+
+    const scored = standardItems.map((std) => {
+        const fields = [
+            std.item_name,
+            std.sub_category,
+            std.category,
+            std.standard,
+            std.main_category,
+            std.process_name,
+            std.work_type_name
+        ].filter(Boolean).map((value) => String(value).toLowerCase());
+
+        let score = 0;
+        fields.forEach((field) => {
+            if (field === term) score += 10;
+            else if (field.startsWith(term)) score += 6;
+            else if (field.includes(term)) score += 3;
+        });
+
+        return { std, score };
+    }).filter((entry) => entry.score > 0);
+
+    return scored
+        .sort((a, b) => b.score - a.score)
+        .slice(0, 80)
+        .map((entry) => entry.std);
+};
+
+const deriveStandardProductivity = (std) => {
+    if (std?.molit_workload) return std.molit_workload;
+    if (std?.pumsam_workload) return std.pumsam_workload;
+    return 0;
+};
 
 export default function ScheduleMasterList() {
     const { id: projectId } = useParams();
@@ -180,7 +290,19 @@ export default function ScheduleMasterList() {
     });
     const [floorBatchModal, setFloorBatchModal] = useState(null);
     const [floorBatchRange, setFloorBatchRange] = useState({ min: "", max: "" });
+    const [floorBatchTemplates, setFloorBatchTemplates] = useState([]);
+    const [selectedFloorBatchTemplateId, setSelectedFloorBatchTemplateId] = useState("");
+    const [floorBatchTemplateName, setFloorBatchTemplateName] = useState("");
+    const [floorBatchTemplateRows, setFloorBatchTemplateRows] = useState([]);
+    const [floorBatchSuggestionState, setFloorBatchSuggestionState] = useState({
+        rowId: null,
+        field: null,
+        query: "",
+        activeIndex: 0
+    });
     const startDateRequestRef = useRef(0);
+    const floorBatchSuggestionBlurTimeoutRef = useRef(null);
+    const floorBatchSuggestionAnchorRef = useRef(null);
 
     const {
         handleCreateSubtask,
@@ -258,6 +380,31 @@ export default function ScheduleMasterList() {
             setStoreSubTasks(filtered);
         }
     }, [items, subTasks, setStoreSubTasks]);
+
+    useEffect(() => {
+        let isMounted = true;
+
+        const loadFloorTemplates = async () => {
+            try {
+                const response = await fetchFloorBatchTemplates();
+                const templates = Array.isArray(response)
+                    ? response
+                    : Array.isArray(response?.results)
+                        ? response.results
+                        : [];
+                if (isMounted) {
+                    setFloorBatchTemplates(templates);
+                }
+            } catch (error) {
+                console.error("층별생성 템플릿 불러오기 실패:", error);
+            }
+        };
+
+        loadFloorTemplates();
+        return () => {
+            isMounted = false;
+        };
+    }, []);
 
     const handleAddEvidenceItem = useCallback((type, row) => {
         const parent = evidenceTargetParent || items[0];
@@ -370,15 +517,208 @@ export default function ScheduleMasterList() {
         setImportModalOpen(false);
     };
 
+    const closeFloorBatchSuggestions = useCallback(() => {
+        setFloorBatchSuggestionState({
+            rowId: null,
+            field: null,
+            query: "",
+            activeIndex: 0
+        });
+    }, []);
+
     const handleOpenFloorBatchModal = useCallback((category, categoryItems) => {
         setFloorBatchModal({ category, categoryItems });
         setFloorBatchRange({ min: "", max: "" });
+        setSelectedFloorBatchTemplateId("");
+        setFloorBatchTemplateName(`${String(category || "층별 공정").trim()} 템플릿`);
+        setFloorBatchTemplateRows(deriveFloorBatchTemplateRows(categoryItems));
     }, []);
 
     const handleCloseFloorBatchModal = useCallback(() => {
         setFloorBatchModal(null);
         setFloorBatchRange({ min: "", max: "" });
+        setSelectedFloorBatchTemplateId("");
+        setFloorBatchTemplateName("");
+        setFloorBatchTemplateRows([]);
+        closeFloorBatchSuggestions();
+    }, [closeFloorBatchSuggestions]);
+
+    const handleSelectFloorBatchTemplate = useCallback((templateId) => {
+        setSelectedFloorBatchTemplateId(templateId);
+        if (!templateId) {
+            if (floorBatchModal) {
+                setFloorBatchTemplateName(`${String(floorBatchModal.category || "층별 공정").trim()} 템플릿`);
+                setFloorBatchTemplateRows(deriveFloorBatchTemplateRows(floorBatchModal.categoryItems));
+            }
+            return;
+        }
+
+        const selectedTemplate = floorBatchTemplates.find((template) => String(template.id) === String(templateId));
+        if (!selectedTemplate) return;
+        setFloorBatchTemplateName(selectedTemplate.name || "");
+        setFloorBatchTemplateRows(normalizeFloorBatchTemplateRows(selectedTemplate.rows));
+    }, [floorBatchModal, floorBatchTemplates]);
+
+    const handleChangeFloorBatchTemplateRow = useCallback((rowId, field, value) => {
+        setFloorBatchTemplateRows((prev) => prev.map((row) => (
+            row.id === rowId ? { ...row, [field]: value } : row
+        )));
     }, []);
+
+    const floorBatchSuggestions = useMemo(
+        () => buildStandardSuggestions(standardItems, floorBatchSuggestionState.query),
+        [floorBatchSuggestionState.query, standardItems]
+    );
+
+    const openFloorBatchSuggestions = useCallback((rowId, field, query, anchorElement) => {
+        if (floorBatchSuggestionBlurTimeoutRef.current) {
+            clearTimeout(floorBatchSuggestionBlurTimeoutRef.current);
+            floorBatchSuggestionBlurTimeoutRef.current = null;
+        }
+        floorBatchSuggestionAnchorRef.current = anchorElement || null;
+        setFloorBatchSuggestionState({
+            rowId,
+            field,
+            query,
+            activeIndex: 0
+        });
+    }, []);
+
+    const handleFloorBatchSuggestionBlur = useCallback(() => {
+        floorBatchSuggestionBlurTimeoutRef.current = setTimeout(() => {
+            closeFloorBatchSuggestions();
+        }, 220);
+    }, [closeFloorBatchSuggestions]);
+
+    const handleApplyFloorBatchStandard = useCallback((rowId, std, sourceField) => {
+        if (!rowId || !std) return;
+
+        const processName = std.main_category || "";
+        const workTypeName = std.sub_category || std.work_type_name || "";
+        const productivity = deriveStandardProductivity(std);
+        const tocLabel = String(std.item_name || "").trim();
+        const standardLabel = std.code || std.standard || "";
+        const noteText = tocLabel || "";
+
+        setFloorBatchTemplateRows((prev) => prev.map((row) => {
+            if (row.id !== rowId) return row;
+
+            const nextRow = {
+                ...row,
+                unit: std.unit || row.unit || "",
+                productivity: productivity || 0,
+                standard_code: standardLabel || row.standard_code || "",
+                note: noteText || row.note || "",
+                remarks: noteText || row.remarks || ""
+            };
+
+            if (sourceField === "process") {
+                nextRow.process = processName || row.process || "";
+                nextRow.work_type = workTypeName || row.work_type || "";
+            } else if (sourceField === "work_type") {
+                nextRow.work_type = workTypeName || row.work_type || "";
+            }
+
+            return nextRow;
+        }));
+
+        closeFloorBatchSuggestions();
+    }, [closeFloorBatchSuggestions]);
+
+    const handleFloorBatchSuggestionKeyDown = useCallback((e, rowId, field) => {
+        const isCurrentFieldOpen = floorBatchSuggestionState.rowId === rowId && floorBatchSuggestionState.field === field;
+        if (!isCurrentFieldOpen || floorBatchSuggestions.length === 0) return;
+
+        if (e.key === "ArrowDown") {
+            e.preventDefault();
+            setFloorBatchSuggestionState((prev) => ({
+                ...prev,
+                activeIndex: Math.min(prev.activeIndex + 1, floorBatchSuggestions.length - 1)
+            }));
+            return;
+        }
+
+        if (e.key === "ArrowUp") {
+            e.preventDefault();
+            setFloorBatchSuggestionState((prev) => ({
+                ...prev,
+                activeIndex: Math.max(prev.activeIndex - 1, 0)
+            }));
+            return;
+        }
+
+        if (e.key === "Enter") {
+            const selected = floorBatchSuggestions[floorBatchSuggestionState.activeIndex] || floorBatchSuggestions[0];
+            if (!selected) return;
+            e.preventDefault();
+            handleApplyFloorBatchStandard(rowId, selected, field);
+        }
+    }, [floorBatchSuggestionState, floorBatchSuggestions, handleApplyFloorBatchStandard]);
+
+    const handleAddFloorBatchTemplateRow = useCallback(() => {
+        setFloorBatchTemplateRows((prev) => [...prev, createFloorBatchTemplateRow()]);
+    }, []);
+
+    const handleDeleteFloorBatchTemplateRow = useCallback((rowId) => {
+        setFloorBatchTemplateRows((prev) => prev.filter((row) => row.id !== rowId));
+    }, []);
+
+    const handleLoadCurrentFloorBatchTemplate = useCallback(() => {
+        if (!floorBatchModal) return;
+        setSelectedFloorBatchTemplateId("");
+        setFloorBatchTemplateName(`${String(floorBatchModal.category || "층별 공정").trim()} 템플릿`);
+        setFloorBatchTemplateRows(deriveFloorBatchTemplateRows(floorBatchModal.categoryItems));
+    }, [floorBatchModal]);
+
+    const handleSaveFloorBatchTemplate = useCallback(async () => {
+        const name = String(floorBatchTemplateName || "").trim();
+        if (!name) {
+            toast.error("템플릿 이름을 입력해주세요.");
+            return;
+        }
+
+        const normalizedRows = floorBatchTemplateRows
+            .map((row) => ({
+                ...row,
+                process: String(row.process || "").trim(),
+                work_type: String(row.work_type || "").trim(),
+                unit: String(row.unit || "").trim(),
+                quantity: String(row.quantity ?? "").trim(),
+                productivity: String(row.productivity ?? "").trim(),
+                crew_size: String(row.crew_size ?? "").trim(),
+                note: String(row.note || "").trim(),
+                remarks: String(row.remarks || "").trim(),
+                quantity_formula: String(row.quantity_formula || "").trim(),
+                standard_code: String(row.standard_code || "").trim()
+            }))
+            .filter((row) => row.work_type);
+
+        if (normalizedRows.length === 0) {
+            toast.error("템플릿에는 최소 1개 이상의 세부공종이 필요합니다.");
+            return;
+        }
+
+        const payload = {
+            name,
+            main_category: floorBatchModal?.category || "",
+            rows: normalizedRows
+        };
+        try {
+            const savedTemplate = selectedFloorBatchTemplateId
+                ? await updateFloorBatchTemplate(selectedFloorBatchTemplateId, payload)
+                : await createFloorBatchTemplate(payload);
+
+            setFloorBatchTemplates((prev) => [
+                savedTemplate,
+                ...(Array.isArray(prev) ? prev.filter((template) => template.id !== savedTemplate.id) : [])
+            ]);
+            setSelectedFloorBatchTemplateId(String(savedTemplate.id));
+            toast.success("층별생성 템플릿을 저장했습니다.");
+        } catch (error) {
+            console.error("층별생성 템플릿 저장 실패:", error);
+            toast.error("층별생성 템플릿 저장에 실패했습니다.");
+        }
+    }, [floorBatchModal?.category, floorBatchTemplateName, floorBatchTemplateRows, selectedFloorBatchTemplateId]);
 
     const handleGenerateFloorBatch = useCallback(() => {
         if (!floorBatchModal) return;
@@ -411,6 +751,27 @@ export default function ScheduleMasterList() {
             return;
         }
 
+        const templateRows = floorBatchTemplateRows
+            .map((row) => ({
+                ...row,
+                process: String(row.process || "").trim(),
+                work_type: String(row.work_type || "").trim(),
+                unit: String(row.unit || "").trim(),
+                quantity: String(row.quantity ?? "").trim(),
+                productivity: String(row.productivity ?? "").trim(),
+                crew_size: String(row.crew_size ?? "").trim(),
+                note: String(row.note || "").trim(),
+                remarks: String(row.remarks || "").trim(),
+                quantity_formula: String(row.quantity_formula || "").trim(),
+                standard_code: String(row.standard_code || "").trim()
+            }))
+            .filter((row) => row.work_type);
+
+        if (templateRows.length === 0) {
+            toast.error("일괄생성에 사용할 템플릿 세부공종을 먼저 작성해주세요.");
+            return;
+        }
+
         const { category, categoryItems } = floorBatchModal;
         const lastCategoryItem = categoryItems[categoryItems.length - 1];
         const template = lastCategoryItem || items.find((item) => item.main_category === category);
@@ -420,11 +781,6 @@ export default function ScheduleMasterList() {
         }
 
         const toFloorLabel = (floor) => (floor < 0 ? `지하${Math.abs(floor)}층` : `지상${floor}층`);
-        const isFloorLikeName = (value) => {
-            const raw = String(value || "").trim();
-            if (!raw) return false;
-            return /^(지하|지상)\s*\d+\s*층$/i.test(raw) || /^B\d+F$/i.test(raw) || /^\d+F$/i.test(raw);
-        };
 
         // Use one contiguous block as template.
         // Priority: existing floor block -> current(last) block.
@@ -453,30 +809,6 @@ export default function ScheduleMasterList() {
         const templateBlock = (floorTemplateBlock.length > 0 ? floorTemplateBlock : fallbackTemplateBlock)
             .filter((row) => String(row?.work_type || "").trim().length > 0);
 
-        // Floor batch for framework category must always be created as RC 5-step set.
-        const RC_FLOOR_WORK_TYPES = [
-            "철근 현장가공 및 조립",
-            "유로폼, 합판, 경사 등",
-            "데크플레이트",
-            "콘크리트 펌프차 타설(철근)",
-            "양생"
-        ];
-        const RC_FLOOR_PRESET = {
-            BASEMENT: {
-                "철근 현장가공 및 조립": { unit: "TON", quantity: 75.866, productivity: 4, crew_size: 5 },
-                "유로폼, 합판, 경사 등": { unit: "M2", quantity: 2846, productivity: 35, crew_size: 10 },
-                "데크플레이트": { unit: "M2", quantity: 1083, productivity: 20, crew_size: 6 },
-                "콘크리트 펌프차 타설(철근)": { unit: "M3", quantity: 884, productivity: 156, crew_size: 2 },
-                "양생": { unit: "", quantity: 1, productivity: 1, crew_size: 1 }
-            },
-            GROUND: {
-                "철근 현장가공 및 조립": { unit: "TON", quantity: 44.631, productivity: 4, crew_size: 5 },
-                "유로폼, 합판, 경사 등": { unit: "M2", quantity: 1861, productivity: 35, crew_size: 8 },
-                "데크플레이트": { unit: "M2", quantity: 912, productivity: 20, crew_size: 6 },
-                "콘크리트 펌프차 타설(철근)": { unit: "M3", quantity: 522, productivity: 156, crew_size: 2 },
-                "양생": { unit: "", quantity: 1, productivity: 1, crew_size: 1 }
-            }
-        };
         const normalizeText = (value) => String(value || "").replace(/\s+/g, "").toUpperCase();
         const referenceRows = categoryItems.filter((row) => String(row?.work_type || "").trim().length > 0);
         const fallbackRow = referenceRows[0] || templateBlock[0] || template;
@@ -531,20 +863,21 @@ export default function ScheduleMasterList() {
         floors.forEach((floor, floorIdx) => {
             const floorLabel = toFloorLabel(floor);
             let floorCreated = 0;
-            const floorTypeKey = floor < 0 ? "BASEMENT" : "GROUND";
-            const floorPreset = RC_FLOOR_PRESET[floorTypeKey];
-            const floorTemplate = RC_FLOOR_WORK_TYPES.map((workType) => {
-                const matchedRow = findMatchingRcRow(workType);
+            const floorTemplate = templateRows.map((templateRow) => {
+                const matchedRow = findMatchingRcRow(templateRow.work_type);
                 const sourceRow = matchedRow || fallbackRow;
-                const preset = floorPreset?.[workType] || {};
                 return {
                     ...sourceRow,
-                    process: "RC공사",
-                    work_type: workType,
-                    unit: preset.unit ?? sourceRow.unit ?? "",
-                    quantity: preset.quantity ?? sourceRow.quantity ?? 0,
-                    productivity: preset.productivity ?? sourceRow.productivity ?? 0,
-                    crew_size: preset.crew_size ?? sourceRow.crew_size ?? 1
+                    process: templateRow.process || sourceRow.process || template.process || "",
+                    work_type: templateRow.work_type,
+                    unit: templateRow.unit !== "" ? templateRow.unit : (sourceRow.unit || ""),
+                    quantity: parseTemplateNumber(templateRow.quantity, sourceRow.quantity ?? 0),
+                    productivity: parseTemplateNumber(templateRow.productivity, sourceRow.productivity ?? 0),
+                    crew_size: parseTemplateNumber(templateRow.crew_size, sourceRow.crew_size ?? 1),
+                    note: templateRow.note !== "" ? templateRow.note : (sourceRow.note || ""),
+                    remarks: templateRow.remarks !== "" ? templateRow.remarks : (sourceRow.remarks || ""),
+                    quantity_formula: templateRow.quantity_formula !== "" ? templateRow.quantity_formula : (sourceRow.quantity_formula || ""),
+                    standard_code: templateRow.standard_code !== "" ? templateRow.standard_code : (sourceRow.standard_code || "")
                 };
             });
 
@@ -605,7 +938,7 @@ export default function ScheduleMasterList() {
             toast.success(`${createdFloorCount}개 층 / ${createdRowCount}개 세부공종 생성`);
         }
         handleCloseFloorBatchModal();
-    }, [addItemAtIndex, floorBatchModal, floorBatchRange.max, floorBatchRange.min, handleCloseFloorBatchModal, items]);
+    }, [addItemAtIndex, floorBatchModal, floorBatchRange.max, floorBatchRange.min, floorBatchTemplateRows, handleCloseFloorBatchModal, items]);
 
     const handleSaveAll = async () => {
         console.log("Saving schedule data... ContainerID:", containerId);
@@ -886,38 +1219,227 @@ export default function ScheduleMasterList() {
 
             {floorBatchModal && (
                 <div className="fixed inset-0 z-[500] flex items-center justify-center bg-black/60 backdrop-blur-sm">
-                    <div className="w-[460px] rounded-xl border border-[var(--navy-border-soft)] bg-[var(--navy-surface)] p-6 shadow-2xl">
+                    <div className="w-[1380px] max-w-[99vw] rounded-xl border border-[var(--navy-border-soft)] bg-[var(--navy-surface)] p-6 shadow-2xl">
                         <h3 className="text-lg font-bold text-gray-100">층별 공정 일괄생성</h3>
                         <p className="mt-1 text-sm text-gray-400">
                             대공종: <span className="font-semibold ui-accent-text">{floorBatchModal.category}</span>
                         </p>
 
-                        <div className="mt-4 grid grid-cols-2 gap-3">
-                            <label className="flex flex-col gap-1">
-                                <span className="text-xs font-semibold text-gray-300">최하층</span>
-                                <input
-                                    type="number"
-                                    value={floorBatchRange.min}
-                                    onChange={(e) => setFloorBatchRange((prev) => ({ ...prev, min: e.target.value }))}
-                                    placeholder="예: -3"
-                                    className="ui-input px-3 py-2"
-                                />
-                            </label>
-                            <label className="flex flex-col gap-1">
-                                <span className="text-xs font-semibold text-gray-300">최상층</span>
-                                <input
-                                    type="number"
-                                    value={floorBatchRange.max}
-                                    onChange={(e) => setFloorBatchRange((prev) => ({ ...prev, max: e.target.value }))}
-                                    placeholder="예: 30"
-                                    className="ui-input px-3 py-2"
-                                />
-                            </label>
-                        </div>
+                        <div className="mt-4 grid grid-cols-1 gap-5 lg:grid-cols-[280px_minmax(0,1fr)]">
+                            <div className="space-y-4">
+                                <div className="rounded-lg border border-[var(--navy-border-soft)] bg-[var(--navy-surface-2)] p-4">
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <label className="flex flex-col gap-1">
+                                            <span className="text-xs font-semibold text-gray-300">최하층</span>
+                                            <input
+                                                type="number"
+                                                value={floorBatchRange.min}
+                                                onChange={(e) => setFloorBatchRange((prev) => ({ ...prev, min: e.target.value }))}
+                                                placeholder="예: -3"
+                                                className="ui-input px-3 py-2"
+                                            />
+                                        </label>
+                                        <label className="flex flex-col gap-1">
+                                            <span className="text-xs font-semibold text-gray-300">최상층</span>
+                                            <input
+                                                type="number"
+                                                value={floorBatchRange.max}
+                                                onChange={(e) => setFloorBatchRange((prev) => ({ ...prev, max: e.target.value }))}
+                                                placeholder="예: 30"
+                                                className="ui-input px-3 py-2"
+                                            />
+                                        </label>
+                                    </div>
+                                    <p className="mt-3 text-xs text-gray-400">
+                                        지하는 음수로 입력됩니다. 예: `-3 ~ 30` 입력 시 `지하3층 ~ 지하1층, 지상1층 ~ 지상30층` 생성
+                                    </p>
+                                </div>
 
-                        <p className="mt-3 text-xs text-gray-400">
-                            지하는 음수로 입력됩니다. 예: `-3 ~ 30` 입력 시 `지하3층 ~ 지하1층, 지상1층 ~ 지상30층` 생성
-                        </p>
+                                <div className="rounded-lg border border-[var(--navy-border-soft)] bg-[var(--navy-surface-2)] p-4 space-y-3">
+                                    <div>
+                                        <label className="mb-1 block text-xs font-semibold text-gray-300">저장된 템플릿</label>
+                                        <select
+                                            value={selectedFloorBatchTemplateId}
+                                            onChange={(e) => handleSelectFloorBatchTemplate(e.target.value)}
+                                            className="ui-input w-full px-3 py-2"
+                                        >
+                                            <option value="">현재 대공종 기준 템플릿</option>
+                                            {floorBatchTemplates.map((template) => (
+                                                <option key={template.id} value={template.id}>
+                                                    {template.name}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </div>
+
+                                    <div>
+                                        <label className="mb-1 block text-xs font-semibold text-gray-300">템플릿 이름</label>
+                                        <input
+                                            type="text"
+                                            value={floorBatchTemplateName}
+                                            onChange={(e) => setFloorBatchTemplateName(e.target.value)}
+                                            placeholder="예: RC 기본층 템플릿"
+                                            className="ui-input w-full px-3 py-2"
+                                        />
+                                    </div>
+
+                                    <div className="flex flex-wrap gap-2">
+                                        <button
+                                            type="button"
+                                            onClick={handleLoadCurrentFloorBatchTemplate}
+                                            className="rounded-lg border border-gray-600 px-3 py-2 text-xs font-semibold text-gray-200 hover:bg-[#3b3b4f]"
+                                        >
+                                            현재 공정 불러오기
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={handleSaveFloorBatchTemplate}
+                                            className="rounded-lg border border-blue-500/40 px-3 py-2 text-xs font-semibold text-blue-200 hover:bg-blue-500/10"
+                                        >
+                                            템플릿 저장
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="rounded-lg border border-[var(--navy-border-soft)] bg-[var(--navy-surface-2)] p-4">
+                                <div className="mb-3 flex items-center justify-between">
+                                    <div>
+                                        <h4 className="text-sm font-bold text-gray-100">템플릿 공정</h4>
+                                        <p className="text-xs text-gray-400">행을 편집한 뒤 현재 층 범위에 일괄 생성합니다.</p>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={handleAddFloorBatchTemplateRow}
+                                        className="rounded-lg border border-[var(--navy-border)] px-3 py-2 text-xs font-semibold text-[var(--navy-text)] hover:bg-[var(--navy-surface-3)]"
+                                    >
+                                        행 추가
+                                    </button>
+                                </div>
+
+                                <div className="max-h-[560px] overflow-auto rounded-lg border border-[var(--navy-border-soft)]">
+                                    <table className="w-full min-w-[1280px] text-xs">
+                                        <thead className="sticky top-0 bg-[var(--navy-surface)] text-gray-300">
+                                            <tr>
+                                                <th className="border-b border-[var(--navy-border-soft)] px-2 py-2 text-left">중공종</th>
+                                                <th className="border-b border-[var(--navy-border-soft)] px-2 py-2 text-left">세부공종</th>
+                                                <th className="border-b border-[var(--navy-border-soft)] px-2 py-2 text-left">수량산출(개산)</th>
+                                                <th className="border-b border-[var(--navy-border-soft)] px-2 py-2 text-left">단위</th>
+                                                <th className="border-b border-[var(--navy-border-soft)] px-2 py-2 text-left">내역수량</th>
+                                                <th className="border-b border-[var(--navy-border-soft)] px-2 py-2 text-left">단위작업량</th>
+                                                <th className="border-b border-[var(--navy-border-soft)] px-2 py-2 text-left">투입조</th>
+                                                <th className="border-b border-[var(--navy-border-soft)] px-2 py-2 text-right">삭제</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {floorBatchTemplateRows.map((row) => (
+                                                <tr key={row.id} className="bg-[var(--navy-surface-2)]">
+                                                    <td className="border-b border-[var(--navy-border-soft)] px-2 py-2">
+                                                        <div className="relative">
+                                                            <input
+                                                                type="text"
+                                                                value={row.process}
+                                                                onChange={(e) => {
+                                                                    handleChangeFloorBatchTemplateRow(row.id, "process", e.target.value);
+                                                                    openFloorBatchSuggestions(row.id, "process", e.target.value, e.currentTarget);
+                                                                }}
+                                                                onFocus={(e) => openFloorBatchSuggestions(row.id, "process", row.process || "", e.currentTarget)}
+                                                                onBlur={handleFloorBatchSuggestionBlur}
+                                                                onKeyDown={(e) => handleFloorBatchSuggestionKeyDown(e, row.id, "process")}
+                                                                className="ui-input w-full px-2 py-1.5"
+                                                            />
+                                                            <StandardSuggestList
+                                                                items={floorBatchSuggestions}
+                                                                isOpen={floorBatchSuggestionState.rowId === row.id && floorBatchSuggestionState.field === "process"}
+                                                                activeIndex={floorBatchSuggestionState.activeIndex}
+                                                                onActiveIndexChange={(nextIndex) => setFloorBatchSuggestionState((prev) => ({ ...prev, activeIndex: nextIndex }))}
+                                                                onSelect={(std) => handleApplyFloorBatchStandard(row.id, std, "process")}
+                                                                position="bottom"
+                                                                anchorRef={floorBatchSuggestionAnchorRef}
+                                                            />
+                                                        </div>
+                                                    </td>
+                                                    <td className="border-b border-[var(--navy-border-soft)] px-2 py-2">
+                                                        <div className="relative">
+                                                            <input
+                                                                type="text"
+                                                                value={row.work_type}
+                                                                onChange={(e) => {
+                                                                    handleChangeFloorBatchTemplateRow(row.id, "work_type", e.target.value);
+                                                                    openFloorBatchSuggestions(row.id, "work_type", e.target.value, e.currentTarget);
+                                                                }}
+                                                                onFocus={(e) => openFloorBatchSuggestions(row.id, "work_type", row.work_type || "", e.currentTarget)}
+                                                                onBlur={handleFloorBatchSuggestionBlur}
+                                                                onKeyDown={(e) => handleFloorBatchSuggestionKeyDown(e, row.id, "work_type")}
+                                                                className="ui-input w-full px-2 py-1.5"
+                                                            />
+                                                            <StandardSuggestList
+                                                                items={floorBatchSuggestions}
+                                                                isOpen={floorBatchSuggestionState.rowId === row.id && floorBatchSuggestionState.field === "work_type"}
+                                                                activeIndex={floorBatchSuggestionState.activeIndex}
+                                                                onActiveIndexChange={(nextIndex) => setFloorBatchSuggestionState((prev) => ({ ...prev, activeIndex: nextIndex }))}
+                                                                onSelect={(std) => handleApplyFloorBatchStandard(row.id, std, "work_type")}
+                                                                position="bottom"
+                                                                anchorRef={floorBatchSuggestionAnchorRef}
+                                                            />
+                                                        </div>
+                                                    </td>
+                                                    <td className="border-b border-[var(--navy-border-soft)] px-2 py-2">
+                                                        <input
+                                                            type="text"
+                                                            value={row.quantity_formula}
+                                                            onChange={(e) => handleChangeFloorBatchTemplateRow(row.id, "quantity_formula", e.target.value)}
+                                                            className="ui-input w-full px-2 py-1.5"
+                                                        />
+                                                    </td>
+                                                    <td className="border-b border-[var(--navy-border-soft)] px-2 py-2">
+                                                        <input
+                                                            type="text"
+                                                            value={row.unit}
+                                                            onChange={(e) => handleChangeFloorBatchTemplateRow(row.id, "unit", e.target.value)}
+                                                            className="ui-input w-full px-2 py-1.5"
+                                                        />
+                                                    </td>
+                                                    <td className="border-b border-[var(--navy-border-soft)] px-2 py-2">
+                                                        <input
+                                                            type="number"
+                                                            value={row.quantity}
+                                                            onChange={(e) => handleChangeFloorBatchTemplateRow(row.id, "quantity", e.target.value)}
+                                                            className="ui-input w-full px-2 py-1.5"
+                                                        />
+                                                    </td>
+                                                    <td className="border-b border-[var(--navy-border-soft)] px-2 py-2">
+                                                        <input
+                                                            type="number"
+                                                            value={row.productivity}
+                                                            onChange={(e) => handleChangeFloorBatchTemplateRow(row.id, "productivity", e.target.value)}
+                                                            className="ui-input w-full px-2 py-1.5"
+                                                        />
+                                                    </td>
+                                                    <td className="border-b border-[var(--navy-border-soft)] px-2 py-2">
+                                                        <input
+                                                            type="number"
+                                                            value={row.crew_size}
+                                                            onChange={(e) => handleChangeFloorBatchTemplateRow(row.id, "crew_size", e.target.value)}
+                                                            className="ui-input w-full px-2 py-1.5"
+                                                        />
+                                                    </td>
+                                                    <td className="border-b border-[var(--navy-border-soft)] px-2 py-2 text-right">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleDeleteFloorBatchTemplateRow(row.id)}
+                                                            className="rounded-lg border border-red-500/30 px-2 py-1 text-[11px] font-semibold text-red-200 hover:bg-red-500/10"
+                                                        >
+                                                            삭제
+                                                        </button>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
 
                         <div className="mt-5 flex justify-end gap-2">
                             <button

@@ -292,8 +292,8 @@ const ScheduleTableRow = ({
         }, 220);
     };
 
-    const handleSuggestionSelect = (std) => {
-        if (onApplyStandard) onApplyStandard(item, std);
+    const handleSuggestionSelect = (std, field = activeField) => {
+        if (onApplyStandard) onApplyStandard(item, std, field);
         setActiveField(null);
         setSuggestionField(null);
     };
@@ -312,7 +312,7 @@ const ScheduleTableRow = ({
             if (suggestionField !== activeField) return;
             e.preventDefault();
             const selected = suggestions[activeIndex] || suggestions[0];
-            if (selected) handleSuggestionSelect(selected);
+            if (selected) handleSuggestionSelect(selected, activeField);
         }
     };
 
@@ -466,7 +466,7 @@ const ScheduleTableRow = ({
                             isOpen={!isOverlay && activeField === 'process' && suggestionField === 'process'}
                             activeIndex={activeIndex}
                             onActiveIndexChange={setActiveIndex}
-                            onSelect={handleSuggestionSelect}
+                            onSelect={(std) => handleSuggestionSelect(std, "process")}
                             position="bottom"
                             anchorRef={processInputRef}
                         />
@@ -515,7 +515,7 @@ const ScheduleTableRow = ({
                             isOpen={!isOverlay && activeField === 'sub_process' && suggestionField === 'sub_process'}
                             activeIndex={activeIndex}
                             onActiveIndexChange={setActiveIndex}
-                            onSelect={handleSuggestionSelect}
+                            onSelect={(std) => handleSuggestionSelect(std, "sub_process")}
                             position="bottom"
                             anchorRef={subProcessInputRef}
                         />
@@ -567,7 +567,7 @@ const ScheduleTableRow = ({
                         isOpen={!isOverlay && activeField === 'work_type' && suggestionField === 'work_type'}
                         activeIndex={activeIndex}
                         onActiveIndexChange={setActiveIndex}
-                        onSelect={handleSuggestionSelect}
+                        onSelect={(std) => handleSuggestionSelect(std, "work_type")}
                         position="bottom"
                         anchorRef={workTypeInputRef}
                     />

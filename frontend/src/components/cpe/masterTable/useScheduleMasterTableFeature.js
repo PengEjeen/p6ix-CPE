@@ -191,7 +191,7 @@ export default function useScheduleMasterTableFeature({
         return { productivity: 0, remark: "추천 기준 없음" };
     }, []);
 
-    const handleApplyStandardToRow = useCallback((item, std) => {
+    const handleApplyStandardToRow = useCallback((item, std, sourceField = "process") => {
         if (!item || !std) return;
         const { productivity, remark } = deriveStandardProductivity(std);
         const processName = std.main_category || item.process || "";
@@ -199,9 +199,18 @@ export default function useScheduleMasterTableFeature({
         const workTypeName = std.sub_category || std.work_type_name || item.work_type || "";
         const tocLabel = std.item_name || "";
         const noteText = tocLabel ? `${tocLabel} (${remark})` : (item.note || remark);
-        updateItem(item.id, "process", processName);
-        updateItem(item.id, "sub_process", subProcessName);
-        updateItem(item.id, "work_type", workTypeName);
+
+        if (sourceField === "process") {
+            updateItem(item.id, "process", processName);
+            updateItem(item.id, "sub_process", subProcessName);
+            updateItem(item.id, "work_type", workTypeName);
+        } else if (sourceField === "sub_process") {
+            updateItem(item.id, "sub_process", subProcessName);
+            updateItem(item.id, "work_type", workTypeName);
+        } else if (sourceField === "work_type") {
+            updateItem(item.id, "work_type", workTypeName);
+        }
+
         updateItem(item.id, "unit", std.unit || item.unit || "");
         updateItem(item.id, "productivity", productivity || 0);
         updateItem(item.id, "standard_code", std.code || std.standard || item.standard_code || "");

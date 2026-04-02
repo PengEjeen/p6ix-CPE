@@ -1,5 +1,5 @@
 from django.urls import path
-from .views import operating_rate, project, criteria, calc, quotation, schedule_ai
+from .views import operating_rate, project, criteria, calc, quotation, schedule_ai, floor_batch_template
 
 app_name = 'cpe_module'
 
@@ -10,6 +10,8 @@ urlpatterns = [
     path("project/<str:project_id>/", project.detail_project, name="detail_project"),
     path("project/<str:project_id>/update/", project.update_project, name="update_project"),
     path("project/<str:project_id>/delete/", project.delete_project, name="delete_project"),
+    path("floor-batch-templates/", floor_batch_template.floor_batch_templates, name="floor_batch_templates"),
+    path("floor-batch-templates/<int:template_id>/", floor_batch_template.floor_batch_template_detail, name="floor_batch_template_detail"),
 
     #operating_rate
     path("work-schedule-weights/", operating_rate.get_work_schedule_weights, name="get_work_schedule_weights"),
