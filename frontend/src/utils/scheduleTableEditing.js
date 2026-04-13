@@ -47,6 +47,17 @@ export const isBatchEditableField = (field) => SCHEDULE_BATCH_EDITABLE_FIELDS.in
 
 export const getCellFieldIndex = (field) => SCHEDULE_CELL_NAV_FIELDS.indexOf(field);
 
+export const mapClipboardRowToFields = (rowValues = [], startFieldIndex = 0, visibleCellNavFields = SCHEDULE_CELL_NAV_FIELDS) => {
+    return rowValues.reduce((acc, cellValue, fieldOffset) => {
+        const field = visibleCellNavFields[startFieldIndex + fieldOffset];
+        if (!field || !isBatchEditableField(field)) {
+            return acc;
+        }
+        acc[field] = cellValue;
+        return acc;
+    }, {});
+};
+
 export const normalizeClipboardMatrix = (rawText) => {
     const normalizedText = String(rawText || "").replace(/\r\n/g, "\n").replace(/\r/g, "\n");
     const rows = normalizedText.split("\n");

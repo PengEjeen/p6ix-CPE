@@ -4,6 +4,48 @@ import { saveScheduleData } from "../../../api/cpe_all/construction_schedule";
 import useScheduleMasterTable from "./useScheduleMasterTable";
 import { getCategoryManualTotalDays } from "../../../utils/scheduleCalculations";
 import { getSelectableOperatingRates } from "../../../utils/operatingRateKeys";
+import { deriveStandardProductivity, evaluateStandardMatch } from "../../../utils/standardMatcher";
+
+const createPastedScheduleItem = (sourceItem = {}, index = 0) => {
+    const cpChecked = sourceItem?.cp_checked !== false;
+
+    return {
+        id: `paste-${Date.now()}-${index}-${Math.random().toString(36).slice(2, 8)}`,
+        main_category: sourceItem?.main_category || "기타",
+        process: sourceItem?.process || "",
+        sub_process: sourceItem?.sub_process || "",
+        work_type: sourceItem?.work_type || "",
+        unit: sourceItem?.unit || "",
+        quantity: sourceItem?.quantity ?? "",
+        quantity_formula: sourceItem?.quantity_formula || "",
+        productivity: sourceItem?.productivity ?? "",
+        crew_size: sourceItem?.crew_size ?? 1,
+        note: sourceItem?.note || "",
+        remarks: sourceItem?.remarks || "",
+        standard_code: sourceItem?.standard_code || "",
+        operating_rate_type: sourceItem?.operating_rate_type || "EARTH",
+        operating_rate_value: sourceItem?.operating_rate_value ?? 0,
+        operating_rate_key: sourceItem?.operating_rate_key || "",
+        cp_checked: cpChecked,
+        parallel_rate: sourceItem?.parallel_rate ?? (cpChecked ? 0 : 100),
+        application_rate: sourceItem?.application_rate ?? sourceItem?.parallel_rate ?? 100,
+        reflection_rate: sourceItem?.reflection_rate ?? 100,
+        category_total_days: sourceItem?.category_total_days ?? null
+    };
+};
+
+const buildStandardNoteText = (standard, fallbackNote = "") => {
+    if (!standard) return String(fallbackNote || "");
+
+    const remark = standard?.molit_workload
+        ? "국토부 가이드라인 물량 기준"
+        : standard?.pumsam_workload
+            ? "표준품셈 물량 기준"
+            : "추천 기준 없음";
+    const tocLabel = standard?.item_name || "";
+
+    return tocLabel ? `${tocLabel} (${remark})` : (String(fallbackNote || "") || remark);
+};
 
 export default function useScheduleMasterTableFeature({
     items,
@@ -16,6 +58,7 @@ export default function useScheduleMasterTableFeature({
     confirm,
     addItem,
     addItemAtIndex,
+    insertItemsAtIndex,
     deleteItems,
     reorderItems,
     updateItem,
@@ -30,9 +73,137 @@ export default function useScheduleMasterTableFeature({
     onOpenFloorBatchModal,
     onOpenRowClassEdit,
     onRedo,
-    onUndo
+    onUndo,
+    standardItems = []
 }) {
     const [newMainCategory, setNewMainCategory] = useState("");
+    const buildPasteItems = useCallback((sourceItem, count) => {
+        const safeCount = Math.max(0, Number(count) || 0);
+        return Array.from({ length: safeCount }, (_, index) => createPastedScheduleItem(sourceItem, index));
+    }, []);
+
+    const evaluateStandardForPastedRow = useCallback((row, pastedValuesByField = {}) => {
+        return evaluateStandardMatch({
+            row,
+            standards: standardItems,
+            pastedValuesByField
+        });
+    }, [standardItems]);
+
+    const applyPasteStandardRecommendations = useCallback((pastedRows = []) => {
+        if (!Array.isArray(pastedRows) || pastedRows.length === 0) return;
+
+        const recommendationChanges = [];
+        const highlightedCellKeys = [];
+        let appliedRowCount = 0;
+
+        pastedRows.forEach(({ id, row, changedFields, rawValues, pastedValuesByField }) => {
+            const changedFieldSet = new Set(Array.isArray(changedFields) ? changedFields : []);
+            const changedIdentity = ["process", "sub_process", "work_type", "quantity_formula", "unit"].some(
+                (field) => changedFieldSet.has(field)
+            );
+            const pastedProductivityRaw = String(pastedValuesByField?.productivity ?? "").trim();
+            const pastedCrewSizeRaw = String(pastedValuesByField?.crew_size ?? "").trim();
+            const pastedNoteRaw = String(pastedValuesByField?.note ?? "").trim();
+            const pastedRemarksRaw = String(pastedValuesByField?.remarks ?? "").trim();
+            const normalizedPastedProductivity = pastedProductivityRaw.replace(/,/g, "");
+            const pastedProductivityNumber = Number(normalizedPastedProductivity);
+            const hasNumericPastedProductivity = normalizedPastedProductivity !== ""
+                && Number.isFinite(pastedProductivityNumber);
+            const isNumericLike = (value) => {
+                const normalized = String(value || "").replace(/,/g, "").trim();
+                return normalized !== "" && /^-?\d+(\.\d+)?$/.test(normalized);
+            };
+            const looksLikeShiftedCostColumns = changedIdentity
+                && changedFieldSet.has("productivity")
+                && changedFieldSet.has("crew_size")
+                && (isNumericLike(pastedNoteRaw) || isNumericLike(pastedRemarksRaw))
+                && (isNumericLike(pastedCrewSizeRaw) || pastedCrewSizeRaw === "");
+            // 외부 내역서 행 전체 붙여넣기 시 원가 단가/금액이 productivity 칸으로 들어오는 경우가 많다.
+            // 0 또는 비정상적으로 큰 값(원가성 값)은 "명시 입력"으로 보지 않고 품셈 추천값을 우선 반영한다.
+            const hasMeaningfulProductivityInput = hasNumericPastedProductivity
+                ? pastedProductivityNumber > 0 && pastedProductivityNumber < 1000
+                : pastedProductivityRaw !== "" && pastedProductivityRaw !== "-";
+            const hasExplicitProductivityInput = changedFieldSet.has("productivity")
+                && hasMeaningfulProductivityInput
+                && !looksLikeShiftedCostColumns;
+            const shouldAutoFillProductivity = !hasExplicitProductivityInput;
+
+            if (!id || !changedIdentity) return;
+
+            const evaluation = evaluateStandardForPastedRow(row, pastedValuesByField);
+            const matchedStandard = evaluation.standard;
+
+            console.groupCollapsed(
+                `[paste-standard-match] row=${id} accepted=${evaluation.debug.decision.accepted}`
+            );
+            console.debug("rawValues", rawValues);
+            console.debug("row", row);
+            console.debug("inputs", evaluation.debug.inputs);
+            console.debug("pastedValuesByField", pastedValuesByField);
+            console.debug("decision", evaluation.debug.decision);
+            console.table(
+                evaluation.ranked.slice(0, 5).map((entry, index) => ({
+                    rank: index + 1,
+                    totalScore: Number(entry.totalScore.toFixed(4)),
+                    lexicalScore: Number((entry.lexicalScore || 0).toFixed(4)),
+                    itemNameSimilarity: Number(entry.itemNameSimilarity.toFixed(4)),
+                    categoryScore: Number((entry.categoryScore || 0).toFixed(4)),
+                    specSimilarity: Number(entry.specSimilarity.toFixed(4)),
+                    unitScore: Number(entry.unitScore.toFixed(4)),
+                    numberScore: Number(entry.numberScore.toFixed(4)),
+                    synonymScore: Number(entry.synonymScore.toFixed(4)),
+                    equipmentScore: Number((entry.equipmentScore || 0).toFixed(4)),
+                    hasUnitMismatch: entry.hasUnitMismatch,
+                    hasSpecConflict: entry.hasSpecConflict,
+                    main_category: entry.standard?.main_category || "",
+                    category: entry.standard?.category || entry.standard?.process_name || "",
+                    sub_category: entry.standard?.sub_category || entry.standard?.work_type_name || "",
+                    item_name: entry.standard?.item_name || "",
+                    standard: entry.standard?.standard || "",
+                    unit: entry.standard?.unit || ""
+                }))
+            );
+            console.groupEnd();
+
+            if (!matchedStandard) return;
+
+            const { productivity } = deriveStandardProductivity(matchedStandard);
+            if (shouldAutoFillProductivity && productivity !== "" && productivity !== null && productivity !== undefined) {
+                recommendationChanges.push({
+                    id,
+                    field: "productivity",
+                    value: productivity
+                });
+                highlightedCellKeys.push(`${id}::productivity`);
+            }
+
+            if (!changedFieldSet.has("note")) {
+                const noteText = buildStandardNoteText(matchedStandard, row?.note || "");
+                recommendationChanges.push({
+                    id,
+                    field: "note",
+                    value: noteText
+                });
+                highlightedCellKeys.push(`${id}::note`);
+                recommendationChanges.push({
+                    id,
+                    field: "remarks",
+                    value: noteText
+                });
+            }
+
+            if (shouldAutoFillProductivity || !changedFieldSet.has("note")) {
+                appliedRowCount += 1;
+            }
+        });
+
+        if (recommendationChanges.length === 0 || appliedRowCount === 0) return [];
+
+        applyItemFieldChanges(recommendationChanges);
+        toast.success(`${appliedRowCount}개 행에 품셈 단위 작업량과 비고를 반영했습니다.`);
+        return highlightedCellKeys;
+    }, [applyItemFieldChanges, evaluateStandardForPastedRow]);
 
     const controller = useScheduleMasterTable({
         items,
@@ -40,7 +211,10 @@ export default function useScheduleMasterTableFeature({
         reorderItems,
         updateItem,
         updateItemsField,
-        applyItemFieldChanges
+        applyItemFieldChanges,
+        applyPasteStandardRecommendations,
+        buildPasteItems,
+        insertItemsAtIndex
     });
 
     const {
@@ -181,24 +355,13 @@ export default function useScheduleMasterTableFeature({
         );
     }, [items, updateItemsField]);
 
-    const deriveStandardProductivity = useCallback((std) => {
-        if (std?.molit_workload) {
-            return { productivity: std.molit_workload, remark: "국토부 가이드라인 물량 기준" };
-        }
-        if (std?.pumsam_workload) {
-            return { productivity: std.pumsam_workload, remark: "표준품셈 물량 기준" };
-        }
-        return { productivity: 0, remark: "추천 기준 없음" };
-    }, []);
-
     const handleApplyStandardToRow = useCallback((item, std, sourceField = "process") => {
         if (!item || !std) return;
         const { productivity, remark } = deriveStandardProductivity(std);
         const processName = std.main_category || item.process || "";
         const subProcessName = std.category || std.process_name || item.sub_process || "";
         const workTypeName = std.sub_category || std.work_type_name || item.work_type || "";
-        const tocLabel = std.item_name || "";
-        const noteText = tocLabel ? `${tocLabel} (${remark})` : (item.note || remark);
+        const noteText = buildStandardNoteText(std, item.note || remark);
 
         if (sourceField === "process") {
             updateItem(item.id, "process", processName);
@@ -216,7 +379,7 @@ export default function useScheduleMasterTableFeature({
         updateItem(item.id, "standard_code", std.code || std.standard || item.standard_code || "");
         updateItem(item.id, "note", noteText);
         updateItem(item.id, "remarks", noteText);
-    }, [deriveStandardProductivity, updateItem]);
+    }, [updateItem]);
 
     const handleDeleteItem = useCallback(async (id) => {
         const ok = await confirm("삭제하시겠습니까?");

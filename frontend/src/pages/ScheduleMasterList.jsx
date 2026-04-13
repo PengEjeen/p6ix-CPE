@@ -153,6 +153,7 @@ export default function ScheduleMasterList() {
     const applyItemFieldChanges = useScheduleStore((state) => state.applyItemFieldChanges);
     const addItem = useScheduleStore((state) => state.addItem);
     const addItemAtIndex = useScheduleStore((state) => state.addItemAtIndex);
+    const insertItemsAtIndex = useScheduleStore((state) => state.insertItemsAtIndex);
     const deleteItems = useScheduleStore((state) => state.deleteItems);
     const reorderItems = useScheduleStore((state) => state.reorderItems);
     const addSubTask = useScheduleStore((state) => state.addSubTask);
@@ -1090,6 +1091,7 @@ export default function ScheduleMasterList() {
                             confirm={confirm}
                             addItem={addItem}
                             addItemAtIndex={addItemAtIndex}
+                            insertItemsAtIndex={insertItemsAtIndex}
                             deleteItems={deleteItems}
                             reorderItems={reorderItems}
                             updateItem={updateItem}

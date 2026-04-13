@@ -283,6 +283,14 @@ export const useScheduleStore = create(
                 state.items.splice(index, 0, calculated);
             }),
 
+            insertItemsAtIndex: (newItems, index) => set((state) => {
+                if (!Array.isArray(newItems) || newItems.length === 0) return;
+                const calculatedItems = newItems.map((item) => (
+                    calculateItem(item, state.operatingRates, state.workDayType)
+                ));
+                state.items.splice(index, 0, ...calculatedItems);
+            }),
+
             deleteItem: (id) => set((state) => {
                 state.items = state.items.filter(i => i.id !== id);
                 state.links = state.links.filter(l => l.from !== id && l.to !== id);

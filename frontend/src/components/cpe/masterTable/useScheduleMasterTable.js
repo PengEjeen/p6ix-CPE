@@ -4,6 +4,7 @@ import { PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
 import { useDragHandlers } from "../../../hooks/useDragHandlers";
 import {
     isBatchEditableField,
+    mapClipboardRowToFields,
     normalizeClipboardMatrix,
     parseScheduleCellValue,
     SCHEDULE_CELL_NAV_FIELDS
@@ -21,7 +22,10 @@ export default function useScheduleMasterTable({
     reorderItems,
     updateItem,
     updateItemsField,
-    applyItemFieldChanges
+    applyItemFieldChanges,
+    applyPasteStandardRecommendations,
+    buildPasteItems,
+    insertItemsAtIndex
 }) {
     const [selectedItemIds, setSelectedItemIds] = useState([]);
     const [activeEditingItemId, setActiveEditingItemId] = useState(null);
@@ -36,6 +40,7 @@ export default function useScheduleMasterTable({
     const [isTablePointerInside, setIsTablePointerInside] = useState(false);
     const [isTableFocusInside, setIsTableFocusInside] = useState(false);
     const [invalidCellKeys, setInvalidCellKeys] = useState(() => new Set());
+    const [autoAppliedCellKeys, setAutoAppliedCellKeys] = useState(() => new Set());
     const [tableHeaderHeight, setTableHeaderHeight] = useState(44);
     const [tableToolbarHeight, setTableToolbarHeight] = useState(72);
     const [visibleColumnKeys, setVisibleColumnKeys] = useState(() => {
@@ -75,6 +80,7 @@ export default function useScheduleMasterTable({
     const cellSelectionPointerRef = useRef({ x: 0, y: 0 });
     const cellSelectionAutoScrollFrameRef = useRef(null);
     const invalidCellTimeoutRef = useRef(null);
+    const autoAppliedCellTimeoutRef = useRef(null);
 
     const selectedIdSet = useMemo(() => new Set(selectedItemIds), [selectedItemIds]);
     const visibleColumnKeySet = useMemo(() => new Set(visibleColumnKeys), [visibleColumnKeys]);
@@ -448,6 +454,18 @@ export default function useScheduleMasterTable({
         }, 2600);
     }, []);
 
+    const highlightAutoAppliedCells = useCallback((keys) => {
+        if (!Array.isArray(keys) || keys.length === 0) return;
+        setAutoAppliedCellKeys(new Set(keys));
+        if (autoAppliedCellTimeoutRef.current) {
+            window.clearTimeout(autoAppliedCellTimeoutRef.current);
+        }
+        autoAppliedCellTimeoutRef.current = window.setTimeout(() => {
+            setAutoAppliedCellKeys(new Set());
+            autoAppliedCellTimeoutRef.current = null;
+        }, 4200);
+    }, []);
+
     const applyValidatedFieldChanges = useCallback((rawChanges, successMessage) => {
         if (!Array.isArray(rawChanges) || rawChanges.length === 0) return false;
 
@@ -608,6 +626,13 @@ export default function useScheduleMasterTable({
         if (hasInvalidInSpan) {
             classNames.push("schedule-cell-invalid");
         }
+        const hasAutoAppliedInSpan = targetRowIndex !== undefined && Array.from({ length: rowSpan }).some((_, offset) => {
+            const targetItem = visibleItems[targetRowIndex + offset];
+            return targetItem ? autoAppliedCellKeys.has(`${targetItem.id}::${field}`) : false;
+        });
+        if (hasAutoAppliedInSpan) {
+            classNames.push("schedule-cell-auto-applied");
+        }
 
         if (
             !bounds
@@ -624,7 +649,7 @@ export default function useScheduleMasterTable({
         classNames.push("schedule-cell-selected");
 
         return classNames.join(" ");
-    }, [activeCell, getCellSelectionBounds, getVisibleCellFieldIndex, invalidCellKeys, visibleItemIndexMap, visibleItems]);
+    }, [activeCell, autoAppliedCellKeys, getCellSelectionBounds, getVisibleCellFieldIndex, invalidCellKeys, visibleItemIndexMap, visibleItems]);
 
     const selectAllCells = useCallback(() => {
         if (visibleItems.length === 0) return false;
@@ -772,13 +797,45 @@ export default function useScheduleMasterTable({
             : getVisibleCellFieldIndex(field);
         if (startRowIndex === -1 || startFieldIndex === -1) return false;
 
+        let targetVisibleItems = visibleItems;
+        let insertedRowCount = 0;
+        const missingRowCount = Math.max(0, startRowIndex + matrix.length - targetVisibleItems.length);
+
+        if (missingRowCount > 0 && typeof buildPasteItems === "function" && typeof insertItemsAtIndex === "function") {
+            const sourceItem = targetVisibleItems[Math.min(startRowIndex, targetVisibleItems.length - 1)];
+            const nextItems = buildPasteItems(sourceItem, missingRowCount);
+            if (nextItems.length > 0) {
+                const lastVisibleItem = targetVisibleItems[targetVisibleItems.length - 1];
+                const insertIndex = lastVisibleItem
+                    ? items.findIndex((item) => item.id === lastVisibleItem.id) + 1
+                    : items.length;
+                insertItemsAtIndex(nextItems, insertIndex);
+                targetVisibleItems = [...targetVisibleItems, ...nextItems];
+                insertedRowCount = nextItems.length;
+            }
+        }
+
         const changes = [];
+        const pastedRowsById = new Map();
         matrix.forEach((rowValues, rowOffset) => {
-            const targetItem = visibleItems[startRowIndex + rowOffset];
+            const targetItem = targetVisibleItems[startRowIndex + rowOffset];
             if (!targetItem) return;
             rowValues.forEach((cellValue, fieldOffset) => {
                 const targetField = visibleCellNavFields[startFieldIndex + fieldOffset];
                 if (!targetField || !isBatchEditableField(targetField)) return;
+                if (!pastedRowsById.has(targetItem.id)) {
+                    pastedRowsById.set(targetItem.id, {
+                        id: targetItem.id,
+                        row: { ...targetItem },
+                        changedFields: new Set(),
+                        rawValues: [...rowValues],
+                        pastedValuesByField: mapClipboardRowToFields(rowValues, startFieldIndex, visibleCellNavFields)
+                    });
+                }
+                const pastedRow = pastedRowsById.get(targetItem.id);
+                pastedRow.row[targetField] = cellValue;
+                pastedRow.pastedValuesByField[targetField] = cellValue;
+                pastedRow.changedFields.add(targetField);
                 changes.push({
                     id: targetItem.id,
                     field: targetField,
@@ -789,21 +846,33 @@ export default function useScheduleMasterTable({
 
         const applied = applyValidatedFieldChanges(
             changes,
-            `${changes.length}개 셀에 붙여넣기했습니다.`
+            insertedRowCount > 0
+                ? `${changes.length}개 셀에 붙여넣기했습니다. (${insertedRowCount}개 행 추가)`
+                : `${changes.length}개 셀에 붙여넣기했습니다.`
         );
 
         if (applied) {
-            const endRowIndex = Math.min(startRowIndex + matrix.length - 1, visibleItems.length - 1);
+            if (typeof applyPasteStandardRecommendations === "function" && pastedRowsById.size > 0) {
+                const autoAppliedKeys = applyPasteStandardRecommendations(
+                    Array.from(pastedRowsById.values()).map((entry) => ({
+                        ...entry,
+                        changedFields: Array.from(entry.changedFields)
+                    }))
+                );
+                highlightAutoAppliedCells(autoAppliedKeys);
+            }
+
+            const endRowIndex = Math.min(startRowIndex + matrix.length - 1, targetVisibleItems.length - 1);
             const endFieldIndex = Math.min(
                 startFieldIndex + Math.max(...matrix.map((row) => row.length), 1) - 1,
                 visibleCellNavFields.length - 1
             );
-            const lastTargetItem = visibleItems[endRowIndex];
+            const lastTargetItem = targetVisibleItems[endRowIndex];
             const lastTargetField = visibleCellNavFields[endFieldIndex];
             if (lastTargetItem && lastTargetField) {
                 setCellSelectionRange({
                     anchor: {
-                        itemId: visibleItems[startRowIndex].id,
+                        itemId: targetVisibleItems[startRowIndex].id,
                         field: visibleCellNavFields[startFieldIndex]
                     },
                     focus: {
@@ -817,10 +886,15 @@ export default function useScheduleMasterTable({
         return applied;
     }, [
         applyValidatedFieldChanges,
+        applyPasteStandardRecommendations,
         focusCellElement,
         getCellSelectionBounds,
         isCellSelected,
         getVisibleCellFieldIndex,
+        highlightAutoAppliedCells,
+        buildPasteItems,
+        insertItemsAtIndex,
+        items,
         visibleCellNavFields,
         visibleItems,
         visibleSelectedItemIds
@@ -959,6 +1033,10 @@ export default function useScheduleMasterTable({
         if (invalidCellTimeoutRef.current) {
             window.clearTimeout(invalidCellTimeoutRef.current);
             invalidCellTimeoutRef.current = null;
+        }
+        if (autoAppliedCellTimeoutRef.current) {
+            window.clearTimeout(autoAppliedCellTimeoutRef.current);
+            autoAppliedCellTimeoutRef.current = null;
         }
     }, []);
 

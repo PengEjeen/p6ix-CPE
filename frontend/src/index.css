@@ -418,8 +418,19 @@ code {
     z-index: 4;
   }
 
+  .schedule-cell-auto-applied {
+    position: relative;
+    box-shadow: inset 0 0 0 2px rgb(45 212 191 / 0.95);
+    background: color-mix(in srgb, rgb(45 212 191 / 0.22) 100%, transparent);
+    z-index: 3;
+  }
+
   .schedule-cell-selected.schedule-cell-invalid {
     background: color-mix(in srgb, rgb(248 113 113 / 0.16) 55%, var(--table-editable-focus-fill));
+  }
+
+  .schedule-cell-selected.schedule-cell-auto-applied {
+    background: color-mix(in srgb, rgb(45 212 191 / 0.18) 45%, var(--table-editable-focus-fill));
   }
 
   .schedule-row-active > td {
