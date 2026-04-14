@@ -4,7 +4,7 @@ WORKDIR /app/frontend
 
 # 의존성 먼저 복사 → 캐시
 COPY frontend/package*.json ./
-RUN npm ci
+RUN npm ci --legacy-peer-deps
 
 # Build-time frontend envs (public Vite vars)
 ARG VITE_API_BASE=/api
