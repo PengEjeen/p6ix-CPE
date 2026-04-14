@@ -1,5 +1,5 @@
 import React from "react";
-import { Undo2, Redo2, History } from "lucide-react";
+import { Undo2, Redo2, History, Maximize2, Minimize2 } from "lucide-react";
 import SaveButton from "../SaveButton";
 
 export default function ScheduleHeader({
@@ -18,7 +18,10 @@ export default function ScheduleHeader({
     saving,
     totalCalendarDays,
     totalCalendarMonths,
-    onExportExcel
+    onExportExcel,
+    showFullscreenToggle = false,
+    isFullscreen = false,
+    onToggleFullscreen
 }) {
     return (
         <div className="flex justify-between items-end mb-4 flex-shrink-0">
@@ -44,6 +47,15 @@ export default function ScheduleHeader({
                             onClick={() => onViewModeChange("gantt")}
                         >
                             간트차트
+                        </button>
+                        <button
+                            className={`ui-tab ${viewMode === "weight"
+                                ? "ui-tab-active"
+                                : ""
+                                }`}
+                            onClick={() => onViewModeChange("weight")}
+                        >
+                            보할표
                         </button>
                     </div>
                 </div>
@@ -93,6 +105,17 @@ export default function ScheduleHeader({
                 >
                     엑셀 내보내기
                 </button>
+                {showFullscreenToggle && (
+                    <button
+                        type="button"
+                        onClick={onToggleFullscreen}
+                        className="ui-btn-secondary inline-flex items-center gap-1.5"
+                        title={isFullscreen ? "전체화면 해제" : "전체화면"}
+                    >
+                        {isFullscreen ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
+                        {isFullscreen ? "전체화면 해제" : "전체화면"}
+                    </button>
+                )}
                 <SaveButton onSave={onSave} saving={saving} />
                 <div className="ml-2 px-4 py-2 rounded-xl bg-[var(--navy-bg)] border border-[var(--navy-border)] text-sm text-[var(--navy-text)]">
                     <span className="text-[var(--navy-text-muted)] mr-2">전체 기간</span>

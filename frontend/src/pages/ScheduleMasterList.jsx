@@ -18,12 +18,15 @@ import EvidenceResultModal from "../components/cpe/schedule/EvidenceResultModal"
 import SnapshotManager from "../components/cpe/schedule/SnapshotManager";
 import ScheduleMasterTablePage from "../components/cpe/masterTable/ScheduleMasterTablePage";
 import StandardSuggestList from "../components/cpe/masterTable/StandardSuggestList";
+import WeightSchedulePage from "../components/cpe/schedule/WeightSchedulePage";
 
 import { useScheduleStore } from "../stores/scheduleStore";
 import { useConfirm } from "../contexts/ConfirmContext";
 import { useScheduleData } from "../hooks/useScheduleData";
 import useScheduleMasterGantt from "../hooks/useScheduleMasterGantt";
+import useWeightScheduleData from "../hooks/useWeightScheduleData";
 import { calculateTotalCalendarDays, calculateTotalCalendarMonths } from "../utils/scheduleCalculations";
+import { calculateGanttItems } from "../components/cpe/ganttUtils";
 import { fetchProductivities } from "../api/cpe_all/productivity";
 
 const DEFAULT_RC_FLOOR_TEMPLATE_ROWS = [
@@ -132,6 +135,7 @@ const deriveStandardProductivity = (std) => {
 
 export default function ScheduleMasterList() {
     const { id: projectId } = useParams();
+    const pageContainerRef = useRef(null);
 
     // Store Integration
     const items = useScheduleStore((state) => state.items);
@@ -274,6 +278,19 @@ export default function ScheduleMasterList() {
     const totalCalendarDays = useMemo(() => calculateTotalCalendarDays(items), [items]);
     const totalCalendarMonths = useMemo(() => calculateTotalCalendarMonths(totalCalendarDays), [totalCalendarDays]);
 
+    // calculateGanttItems로 startDay/durationDays가 정확히 계산된 items 사용
+    // raw items는 _startDay가 없어서 모두 day 0으로 처리되는 버그 방지
+    const ganttTimedItems = useMemo(() => calculateGanttItems(items).itemsWithTiming, [items]);
+
+    // 보할공정표 데이터 (S-커브 공유) — items로 활성 공종 수 가중해서 S자 분포 생성
+    const { monthlyData: weightMonthlyData, totalWorking: weightTotalWorking } = useWeightScheduleData({
+        startDate,
+        totalCalendarDays,
+        workDayType,
+        operatingRates,
+        items: ganttTimedItems,
+    });
+
     // Local State
     const [evidenceModalOpen, setEvidenceModalOpen] = useState(false);
     const [evidenceTargetParent, setEvidenceTargetParent] = useState(null);
@@ -282,6 +299,7 @@ export default function ScheduleMasterList() {
     const [snapshotModalOpen, setSnapshotModalOpen] = useState(false);
     const [importTargetParent, setImportTargetParent] = useState(null);
     const [viewMode, setViewMode] = useState("table"); // "table" or "gantt"
+    const [isPageFullscreen, setIsPageFullscreen] = useState(false);
     const [standardItems, setStandardItems] = useState([]);
     const [rowClassEditModal, setRowClassEditModal] = useState({
         open: false,
@@ -304,6 +322,16 @@ export default function ScheduleMasterList() {
     const startDateRequestRef = useRef(0);
     const floorBatchSuggestionBlurTimeoutRef = useRef(null);
     const floorBatchSuggestionAnchorRef = useRef(null);
+
+    useEffect(() => {
+        const handleFullscreenChange = () => {
+            setIsPageFullscreen(document.fullscreenElement === pageContainerRef.current);
+        };
+        document.addEventListener("fullscreenchange", handleFullscreenChange);
+        return () => {
+            document.removeEventListener("fullscreenchange", handleFullscreenChange);
+        };
+    }, []);
 
     const {
         handleCreateSubtask,
@@ -1034,12 +1062,30 @@ export default function ScheduleMasterList() {
         }
     }, [projectId, setStartDate, startDate]);
 
+    const handleTogglePageFullscreen = useCallback(async () => {
+        try {
+            if (document.fullscreenElement === pageContainerRef.current) {
+                await document.exitFullscreen();
+                return;
+            }
+            if (document.fullscreenElement) {
+                await document.exitFullscreen();
+            }
+            if (pageContainerRef.current?.requestFullscreen) {
+                await pageContainerRef.current.requestFullscreen();
+            }
+        } catch (error) {
+            console.error("전체화면 전환 실패:", error);
+            toast.error("전체화면 전환에 실패했습니다.");
+        }
+    }, []);
+
     if (loading) return <div className="p-8 flex justify-center items-center h-full">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[var(--navy-accent)]"></div>
     </div>;
 
     return (
-        <div className="h-screen w-full flex flex-col bg-[var(--navy-bg)] overflow-hidden text-[var(--navy-text)]">
+        <div ref={pageContainerRef} className="h-screen w-full flex flex-col bg-[var(--navy-bg)] overflow-hidden text-[var(--navy-text)]">
             {/* Header Section (Fixed) */}
             <div className="flex-none w-full max-w-[2400px] mx-auto p-6 pb-2">
                 <ScheduleHeader
@@ -1059,6 +1105,9 @@ export default function ScheduleMasterList() {
                     totalCalendarDays={totalCalendarDays}
                     totalCalendarMonths={totalCalendarMonths}
                     onExportExcel={handleExportExcel}
+                    showFullscreenToggle={true}
+                    isFullscreen={isPageFullscreen}
+                    onToggleFullscreen={handleTogglePageFullscreen}
                 />
             </div>
 
@@ -1078,7 +1127,19 @@ export default function ScheduleMasterList() {
                             onCreateSubtask={handleCreateSubtask}
                             onUpdateSubtask={handleUpdateSubtask}
                             onDeleteSubtask={handleDeleteSubtask}
+                            monthlyData={weightMonthlyData}
+                            totalWorking={weightTotalWorking}
                         />
+                    ) : viewMode === "weight" ? (
+                        <div className="flex-1 min-h-0 overflow-y-auto">
+                            <WeightSchedulePage
+                                startDate={startDate}
+                                totalCalendarDays={totalCalendarDays}
+                                workDayType={workDayType}
+                                operatingRates={operatingRates}
+                                items={items}
+                            />
+                        </div>
                     ) : (
                         <ScheduleMasterTablePage
                             items={items}

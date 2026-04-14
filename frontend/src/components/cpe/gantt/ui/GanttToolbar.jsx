@@ -92,7 +92,8 @@ export default function GanttToolbar({
                 </div>
             </div>
 
-            <div className="flex items-center gap-3 bg-gray-50 p-1 rounded-lg border border-gray-100">
+            <div className="flex items-center gap-2">
+                <div className="flex items-center gap-3 bg-gray-50 p-1 rounded-lg border border-gray-100">
                 {SCALE_OPTIONS.map(scale => (
                     <button
                         key={scale}
@@ -105,6 +106,7 @@ export default function GanttToolbar({
                         {scale === 1 ? '일별' : scale === 30 ? '월별' : `${scale}일 단위`}
                     </button>
                 ))}
+                </div>
             </div>
         </div>
     );

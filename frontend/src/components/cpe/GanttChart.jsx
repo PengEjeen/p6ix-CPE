@@ -14,6 +14,7 @@ import { buildMoveUpdatesByDelta } from "./gantt/utils/moveUpdates";
 import { useAutoScale } from "./gantt/hooks/useAutoScale";
 import GanttToolbar from "./gantt/ui/GanttToolbar";
 import LinkEditorPopover from "./gantt/ui/LinkEditorPopover";
+import SCurveOverlay from "./gantt/ui/SCurveOverlay";
 import { buildParallelStateFromSegments, deriveParallelMeta, getParallelSegmentsFromItem } from "../../utils/parallelSegments";
 import toast from "react-hot-toast";
 
@@ -202,7 +203,9 @@ export default function GanttChart({
     onCreateSubtask,
     onUpdateSubtask,
     onDeleteSubtask,
-    readOnly = false
+    readOnly = false,
+    monthlyData = [],
+    totalWorking = 0,
 }) {
     const pixelsPerUnit = 40;
     const setGanttDateScale = useScheduleStore((state) => state.setGanttDateScale);
@@ -993,42 +996,55 @@ export default function GanttChart({
                             dateScale={dateScale}
                         />
 
-                        {/* Chart Area */}
-                        <GanttChartArea
-                            timeline={timeline}
-                            dailyLoads={dailyLoads}
-                            pixelsPerUnit={pixelsPerUnit}
-                            dateScale={dateScale}
-                            itemsWithTiming={itemsWithTiming}
-                            links={visibleLinks}
-                            categoryMilestones={categoryMilestones}
-                            onBarDragStart={handleBarDrag}
-                            onBarDragPreview={handleBarDragPreview}
-                            onBarDragEnd={handleBarDragEnd}
-                            onBarResize={handleBarResize}
-                            onBarResizing={handleBarResizing}
-                            setPopoverState={setPopover}
-                            selectedItemIds={selectedItemIds}
-                            onItemClick={handleItemClick}
-                            onSelectionChange={handleBoxSelection}
-                            onGroupDrag={handleGroupDrag}
-                            onGroupDragPreview={handleGroupDragPreview}
-                            onGroupDragEnd={handleGroupDragEnd}
-                            onMoveSubtasks={moveSubTasks}
-                            linkMode={canEdit ? linkMode : false}
-                            onLinkAnchorClick={handleLinkAnchorClick}
-                            onLinkClick={canEdit ? handleLinkClick : undefined}
-                            selectedLinkId={canEdit ? selectedLinkId : null}
-                            onCreateLink={handleCreateLink}
-                            subtaskMode={canEdit ? subtaskMode : false}
-                            subTasks={subTasks}
-                            selectedSubtaskIds={selectedSubtaskIds}
-                            onSelectSubtask={handleSubtaskSelect}
-                            onCreateSubtask={handleCreateSubtask}
-                            onUpdateSubtask={handleUpdateSubtask}
-                            onDeleteSubtask={handleDeleteSubtask}
-                            readOnly={!canEdit}
-                        />
+                        {/* Chart Area + S-커브 오버레이 */}
+                        <div className="relative">
+                            <GanttChartArea
+                                timeline={timeline}
+                                dailyLoads={dailyLoads}
+                                pixelsPerUnit={pixelsPerUnit}
+                                dateScale={dateScale}
+                                itemsWithTiming={itemsWithTiming}
+                                links={visibleLinks}
+                                categoryMilestones={categoryMilestones}
+                                onBarDragStart={handleBarDrag}
+                                onBarDragPreview={handleBarDragPreview}
+                                onBarDragEnd={handleBarDragEnd}
+                                onBarResize={handleBarResize}
+                                onBarResizing={handleBarResizing}
+                                setPopoverState={setPopover}
+                                selectedItemIds={selectedItemIds}
+                                onItemClick={handleItemClick}
+                                onSelectionChange={handleBoxSelection}
+                                onGroupDrag={handleGroupDrag}
+                                onGroupDragPreview={handleGroupDragPreview}
+                                onGroupDragEnd={handleGroupDragEnd}
+                                onMoveSubtasks={moveSubTasks}
+                                linkMode={canEdit ? linkMode : false}
+                                onLinkAnchorClick={handleLinkAnchorClick}
+                                onLinkClick={canEdit ? handleLinkClick : undefined}
+                                selectedLinkId={canEdit ? selectedLinkId : null}
+                                onCreateLink={handleCreateLink}
+                                subtaskMode={canEdit ? subtaskMode : false}
+                                subTasks={subTasks}
+                                selectedSubtaskIds={selectedSubtaskIds}
+                                onSelectSubtask={handleSubtaskSelect}
+                                onCreateSubtask={handleCreateSubtask}
+                                onUpdateSubtask={handleUpdateSubtask}
+                                onDeleteSubtask={handleDeleteSubtask}
+                                readOnly={!canEdit}
+                            />
+
+                            {monthlyData.length > 0 && (
+                                <SCurveOverlay
+                                    monthlyData={monthlyData}
+                                    startDate={startDate}
+                                    pixelsPerUnit={pixelsPerUnit}
+                                    dateScale={dateScale}
+                                    totalWidth={Math.ceil(totalDays / dateScale) * pixelsPerUnit}
+                                    totalWorking={totalWorking}
+                                />
+                            )}
+                        </div>
 
                     </div>
                 </div>
