@@ -37,21 +37,6 @@ export default function SCurveChart({ monthlyData, todayPct, todayLabel, width =
         return d;
     }, [monthlyData, W, H]);
 
-    // 채우기 path (area under curve)
-    const areaPath = useMemo(() => {
-        if (!monthlyData.length) return "";
-        const pts = monthlyData.map((d, i) => [xOf(i), yOf(d.pct)]);
-        let d = `M ${pts[0][0]} ${H} L ${pts[0][0]} ${pts[0][1]}`;
-        for (let i = 1; i < pts.length; i++) {
-            const [x0, y0] = pts[i - 1];
-            const [x1, y1] = pts[i];
-            const cpx = (x0 + x1) / 2;
-            d += ` C ${cpx} ${y0} ${cpx} ${y1} ${x1} ${y1}`;
-        }
-        d += ` L ${pts[pts.length - 1][0]} ${H} Z`;
-        return d;
-    }, [monthlyData, W, H]);
-
     // X축 레이블: 최대 8개 표시
     const xLabels = useMemo(() => {
         if (!n) return [];
@@ -75,10 +60,6 @@ export default function SCurveChart({ monthlyData, todayPct, todayLabel, width =
     return (
         <svg width={width} height={height} className="overflow-visible">
             <defs>
-                <linearGradient id="scurve-fill" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.25" />
-                    <stop offset="100%" stopColor="#3b82f6" stopOpacity="0.03" />
-                </linearGradient>
                 <clipPath id="scurve-clip">
                     <rect x="0" y="0" width={W} height={H} />
                 </clipPath>
@@ -94,11 +75,6 @@ export default function SCurveChart({ monthlyData, todayPct, todayLabel, width =
                         </text>
                     </g>
                 ))}
-
-                {/* 채우기 영역 */}
-                {areaPath && (
-                    <path d={areaPath} fill="url(#scurve-fill)" clipPath="url(#scurve-clip)" />
-                )}
 
                 {/* S 커브 선 */}
                 {linePath && (

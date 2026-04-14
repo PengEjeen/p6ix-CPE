@@ -72,21 +72,6 @@ export default function SCurveOverlay({ monthlyData, startDate, pixelsPerUnit, d
         return d;
     }, [points, startPoint]);
 
-    // 채우기 path
-    const areaPath = useMemo(() => {
-        if (!points.length || !startPoint) return "";
-        const all = [startPoint, ...points];
-        let d = `M ${all[0].x} ${PAD_TOP + INNER_H} L ${all[0].x} ${all[0].y}`;
-        for (let i = 1; i < all.length; i++) {
-            const [x0, y0] = [all[i - 1].x, all[i - 1].y];
-            const [x1, y1] = [all[i].x, all[i].y];
-            const cpx = (x0 + x1) / 2;
-            d += ` C ${cpx} ${y0} ${cpx} ${y1} ${x1} ${y1}`;
-        }
-        d += ` L ${all[all.length - 1].x} ${PAD_TOP + INNER_H} Z`;
-        return d;
-    }, [points, startPoint, INNER_H]);
-
     // 오늘 마커
     const todayMarker = useMemo(() => {
         if (!projectStart || height === 0) return null;
@@ -121,10 +106,6 @@ export default function SCurveOverlay({ monthlyData, startDate, pixelsPerUnit, d
                     className="absolute inset-0 overflow-visible"
                 >
                     <defs>
-                        <linearGradient id="scurve-overlay-fill" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.25" />
-                            <stop offset="100%" stopColor="#3b82f6" stopOpacity="0.04" />
-                        </linearGradient>
                         <clipPath id="scurve-overlay-clip">
                             <rect x={PAD_LEFT} y={PAD_TOP} width={totalWidth - PAD_LEFT} height={INNER_H} />
                         </clipPath>
@@ -152,11 +133,6 @@ export default function SCurveOverlay({ monthlyData, startDate, pixelsPerUnit, d
                             </g>
                         );
                     })}
-
-                    {/* 채우기 */}
-                    {areaPath && (
-                        <path d={areaPath} fill="url(#scurve-overlay-fill)" clipPath="url(#scurve-overlay-clip)" />
-                    )}
 
                     {/* S커브 선 */}
                     {linePath && (
