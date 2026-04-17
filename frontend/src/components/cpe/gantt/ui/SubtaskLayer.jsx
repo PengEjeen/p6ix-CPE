@@ -27,7 +27,12 @@ export default function SubtaskLayer({
     getSnapCandidate,
     hasSubtaskOverlap,
     overlapsCriticalPath,
-    setRenameModal,
+    editingSubtaskId,
+    editingSubtaskValue,
+    onSubtaskRenameStart,
+    onSubtaskRenameChange,
+    onSubtaskRenameSubmit,
+    onSubtaskRenameCancel,
     readOnly = false
 }) {
     const dragSuppressRef = React.useRef(false);
@@ -51,6 +56,7 @@ export default function SubtaskLayer({
         const leftPx = subtask.startDay * pxFactor;
         const widthPx = Math.max(subtask.durationDays * pxFactor, 6);
         const isSelected = Array.isArray(selectedSubtaskIds) && selectedSubtaskIds.includes(subtask.id);
+        const isEditing = String(editingSubtaskId) === String(subtask.id);
 
         const handleDragStart = (e, mode) => {
             if (readOnly) return;
@@ -194,8 +200,10 @@ export default function SubtaskLayer({
                     `}
                     style={{ left: `${leftPx}px`, top: `${labelTop}px`, width: "max-content" }}
                     onMouseDown={(e) => {
-                        e.preventDefault();
                         e.stopPropagation();
+                        if (!isEditing) {
+                            e.preventDefault();
+                        }
                     }}
                     onClick={(e) => {
                         if (dragSuppressRef.current) {
@@ -204,8 +212,42 @@ export default function SubtaskLayer({
                         }
                         if (onSelectSubtask) onSelectSubtask(subtask.id, e);
                     }}
+                    onDoubleClick={(e) => {
+                        if (readOnly) return;
+                        e.stopPropagation();
+                        if (onSubtaskRenameStart) onSubtaskRenameStart(subtask);
+                    }}
                 >
-                    {subtask.label || "부세부공종"}
+                    {isEditing ? (
+                        <input
+                            type="text"
+                            className="h-5 min-w-[120px] rounded border border-slate-300 bg-white px-1 text-[10px] font-semibold text-slate-700 shadow-sm outline-none focus:border-slate-500"
+                            value={editingSubtaskValue}
+                            autoFocus
+                            onChange={(e) => {
+                                if (onSubtaskRenameChange) onSubtaskRenameChange(e.target.value);
+                            }}
+                            onMouseDown={(e) => {
+                                e.stopPropagation();
+                            }}
+                            onClick={(e) => {
+                                e.stopPropagation();
+                            }}
+                            onKeyDown={(e) => {
+                                if (e.key === "Enter") {
+                                    e.preventDefault();
+                                    e.currentTarget.blur();
+                                }
+                                if (e.key === "Escape") {
+                                    e.preventDefault();
+                                    if (onSubtaskRenameCancel) onSubtaskRenameCancel();
+                                }
+                            }}
+                            onBlur={() => {
+                                if (onSubtaskRenameSubmit) onSubtaskRenameSubmit();
+                            }}
+                        />
+                    ) : (subtask.label || "부세부공종")}
                 </div>
                 <div
                     className={`absolute rounded-full ${readOnly ? "cursor-default" : "cursor-grab"} select-none pointer-events-auto group/row
@@ -224,7 +266,7 @@ export default function SubtaskLayer({
                     onDoubleClick={(e) => {
                         if (readOnly) return;
                         e.stopPropagation();
-                        setRenameModal({ open: true, id: subtask.id, value: subtask.label || "부세부공종" });
+                        if (onSubtaskRenameStart) onSubtaskRenameStart(subtask);
                     }}
                 >
                     {!readOnly && (

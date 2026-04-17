@@ -16,17 +16,23 @@ export const fetchScheduleItems = async (projectId) => {
                     containerId: container.id,
                     items: rawData,
                     links: [],
-                    sub_tasks: []
+                    sub_tasks: [],
+                    weight_inputs: {},
+                    cost_inputs: {},
+                    milestones: []
                 };
             }
             return {
                 containerId: container.id,
                 items: rawData.items || [],
                 links: rawData.links || [],
-                sub_tasks: rawData.sub_tasks || rawData.subTasks || []
+                sub_tasks: rawData.sub_tasks || rawData.subTasks || [],
+                weight_inputs: rawData.weight_inputs || {},
+                cost_inputs: rawData.cost_inputs || {},
+                milestones: rawData.milestones || []
             };
         }
-        return { containerId: null, items: [], links: [], sub_tasks: [] };
+        return { containerId: null, items: [], links: [], sub_tasks: [], weight_inputs: {}, cost_inputs: {}, milestones: [] };
     } catch (error) {
         console.error("Error fetching schedule items:", error);
         throw error;
@@ -51,7 +57,10 @@ export const saveScheduleData = async (containerId, payload) => {
             : {
                 items: payload.items || [],
                 links: payload.links || [],
-                sub_tasks: payload.sub_tasks || payload.subTasks || []
+                sub_tasks: payload.sub_tasks || payload.subTasks || [],
+                weight_inputs: payload.weight_inputs || {},
+                cost_inputs: payload.cost_inputs || {},
+                milestones: payload.milestones || []
             };
         // We patch the container with the new data array
         await api.patch(`${API_URL}${containerId}/`, {

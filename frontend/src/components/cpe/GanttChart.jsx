@@ -206,6 +206,10 @@ export default function GanttChart({
     readOnly = false,
     monthlyData = [],
     totalWorking = 0,
+    customMilestones = [],
+    onAddMilestone,
+    onUpdateMilestone,
+    onDeleteMilestone,
 }) {
     const pixelsPerUnit = 40;
     const setGanttDateScale = useScheduleStore((state) => state.setGanttDateScale);
@@ -236,6 +240,9 @@ export default function GanttChart({
     const [subtaskMode, setSubtaskMode] = useState(false);
     const [isScrolling, setIsScrolling] = useState(false);
     const canEdit = !readOnly && ganttViewMode === GANTT_VIEW_MODE.WORK_TYPE;
+    const canEditMilestones = !readOnly;
+    const [milestonePlacementMode, setMilestonePlacementMode] = useState(false);
+    const [selectedMilestoneId, setSelectedMilestoneId] = useState(null);
 
     // Simulation Tooltip State
     const [simulation, setSimulation] = useState(null);
@@ -363,6 +370,50 @@ export default function GanttChart({
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
     }, [canEdit, selectedSubtaskIds, selectedItemIds, subTasks, copiedSubtask, onCreateSubtask]);
+
+    React.useEffect(() => {
+        const visibleMilestoneIds = new Set((customMilestones || []).map((milestone) => String(milestone.id)));
+        setSelectedMilestoneId((prev) => (prev && visibleMilestoneIds.has(String(prev)) ? prev : null));
+    }, [customMilestones]);
+
+    React.useEffect(() => {
+        if (!canEditMilestones) return undefined;
+        const handleDeleteKey = (e) => {
+            const target = e.target;
+            const isEditableTarget = target?.tagName === "INPUT" || target?.tagName === "TEXTAREA" || target?.isContentEditable;
+            if (isEditableTarget) return;
+            if (!selectedMilestoneId) return;
+            if (e.key !== "Delete" && e.key !== "Backspace") return;
+            if (typeof onDeleteMilestone === "function") {
+                e.preventDefault();
+                onDeleteMilestone(selectedMilestoneId);
+                setSelectedMilestoneId(null);
+            }
+        };
+        window.addEventListener("keydown", handleDeleteKey);
+        return () => window.removeEventListener("keydown", handleDeleteKey);
+    }, [canEditMilestones, onDeleteMilestone, selectedMilestoneId]);
+
+    const handleAddMilestone = useCallback(() => {
+        if (!canEditMilestones || typeof onAddMilestone !== "function") return;
+        setMilestonePlacementMode((prev) => !prev);
+    }, [canEditMilestones, onAddMilestone]);
+
+    const handlePlaceMilestone = useCallback((day) => {
+        if (!canEditMilestones || typeof onAddMilestone !== "function") return;
+        onAddMilestone(day);
+        setMilestonePlacementMode(false);
+    }, [canEditMilestones, onAddMilestone]);
+
+    const handleUpdateMilestone = useCallback((id, updates) => {
+        if (!canEditMilestones || typeof onUpdateMilestone !== "function") return;
+        onUpdateMilestone(id, updates);
+    }, [canEditMilestones, onUpdateMilestone]);
+
+    const handleDeleteMilestone = useCallback((id) => {
+        if (!canEditMilestones || typeof onDeleteMilestone !== "function") return;
+        onDeleteMilestone(id);
+    }, [canEditMilestones, onDeleteMilestone]);
 
     // Calculate base data on work-type rows first, then build display view.
     const { itemsWithTiming: baseItemsWithTiming, totalDays, dailyLoads } = useMemo(() => {
@@ -963,6 +1014,9 @@ export default function GanttChart({
                     subtaskMode={subtaskMode}
                     setSubtaskMode={setSubtaskMode}
                     canEdit={canEdit}
+                    canEditMilestones={canEditMilestones}
+                    milestonePlacementMode={milestonePlacementMode}
+                    onToggleMilestonePlacement={handleAddMilestone}
                 />
             </div>
 
@@ -1006,6 +1060,7 @@ export default function GanttChart({
                                 itemsWithTiming={itemsWithTiming}
                                 links={visibleLinks}
                                 categoryMilestones={categoryMilestones}
+                                customMilestones={customMilestones}
                                 onBarDragStart={handleBarDrag}
                                 onBarDragPreview={handleBarDragPreview}
                                 onBarDragEnd={handleBarDragEnd}
@@ -1032,6 +1087,13 @@ export default function GanttChart({
                                 onUpdateSubtask={handleUpdateSubtask}
                                 onDeleteSubtask={handleDeleteSubtask}
                                 readOnly={!canEdit}
+                                canEditMilestones={canEditMilestones}
+                                milestonePlacementMode={milestonePlacementMode}
+                                selectedMilestoneId={selectedMilestoneId}
+                                onSelectMilestone={setSelectedMilestoneId}
+                                onPlaceMilestone={handlePlaceMilestone}
+                                onUpdateMilestone={handleUpdateMilestone}
+                                onDeleteMilestone={handleDeleteMilestone}
                             />
 
                             {monthlyData.length > 0 && (

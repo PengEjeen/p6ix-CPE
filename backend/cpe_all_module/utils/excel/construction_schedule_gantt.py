@@ -172,6 +172,8 @@ def inject_gantt_drawing(xlsx_bytes, *, shapes, last_col, gantt_row, timeline_st
     for r in range(0, gantt_row + 5):
         if r == 0:
             h = 39.95
+        elif r == 4:
+            h = 60
         else:
             h = 30
         row_pixels.append(row_height_to_px(h))

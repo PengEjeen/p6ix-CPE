@@ -5,7 +5,7 @@ from rest_framework.response import Response
 from rest_framework.exceptions import PermissionDenied
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404
-from datetime import date as date_cls
+from datetime import date as date_cls, timedelta
 import io
 import xlsxwriter
 from ..models.construction_schedule_models import ConstructionScheduleItem
@@ -13,6 +13,7 @@ from ..serializers.construction_schedule_serializers import ConstructionSchedule
 from cpe_module.models.operating_rate_models import WorkScheduleWeight
 from cpe_module.models.calc_models import WorkCondition
 from cpe_module.models.project_models import Project
+from operatio.models import PublicHoliday
 from cpe_all_module.utils.excel.construction_schedule import (
     build_rate_summary,
     extract_schedule_payload,
@@ -21,6 +22,7 @@ from cpe_all_module.utils.excel.construction_schedule import (
     write_gantt_sheet,
     write_table_sheet,
 )
+from cpe_all_module.utils.excel.construction_schedule_gantt import build_items_with_timing
 from cpe_all_module.utils.excel.construction_schedule_preview import (
     build_gantt_preview_png,
 )
@@ -201,21 +203,59 @@ class ConstructionScheduleItemViewSet(viewsets.ModelViewSet):
 
             raw_data = container.data
             items, sub_tasks, links = extract_schedule_payload(raw_data)
+            cost_inputs = raw_data.get("cost_inputs", {}) if isinstance(raw_data, dict) else {}
+            milestones = raw_data.get("milestones", []) if isinstance(raw_data, dict) else []
 
             if not isinstance(items, list):
                 return Response({"error": "invalid schedule data"}, status=status.HTTP_400_BAD_REQUEST)
 
             project_name = project.title
 
-            rate_qs = WorkScheduleWeight.objects.filter(project_id=project_id).values("main_category", "operating_rate")
-            rate_map = {row["main_category"]: row["operating_rate"] for row in rate_qs}
+            weight_rows = list(
+                WorkScheduleWeight.objects.filter(project_id=project_id)
+                .values("main_category", "operating_rate", "sector_type", "work_week_days")
+            )
+            rate_map = {row["main_category"]: row["operating_rate"] for row in weight_rows}
+
+            public_count = sum(1 for r in weight_rows if (r.get("sector_type") or "PUBLIC").upper() == "PUBLIC")
+            private_count = len(weight_rows) - public_count
+            sector_type = "PRIVATE" if private_count > public_count else "PUBLIC"
 
             grouped, ordered_categories = group_items_by_category(items)
 
             work_condition = WorkCondition.objects.filter(project_id=project_id).first()
             region = work_condition.region if work_condition and work_condition.region else ""
 
+            work_week_days = 6
+            if work_condition and work_condition.earthwork_type:
+                try:
+                    work_week_days = int(work_condition.earthwork_type)
+                except (TypeError, ValueError):
+                    work_week_days = 6
+
             rate_summary = build_rate_summary(project_id, ordered_categories, rate_map, region)
+
+            start_date = project.start_date if project.start_date else date_cls.today()
+
+            max_item_end = 0.0
+            for it in items:
+                try:
+                    max_item_end = max(max_item_end, float(it.get("start_day") or 0) + float(it.get("calendar_days") or 0))
+                except (TypeError, ValueError):
+                    continue
+            for ms in milestones if isinstance(milestones, list) else []:
+                try:
+                    max_item_end = max(max_item_end, float(ms.get("day") or ms.get("endDay") or 0))
+                except (TypeError, ValueError, AttributeError):
+                    continue
+            span_days = max(1, int(round(max_item_end)) + 1)
+            end_date = start_date + timedelta(days=span_days)
+
+            if sector_type == "PRIVATE":
+                holiday_qs = PublicHoliday.objects.filter(date__range=(start_date, end_date), is_private=True)
+            else:
+                holiday_qs = PublicHoliday.objects.filter(date__range=(start_date, end_date), is_holiday='Y')
+            holiday_set = {d.isoformat() for d in holiday_qs.values_list('date', flat=True).distinct()}
 
             output = io.BytesIO()
             wb = xlsxwriter.Workbook(output, {'in_memory': True})
@@ -224,8 +264,19 @@ class ConstructionScheduleItemViewSet(viewsets.ModelViewSet):
             write_table_sheet(wb, items, ordered_categories, grouped, rate_summary, rate_map, project_name)
 
             # ---- Sheet 2: Gantt (shape-based, Excel-editable) ----
-            start_date = project.start_date if project.start_date else date_cls.today()
-            gantt_meta = write_gantt_sheet(wb, items, sub_tasks, links, project_name, start_date)
+            gantt_meta = write_gantt_sheet(
+                wb,
+                items,
+                sub_tasks,
+                links,
+                project_name,
+                start_date,
+                custom_milestones=milestones,
+                cost_inputs=cost_inputs,
+                include_bohal_table=True,
+                work_week_days=work_week_days,
+                holiday_set=holiday_set,
+            )
             logger.debug("[export-excel] gantt_shapes_count=%s", len(gantt_meta['shapes']))
 
             wb.close()

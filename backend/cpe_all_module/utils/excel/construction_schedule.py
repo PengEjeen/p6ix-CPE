@@ -148,14 +148,40 @@ def write_table_sheet(wb, items, ordered_categories, grouped, rate_summary, rate
     ws.set_row(2, 20)
 
 
-def write_gantt_sheet(wb, items, sub_tasks, links, project_name, start_date):
+def write_gantt_sheet(
+    wb,
+    items,
+    sub_tasks,
+    links,
+    project_name,
+    start_date,
+    custom_milestones=None,
+    cost_inputs=None,
+    include_bohal_table=False,
+    work_week_days=6,
+    holiday_set=None,
+):
     # ---- Sheet 2: Gantt (shape-based, Excel-editable) ----
     gantt_ws = wb.add_worksheet("공사예정공정표")
 
     items_with_timing = build_items_with_timing(items)
     subtask_list = build_subtask_list(sub_tasks)
 
-    total_days = math.ceil(max((it["start_day"] + it["duration"] for it in items_with_timing), default=0))
+    max_milestone_day = 0.0
+    if isinstance(custom_milestones, list):
+        for milestone in custom_milestones:
+            raw_day = milestone.get("day", milestone.get("endDay")) if isinstance(milestone, dict) else None
+            try:
+                parsed_day = float(raw_day)
+                if parsed_day > max_milestone_day:
+                    max_milestone_day = parsed_day
+            except (TypeError, ValueError):
+                continue
+
+    total_days = math.ceil(max(
+        max((it["start_day"] + it["duration"] for it in items_with_timing), default=0),
+        max_milestone_day
+    ))
     total_days = max(total_days, 1)
 
     # Force 10-day scale for chart timeline.
@@ -262,6 +288,11 @@ def write_gantt_sheet(wb, items, sub_tasks, links, project_name, start_date):
         'right': 1,    # Solid black
         'right_color': '#000000'
     })
+    bohal_title_fmt = wb.add_format({'bold': True, 'bg_color': '#FFF2CC', 'align': 'left', 'valign': 'vcenter', 'border': 1})
+    bohal_header_fmt = wb.add_format({'bold': True, 'bg_color': '#E2E8F0', 'align': 'center', 'valign': 'vcenter', 'border': 1})
+    bohal_left_fmt = wb.add_format({'align': 'left', 'valign': 'vcenter', 'border': 1})
+    bohal_cost_fmt = wb.add_format({'align': 'right', 'valign': 'vcenter', 'border': 1, 'num_format': '#,##0'})
+    bohal_pct_fmt = wb.add_format({'align': 'right', 'valign': 'vcenter', 'border': 1, 'num_format': '0.0"%"'})
 
     # Title and headers
     gantt_ws.merge_range(0, 0, 0, last_col, "공 사 예 정 공 정 표", gantt_title_fmt)
@@ -917,6 +948,42 @@ def write_gantt_sheet(wb, items, sub_tasks, links, project_name, start_date):
             'text': f'{category} 완료({milestone_date_str})',
             'font': {'size': 8, 'color': '000000', 'bold': True}
         })
+
+    # Custom milestones from schedule payload (사용자 직접 배치)
+    if isinstance(custom_milestones, list):
+        custom_size = 10
+        for idx, milestone in enumerate(custom_milestones):
+            if not isinstance(milestone, dict):
+                continue
+            raw_day = milestone.get("day", milestone.get("endDay"))
+            try:
+                milestone_day = float(raw_day)
+            except (TypeError, ValueError):
+                continue
+            if milestone_day < 0:
+                continue
+
+            label = str(milestone.get("label") or f"마일스톤 {idx + 1}").strip() or f"마일스톤 {idx + 1}"
+            custom_x = _day_to_px(milestone_day)
+
+            shapes.append({
+                'type': 'diamond',
+                'x': custom_x - (custom_size / 2),
+                'y': triangle_y - 1,
+                'w': custom_size,
+                'h': custom_size,
+                'fill': 'F59E0B',
+                'line': {'color': 'D97706', 'width': 1},
+            })
+            shapes.append({
+                'type': 'text',
+                'x': max(0, custom_x - 45),
+                'y': -(custom_size + 16),
+                'w': 90,
+                'h': 12,
+                'text': label,
+                'font': {'size': 8, 'color': '92400E', 'bold': True}
+            })
     
     # Vertical milestones for major category start points (대공종 시작)
     # Find the start point of each major category
@@ -1008,6 +1075,169 @@ def write_gantt_sheet(wb, items, sub_tasks, links, project_name, start_date):
                 'text': category,
                 'font': {'size': 9, 'color': 'FFFFFF', 'bold': True}
             })
+
+    if include_bohal_table:
+        normalized_cost_inputs = {}
+        if isinstance(cost_inputs, dict):
+            for raw_key, raw_value in cost_inputs.items():
+                try:
+                    parsed_cost = float(str(raw_value).replace(",", ""))
+                except (TypeError, ValueError):
+                    continue
+                if parsed_cost > 0:
+                    normalized_cost_inputs[str(raw_key)] = parsed_cost
+
+        bohal_rows = []
+        total_cost = 0.0
+        for item_meta in items_with_timing:
+            item = item_meta["item"]
+            item_id = str(item.get("id"))
+            cost = float(normalized_cost_inputs.get(item_id, 0.0))
+            total_cost += cost
+            label = " > ".join(filter(None, [item.get("process", ""), item.get("work_type", "")]))
+            bohal_rows.append({
+                "label": label or item.get("main_category", ""),
+                "cost": cost,
+                "start_day": float(item_meta["start_day"]),
+                "duration": float(item_meta["duration"] or 0),
+            })
+
+        # --- Workday / holiday classification (frontend parity) ---
+        holiday_lookup = holiday_set if isinstance(holiday_set, (set, frozenset)) else set()
+        try:
+            wwd = int(work_week_days)
+        except (TypeError, ValueError):
+            wwd = 6
+
+        def _is_working(offset_idx):
+            d = start_date + timedelta(days=offset_idx)
+            # frontend rule: workWeekDays>=7 all, 6 exclude Sunday, 5 exclude Sat+Sun
+            # python weekday(): Mon=0..Sun=6
+            dow = d.weekday()
+            if wwd >= 7:
+                base = True
+            elif wwd == 6:
+                base = dow != 6  # not Sunday
+            else:
+                base = dow < 5  # Mon-Fri
+            if not base:
+                return False
+            return d.isoformat() not in holiday_lookup
+
+        matrix_days = total_days  # one column per calendar day
+        working_flags = [_is_working(i) for i in range(matrix_days)]
+
+        # --- Formats ---
+        bohal_day_header_fmt = wb.add_format({
+            'bold': True, 'bg_color': '#E2E8F0', 'align': 'center', 'valign': 'vcenter',
+            'border': 1, 'font_size': 8,
+        })
+        bohal_day_header_off_fmt = wb.add_format({
+            'bold': True, 'bg_color': '#F1F5F9', 'align': 'center', 'valign': 'vcenter',
+            'border': 1, 'font_size': 8, 'font_color': '#94A3B8',
+        })
+        bohal_cell_active_fmt = wb.add_format({
+            'align': 'center', 'valign': 'vcenter', 'border': 1,
+            'bg_color': '#D4EDDA', 'font_color': '#166534', 'font_size': 9, 'bold': True,
+        })
+        bohal_cell_idle_fmt = wb.add_format({
+            'align': 'center', 'valign': 'vcenter', 'border': 1,
+            'font_color': '#CBD5E1', 'font_size': 9,
+        })
+        bohal_cell_off_fmt = wb.add_format({
+            'align': 'center', 'valign': 'vcenter', 'border': 1,
+            'bg_color': '#F8FAFC', 'font_color': '#CBD5E1', 'font_size': 9,
+        })
+
+        matrix_day_start_col = 5
+        matrix_last_col = matrix_day_start_col + matrix_days - 1
+        if matrix_last_col < 4:
+            matrix_last_col = 4
+
+        # Day columns width (narrow, per-day) — only set beyond existing gantt last_col
+        for col in range(max(matrix_day_start_col, last_col + 1), matrix_last_col + 1):
+            gantt_ws.set_column(col, col, 3.2)
+
+        bohal_title_row = gantt_row + 2
+        bohal_month_row = bohal_title_row + 1
+        bohal_day_row = bohal_month_row + 1
+        bohal_data_row = bohal_day_row + 1
+
+        gantt_ws.merge_range(bohal_title_row, 0, bohal_title_row, matrix_last_col, "보할표 (일별 공정 진행표)", bohal_title_fmt)
+
+        # Left fixed header (세부공종 / 비용 / 비율) — spans month+day header rows
+        gantt_ws.merge_range(bohal_month_row, 0, bohal_day_row, 2, "세부공종", bohal_header_fmt)
+        gantt_ws.merge_range(bohal_month_row, 3, bohal_day_row, 3, "비용(원)", bohal_header_fmt)
+        gantt_ws.merge_range(bohal_month_row, 4, bohal_day_row, 4, "비율(%)", bohal_header_fmt)
+
+        # Month group headers across day columns
+        if matrix_days > 0:
+            group_start = 0
+            current_key = None
+            current_label = ""
+            groups = []
+            for offset in range(matrix_days):
+                d = start_date + timedelta(days=offset)
+                key = (d.year, d.month)
+                if key != current_key:
+                    if current_key is not None:
+                        groups.append((group_start, offset - 1, current_label))
+                    current_key = key
+                    current_label = f"{d.year}.{d.month:02d}"
+                    group_start = offset
+            groups.append((group_start, matrix_days - 1, current_label))
+
+            for g_start, g_end, label in groups:
+                c_start = matrix_day_start_col + g_start
+                c_end = matrix_day_start_col + g_end
+                if c_start == c_end:
+                    gantt_ws.write(bohal_month_row, c_start, label, bohal_header_fmt)
+                else:
+                    gantt_ws.merge_range(bohal_month_row, c_start, bohal_month_row, c_end, label, bohal_header_fmt)
+
+            # Day numbers
+            for offset in range(matrix_days):
+                d = start_date + timedelta(days=offset)
+                fmt = bohal_day_header_fmt if working_flags[offset] else bohal_day_header_off_fmt
+                gantt_ws.write(bohal_day_row, matrix_day_start_col + offset, d.day, fmt)
+
+        # Data rows
+        if bohal_rows:
+            day_totals = [0] * matrix_days
+            for idx, row in enumerate(bohal_rows):
+                target_row = bohal_data_row + idx
+                ratio = (row["cost"] / total_cost * 100.0) if total_cost > 0 else 0.0
+                gantt_ws.merge_range(target_row, 0, target_row, 2, row["label"], bohal_left_fmt)
+                gantt_ws.write(target_row, 3, row["cost"], bohal_cost_fmt)
+                gantt_ws.write(target_row, 4, ratio, bohal_pct_fmt)
+
+                s = row["start_day"]
+                e = s + row["duration"]
+                for offset in range(matrix_days):
+                    col = matrix_day_start_col + offset
+                    in_span = row["duration"] > 0 and s <= offset < e
+                    active = in_span and working_flags[offset]
+                    if active:
+                        gantt_ws.write(target_row, col, 1, bohal_cell_active_fmt)
+                        day_totals[offset] += 1
+                    else:
+                        fmt = bohal_cell_off_fmt if not working_flags[offset] else bohal_cell_idle_fmt
+                        gantt_ws.write(target_row, col, 0, fmt)
+
+            total_row = bohal_data_row + len(bohal_rows)
+            gantt_ws.merge_range(total_row, 0, total_row, 2, "합계", bohal_header_fmt)
+            gantt_ws.write(total_row, 3, total_cost, bohal_cost_fmt)
+            gantt_ws.write(total_row, 4, 100.0 if total_cost > 0 else 0.0, bohal_pct_fmt)
+            for offset in range(matrix_days):
+                col = matrix_day_start_col + offset
+                val = day_totals[offset]
+                fmt = bohal_header_fmt if working_flags[offset] else bohal_day_header_off_fmt
+                gantt_ws.write(total_row, col, val, fmt)
+        else:
+            gantt_ws.merge_range(
+                bohal_data_row, 0, bohal_data_row, matrix_last_col,
+                "보할표 대상 공종이 없습니다.", bohal_left_fmt
+            )
 
     return {
         "shapes": shapes,

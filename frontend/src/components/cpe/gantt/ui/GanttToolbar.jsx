@@ -12,7 +12,10 @@ export default function GanttToolbar({
     linkDraft,
     subtaskMode,
     setSubtaskMode,
-    canEdit
+    canEdit,
+    canEditMilestones,
+    milestonePlacementMode,
+    onToggleMilestonePlacement
 }) {
     return (
         <div className="gantt-toolbar px-6 py-4 flex items-center justify-between bg-white border-b border-gray-100 z-[2]">
@@ -86,6 +89,24 @@ export default function GanttToolbar({
                                         )}
                                     </div>
                                 </>
+                            )}
+                            {canEditMilestones && (
+                                <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-lg border border-gray-200 shadow-sm">
+                                    <button
+                                        type="button"
+                                        onClick={onToggleMilestonePlacement}
+                                        className={`px-3 py-1 text-xs rounded-full transition-all font-semibold border ${
+                                            milestonePlacementMode
+                                                ? "bg-slate-900 text-amber-300 border-amber-400/60 shadow-[0_0_12px_rgba(251,191,36,0.25)]"
+                                                : "bg-gray-50 text-gray-700 hover:bg-gray-100 border-gray-200"
+                                        }`}
+                                    >
+                                        {milestonePlacementMode ? "마일스톤 찍기 취소" : "마일스톤 찍기"}
+                                    </button>
+                                    {milestonePlacementMode && (
+                                        <span className="text-[10px] text-amber-600 font-semibold tracking-wide">차트 클릭</span>
+                                    )}
+                                </div>
                             )}
                         </div>
                     </div>

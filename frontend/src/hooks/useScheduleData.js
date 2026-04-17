@@ -35,6 +35,9 @@ export const useScheduleData = (projectId, setStoreItems, setStoreOperatingRates
     const [startDate, setStartDate] = useState("");
     const [projectName, setProjectName] = useState("");
     const [containerId, setContainerId] = useState(null);
+    const [weightInputs, setWeightInputs] = useState({});
+    const [costInputs, setCostInputs] = useState({});
+    const [milestones, setMilestones] = useState([]);
 
     const loadData = useCallback(async () => {
         try {
@@ -64,10 +67,13 @@ export const useScheduleData = (projectId, setStoreItems, setStoreOperatingRates
             // Handle Initial Init (defensive normalization for unexpected API payloads)
             const normalizedFetchedData = fetchedData && typeof fetchedData === "object"
                 ? fetchedData
-                : { containerId: null, items: [], links: [], sub_tasks: [] };
+                : { containerId: null, items: [], links: [], sub_tasks: [], weight_inputs: {}, cost_inputs: {}, milestones: [] };
             let scheduleItems = normalizedFetchedData.items || [];
             let scheduleLinks = normalizedFetchedData.links || [];
             let scheduleSubTasks = normalizedFetchedData.sub_tasks || normalizedFetchedData.subTasks || [];
+            let scheduleWeightInputs = normalizedFetchedData.weight_inputs || {};
+            let scheduleCostInputs = normalizedFetchedData.cost_inputs || {};
+            let scheduleMilestones = normalizedFetchedData.milestones || [];
             let currentContainerId = normalizedFetchedData.containerId;
 
             if (!currentContainerId || !scheduleItems || scheduleItems.length === 0) {
@@ -77,10 +83,13 @@ export const useScheduleData = (projectId, setStoreItems, setStoreOperatingRates
                     const refetched = await fetchScheduleItems(projectId);
                     const normalizedRefetched = refetched && typeof refetched === "object"
                         ? refetched
-                        : { containerId: null, items: [], links: [], sub_tasks: [] };
+                        : { containerId: null, items: [], links: [], sub_tasks: [], weight_inputs: {}, cost_inputs: {}, milestones: [] };
                     scheduleItems = normalizedRefetched.items || [];
                     scheduleLinks = normalizedRefetched.links || [];
                     scheduleSubTasks = normalizedRefetched.sub_tasks || normalizedRefetched.subTasks || [];
+                    scheduleWeightInputs = normalizedRefetched.weight_inputs || {};
+                    scheduleCostInputs = normalizedRefetched.cost_inputs || {};
+                    scheduleMilestones = normalizedRefetched.milestones || [];
                     currentContainerId = normalizedRefetched.containerId;
                 } catch (e) {
                     console.error("Backend Init Failed, using local fallback");
@@ -92,9 +101,19 @@ export const useScheduleData = (projectId, setStoreItems, setStoreOperatingRates
                     scheduleItems = DEFAULT_SCHEDULE_ITEMS;
                     scheduleLinks = [];
                     scheduleSubTasks = [];
+                    scheduleWeightInputs = {};
+                    scheduleCostInputs = {};
+                    scheduleMilestones = [];
                     // Try to save it immediately if we have a containerId, or wait for user save
                     if (currentContainerId) {
-                        saveScheduleData(currentContainerId, { items: scheduleItems, links: scheduleLinks, sub_tasks: scheduleSubTasks }).catch(console.error);
+                        saveScheduleData(currentContainerId, {
+                            items: scheduleItems,
+                            links: scheduleLinks,
+                            sub_tasks: scheduleSubTasks,
+                            weight_inputs: scheduleWeightInputs,
+                            cost_inputs: scheduleCostInputs,
+                            milestones: scheduleMilestones
+                        }).catch(console.error);
                     }
                 }
             }
@@ -125,6 +144,13 @@ export const useScheduleData = (projectId, setStoreItems, setStoreOperatingRates
             if (setStoreSubTasks) {
                 setStoreSubTasks(scheduleSubTasks);
             }
+            setWeightInputs(
+                scheduleWeightInputs && typeof scheduleWeightInputs === "object" ? scheduleWeightInputs : {}
+            );
+            setCostInputs(
+                scheduleCostInputs && typeof scheduleCostInputs === "object" ? scheduleCostInputs : {}
+            );
+            setMilestones(Array.isArray(scheduleMilestones) ? scheduleMilestones : []);
 
             const cipList = Array.isArray(cipData) ? cipData : (cipData.results || []);
             const pileList = Array.isArray(pileData) ? pileData : (pileData.results || []);
@@ -163,7 +189,7 @@ export const useScheduleData = (projectId, setStoreItems, setStoreOperatingRates
         } finally {
             setLoading(false);
         }
-    }, [projectId, setStoreItems, setStoreOperatingRates, setStoreLinks, setStoreWorkDayType]);
+    }, [projectId, setStoreItems, setStoreOperatingRates, setStoreLinks, setStoreWorkDayType, setStoreSubTasks]);
 
     return {
         loading,
@@ -178,6 +204,9 @@ export const useScheduleData = (projectId, setStoreItems, setStoreOperatingRates
         setStartDate,
         projectName,
         containerId,
-        setContainerId
+        setContainerId,
+        weightInputs,
+        costInputs,
+        milestones
     };
 };

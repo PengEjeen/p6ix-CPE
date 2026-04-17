@@ -96,6 +96,24 @@ const parseTemplateNumber = (value, fallbackValue) => {
     return Number.isFinite(parsed) ? parsed : fallbackValue;
 };
 
+const makeMilestoneId = () => `milestone-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
+const normalizeMilestones = (milestones = []) => {
+    if (!Array.isArray(milestones)) return [];
+    return milestones
+        .map((milestone, index) => {
+            const dayRaw = parseFloat(milestone?.day ?? milestone?.endDay ?? 0);
+            const day = Number.isFinite(dayRaw) ? Math.max(0, dayRaw) : 0;
+            const label = String(milestone?.label ?? milestone?.category ?? `마일스톤 ${index + 1}`).trim();
+            return {
+                id: String(milestone?.id || makeMilestoneId()),
+                label: label || `마일스톤 ${index + 1}`,
+                day: parseFloat(day.toFixed(1))
+            };
+        })
+        .sort((a, b) => a.day - b.day);
+};
+
 const buildStandardSuggestions = (standardItems = [], query = "") => {
     const term = String(query || "").trim().toLowerCase();
     if (!term || !Array.isArray(standardItems) || standardItems.length === 0) return [];
@@ -136,6 +154,7 @@ const deriveStandardProductivity = (std) => {
 export default function ScheduleMasterList() {
     const { id: projectId } = useParams();
     const pageContainerRef = useRef(null);
+    const [viewMode, setViewMode] = useState("table"); // "table" or "gantt"
 
     // Store Integration
     const items = useScheduleStore((state) => state.items);
@@ -271,24 +290,40 @@ export default function ScheduleMasterList() {
         setStartDate,
         projectName,
         containerId,
-        setContainerId
+        setContainerId,
+        weightInputs: loadedWeightInputs,
+        costInputs: loadedCostInputs,
+        milestones: loadedMilestones
     } = useScheduleData(projectId, setStoreItems, setStoreOperatingRates, setStoreLinks, setStoreWorkDayType, setStoreSubTasks);
+    const weightInputsRef = useRef({});
+    const costInputsRef = useRef({});
 
     // Calculated Values
     const totalCalendarDays = useMemo(() => calculateTotalCalendarDays(items), [items]);
     const totalCalendarMonths = useMemo(() => calculateTotalCalendarMonths(totalCalendarDays), [totalCalendarDays]);
+    const isGanttView = viewMode === "gantt";
+    const isWeightView = viewMode === "weight";
+    const effectiveCostInputs = useMemo(() => {
+        const refInputs = costInputsRef.current;
+        if (refInputs && typeof refInputs === "object" && Object.keys(refInputs).length > 0) return refInputs;
+        return loadedCostInputs && typeof loadedCostInputs === "object" ? loadedCostInputs : {};
+    }, [loadedCostInputs, viewMode]);
 
     // calculateGanttItems로 startDay/durationDays가 정확히 계산된 items 사용
     // raw items는 _startDay가 없어서 모두 day 0으로 처리되는 버그 방지
-    const ganttTimedItems = useMemo(() => calculateGanttItems(items).itemsWithTiming, [items]);
+    const ganttTimedItems = useMemo(() => {
+        if (!isGanttView && !isWeightView) return [];
+        return calculateGanttItems(items).itemsWithTiming;
+    }, [items, isGanttView, isWeightView]);
 
-    // 보할공정표 데이터 (S-커브 공유) — items로 활성 공종 수 가중해서 S자 분포 생성
+    // 간트뷰에서만 S-커브용 데이터 조회/계산
     const { monthlyData: weightMonthlyData, totalWorking: weightTotalWorking } = useWeightScheduleData({
-        startDate,
-        totalCalendarDays,
+        startDate: isGanttView ? startDate : "",
+        totalCalendarDays: isGanttView ? totalCalendarDays : 0,
         workDayType,
         operatingRates,
-        items: ganttTimedItems,
+        items: isGanttView ? ganttTimedItems : [],
+        costInputs: isGanttView ? effectiveCostInputs : {},
     });
 
     // Local State
@@ -298,8 +333,8 @@ export default function ScheduleMasterList() {
     const [importModalOpen, setImportModalOpen] = useState(false);
     const [snapshotModalOpen, setSnapshotModalOpen] = useState(false);
     const [importTargetParent, setImportTargetParent] = useState(null);
-    const [viewMode, setViewMode] = useState("table"); // "table" or "gantt"
     const [isPageFullscreen, setIsPageFullscreen] = useState(false);
+    const [customMilestones, setCustomMilestones] = useState([]);
     const [standardItems, setStandardItems] = useState([]);
     const [rowClassEditModal, setRowClassEditModal] = useState({
         open: false,
@@ -332,6 +367,18 @@ export default function ScheduleMasterList() {
             document.removeEventListener("fullscreenchange", handleFullscreenChange);
         };
     }, []);
+
+    useEffect(() => {
+        weightInputsRef.current = loadedWeightInputs && typeof loadedWeightInputs === "object" ? loadedWeightInputs : {};
+    }, [loadedWeightInputs]);
+
+    useEffect(() => {
+        costInputsRef.current = loadedCostInputs && typeof loadedCostInputs === "object" ? loadedCostInputs : {};
+    }, [loadedCostInputs]);
+
+    useEffect(() => {
+        setCustomMilestones(normalizeMilestones(loadedMilestones));
+    }, [loadedMilestones]);
 
     const {
         handleCreateSubtask,
@@ -1002,7 +1049,14 @@ export default function ScheduleMasterList() {
             });
 
             const results = await Promise.allSettled([
-                saveScheduleData(targetContainerId, { items, links, sub_tasks: subTasks }),
+                saveScheduleData(targetContainerId, {
+                    items,
+                    links,
+                    sub_tasks: subTasks,
+                    weight_inputs: {},
+                    cost_inputs: costInputsRef.current,
+                    milestones: customMilestones
+                }),
                 updateWorkCondition(projectId, {
                     earthwork_type: typeVal,
                     framework_type: typeVal
@@ -1080,6 +1134,49 @@ export default function ScheduleMasterList() {
         }
     }, []);
 
+    const handleAddMilestone = useCallback((day) => {
+        const parsedDay = parseFloat(day);
+        if (!Number.isFinite(parsedDay)) return;
+        setCustomMilestones((prev) => {
+            const base = Array.isArray(prev) ? prev : [];
+            return [
+                ...base,
+                {
+                    id: makeMilestoneId(),
+                    label: `마일스톤 ${base.length + 1}`,
+                    day: parseFloat(Math.max(0, parsedDay).toFixed(1))
+                }
+            ];
+        });
+    }, []);
+
+    const handleUpdateMilestone = useCallback((id, updates) => {
+        if (!id || !updates || typeof updates !== "object") return;
+        setCustomMilestones((prev) => {
+            const next = (Array.isArray(prev) ? prev : []).map((milestone) => {
+                if (String(milestone.id) !== String(id)) return milestone;
+                const updated = { ...milestone };
+                if (Object.prototype.hasOwnProperty.call(updates, "label")) {
+                    const label = String(updates.label ?? "").trim();
+                    updated.label = label || updated.label;
+                }
+                if (Object.prototype.hasOwnProperty.call(updates, "day")) {
+                    const day = parseFloat(updates.day);
+                    if (Number.isFinite(day)) {
+                        updated.day = parseFloat(Math.max(0, day).toFixed(1));
+                    }
+                }
+                return updated;
+            });
+            return next.sort((a, b) => a.day - b.day);
+        });
+    }, []);
+
+    const handleDeleteMilestone = useCallback((id) => {
+        if (!id) return;
+        setCustomMilestones((prev) => (Array.isArray(prev) ? prev.filter((m) => String(m.id) !== String(id)) : []));
+    }, []);
+
     if (loading) return <div className="p-8 flex justify-center items-center h-full">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[var(--navy-accent)]"></div>
     </div>;
@@ -1129,15 +1226,24 @@ export default function ScheduleMasterList() {
                             onDeleteSubtask={handleDeleteSubtask}
                             monthlyData={weightMonthlyData}
                             totalWorking={weightTotalWorking}
+                            customMilestones={customMilestones}
+                            onAddMilestone={handleAddMilestone}
+                            onUpdateMilestone={handleUpdateMilestone}
+                            onDeleteMilestone={handleDeleteMilestone}
                         />
                     ) : viewMode === "weight" ? (
-                        <div className="flex-1 min-h-0 overflow-y-auto">
+                        <div className="flex-1 min-h-0 min-w-0 w-full overflow-hidden flex flex-col">
                             <WeightSchedulePage
                                 startDate={startDate}
                                 totalCalendarDays={totalCalendarDays}
                                 workDayType={workDayType}
                                 operatingRates={operatingRates}
-                                items={items}
+                                items={ganttTimedItems}
+                                initialCostInputs={costInputsRef.current}
+                                onPersistInputs={(nextCostInputs) => {
+                                    weightInputsRef.current = {};
+                                    costInputsRef.current = nextCostInputs;
+                                }}
                             />
                         </div>
                     ) : (

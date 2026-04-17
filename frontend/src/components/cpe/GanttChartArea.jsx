@@ -1,6 +1,5 @@
 import React, { useMemo, useRef, useState, useCallback, useEffect, useLayoutEffect } from "react";
 import SmartGanttBar from "./SmartGanttBar";
-import SubtaskNameModal from "./schedule/SubtaskNameModal";
 import { getSelectionBoxIds } from "./gantt/controllers/selectionBox";
 import LinkLayer from "./gantt/ui/LinkLayer.jsx";
 import CriticalPathLayer from "./gantt/ui/CriticalPathLayer.jsx";
@@ -20,6 +19,7 @@ const GanttChartArea = ({
     itemsWithTiming,
     links,
     categoryMilestones,
+    customMilestones = [],
     onBarDragStart,
     onBarDragPreview,
     onBarDragEnd,
@@ -45,14 +45,22 @@ const GanttChartArea = ({
     onCreateSubtask,
     onUpdateSubtask,
     onDeleteSubtask,
-    readOnly = false
+    readOnly = false,
+    canEditMilestones = false,
+    milestonePlacementMode = false,
+    selectedMilestoneId = null,
+    onSelectMilestone,
+    onPlaceMilestone,
+    onUpdateMilestone,
+    onDeleteMilestone,
 }) => {
     const [rowH, setRowH] = useState(44);
     const [rowCenter, setRowCenter] = useState(22);
     const [subtaskDraft, setSubtaskDraft] = useState(null);
     const [selectionBox, setSelectionBox] = useState(null);
     const [linkDrag, setLinkDrag] = useState(null); // { fromId, fromAnchor, fromX, fromY, x, y }
-    const [renameModal, setRenameModal] = useState({ open: false, id: null, value: "" });
+    const [editingSubtask, setEditingSubtask] = useState({ id: null, value: "", fallback: "" });
+    const [editingMilestone, setEditingMilestone] = useState({ id: null, value: "", fallback: "" });
     const pxFactor = pixelsPerUnit / dateScale;
     const itemIndexById = new Map(itemsWithTiming.map((item, index) => [item.id, { item, index }]));
     const subtaskIndexById = new Map((subTasks || []).map((subtask) => {
@@ -278,6 +286,86 @@ const GanttChartArea = ({
         };
     }, [linkDrag]);
 
+    const handleMilestoneMouseDown = useCallback((e, milestone) => {
+        if (!canEditMilestones || !milestone?.id) return;
+        if (String(editingMilestone.id) === String(milestone.id)) return;
+        e.preventDefault();
+        e.stopPropagation();
+        if (typeof onSelectMilestone === "function") {
+            onSelectMilestone(milestone.id);
+        }
+        const startClientX = e.clientX;
+        const startDay = parseFloat(milestone.day) || 0;
+
+        const handleMouseMove = (moveEvent) => {
+            if (typeof onUpdateMilestone !== "function") return;
+            const deltaDays = (moveEvent.clientX - startClientX) / pxFactor;
+            const nextDay = Math.max(0, startDay + deltaDays);
+            onUpdateMilestone(milestone.id, { day: parseFloat(nextDay.toFixed(1)) });
+        };
+        const handleMouseUp = () => {
+            window.removeEventListener("mousemove", handleMouseMove);
+            window.removeEventListener("mouseup", handleMouseUp);
+        };
+        window.addEventListener("mousemove", handleMouseMove);
+        window.addEventListener("mouseup", handleMouseUp);
+    }, [canEditMilestones, editingMilestone.id, onSelectMilestone, onUpdateMilestone, pxFactor]);
+
+    const handleMilestoneDoubleClick = useCallback((milestone) => {
+        if (!canEditMilestones || !milestone?.id) return;
+        const fallback = String(milestone.label || "").trim() || "마일스톤";
+        setEditingMilestone({
+            id: milestone.id,
+            value: String(milestone.label || ""),
+            fallback
+        });
+    }, [canEditMilestones]);
+
+    const handleMilestoneContextMenu = useCallback((e, milestone) => {
+        if (!canEditMilestones || !milestone?.id || typeof onDeleteMilestone !== "function") return;
+        e.preventDefault();
+        e.stopPropagation();
+        onDeleteMilestone(milestone.id);
+    }, [canEditMilestones, onDeleteMilestone]);
+
+    const beginSubtaskRename = useCallback((subtask) => {
+        if (readOnly || !subtask?.id) return;
+        const fallback = String(subtask.label || "").trim() || "부세부공종";
+        setEditingSubtask({
+            id: subtask.id,
+            value: String(subtask.label || ""),
+            fallback
+        });
+    }, [readOnly]);
+
+    const commitSubtaskRename = useCallback(() => {
+        if (!editingSubtask.id || typeof onUpdateSubtask !== "function") {
+            setEditingSubtask({ id: null, value: "", fallback: "" });
+            return;
+        }
+        const label = String(editingSubtask.value || "").trim() || editingSubtask.fallback || "부세부공종";
+        onUpdateSubtask(editingSubtask.id, { label });
+        setEditingSubtask({ id: null, value: "", fallback: "" });
+    }, [editingSubtask, onUpdateSubtask]);
+
+    const cancelSubtaskRename = useCallback(() => {
+        setEditingSubtask({ id: null, value: "", fallback: "" });
+    }, []);
+
+    const commitMilestoneRename = useCallback(() => {
+        if (!editingMilestone.id || typeof onUpdateMilestone !== "function") {
+            setEditingMilestone({ id: null, value: "", fallback: "" });
+            return;
+        }
+        const label = String(editingMilestone.value || "").trim() || editingMilestone.fallback || "마일스톤";
+        onUpdateMilestone(editingMilestone.id, { label });
+        setEditingMilestone({ id: null, value: "", fallback: "" });
+    }, [editingMilestone, onUpdateMilestone]);
+
+    const cancelMilestoneRename = useCallback(() => {
+        setEditingMilestone({ id: null, value: "", fallback: "" });
+    }, []);
+
     const hasSubtaskOverlap = useCallback((itemId, startDay, durationDays, excludeId = null) => {
         if (!subTasks || subTasks.length === 0) return false;
         const endDay = startDay + durationDays;
@@ -418,6 +506,14 @@ const GanttChartArea = ({
         if (targetEl.closest('[data-link-id]')) return;
         if (targetEl.closest('[data-subtask-item="true"]')) return;
 
+        if (milestonePlacementMode && canEditMilestones && typeof onPlaceMilestone === "function") {
+            const rect = chartAreaRef.current?.getBoundingClientRect();
+            if (!rect) return;
+            const day = Math.max(0, (e.clientX - rect.left) / pxFactor);
+            onPlaceMilestone(parseFloat(day.toFixed(1)));
+            return;
+        }
+
         if (onSelectSubtask) onSelectSubtask(null, e);
         if (onSelectionChange) onSelectionChange([]);
 
@@ -468,7 +564,17 @@ const GanttChartArea = ({
 
         document.addEventListener('mousemove', handleMouseMove);
         document.addEventListener('mouseup', handleMouseUp);
-    }, [subtaskMode, onSelectSubtask, onSelectionChange, itemsWithTiming, pxFactor, rowH]);
+    }, [
+        subtaskMode,
+        milestonePlacementMode,
+        canEditMilestones,
+        onPlaceMilestone,
+        onSelectSubtask,
+        onSelectionChange,
+        itemsWithTiming,
+        pxFactor,
+        rowH
+    ]);
 
     return (
         <div className="relative">
@@ -566,6 +672,80 @@ const GanttChartArea = ({
                 })}
             </div>
 
+            <div className="absolute top-0 left-0 z-50 sticky" style={{ top: 0 }}>
+                {(customMilestones || []).map((milestone, idx) => {
+                    const day = parseFloat(milestone?.day ?? 0) || 0;
+                    const milestoneX = day * pxFactor;
+                    const isSelected = String(selectedMilestoneId) === String(milestone.id);
+                    const isEditing = String(editingMilestone.id) === String(milestone.id);
+                    return (
+                        <div
+                            key={milestone.id || `custom-milestone-${idx}`}
+                            className="absolute select-none"
+                            style={{
+                                left: `${milestoneX}px`,
+                                top: "32px",
+                                transform: "translateX(-50%)"
+                            }}
+                            onMouseDown={(e) => handleMilestoneMouseDown(e, milestone)}
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                if (typeof onSelectMilestone === "function") onSelectMilestone(milestone.id);
+                            }}
+                            onDoubleClick={() => handleMilestoneDoubleClick(milestone)}
+                            onContextMenu={(e) => handleMilestoneContextMenu(e, milestone)}
+                            title={`${milestone.label} (D+${day.toFixed(1)})`}
+                        >
+                            <div className="mx-auto mb-1 h-3 w-3 rotate-45 border border-amber-400 bg-amber-300 shadow-sm"></div>
+                            <div
+                                className={`flex items-center gap-1 rounded border px-2 py-1 text-xs font-semibold whitespace-nowrap shadow-sm ${
+                                    isSelected
+                                        ? "border-amber-500 bg-amber-50 text-amber-700"
+                                        : "border-amber-200 bg-white/95 text-amber-700"
+                                }`}
+                            >
+                                {isEditing ? (
+                                    <input
+                                        type="text"
+                                        className="h-5 min-w-[120px] rounded border border-amber-300 bg-white px-1 text-xs font-semibold text-amber-700 outline-none focus:border-amber-500"
+                                        autoFocus
+                                        value={editingMilestone.value}
+                                        onChange={(e) => setEditingMilestone((prev) => ({ ...prev, value: e.target.value }))}
+                                        onMouseDown={(e) => e.stopPropagation()}
+                                        onClick={(e) => e.stopPropagation()}
+                                        onKeyDown={(e) => {
+                                            if (e.key === "Enter") {
+                                                e.preventDefault();
+                                                e.currentTarget.blur();
+                                            }
+                                            if (e.key === "Escape") {
+                                                e.preventDefault();
+                                                cancelMilestoneRename();
+                                            }
+                                        }}
+                                        onBlur={commitMilestoneRename}
+                                    />
+                                ) : (
+                                    <span>{milestone.label || `마일스톤 ${idx + 1}`}</span>
+                                )}
+                                {canEditMilestones && !isEditing && (
+                                    <button
+                                        type="button"
+                                        className="text-[10px] leading-none text-amber-600 hover:text-red-500"
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            if (typeof onDeleteMilestone === "function") onDeleteMilestone(milestone.id);
+                                        }}
+                                    >
+                                        ✕
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+                    );
+                })}
+            </div>
+
             {/* Gantt Rows */}
             <div ref={chartAreaRef} className="relative" onMouseDown={handleCanvasMouseDown}>
                 {selectionBox && (
@@ -606,7 +786,12 @@ const GanttChartArea = ({
                     getSnapCandidate={getSnapCandidate}
                     hasSubtaskOverlap={hasSubtaskOverlap}
                     overlapsCriticalPath={overlapsCriticalPath}
-                    setRenameModal={setRenameModal}
+                    editingSubtaskId={editingSubtask.id}
+                    editingSubtaskValue={editingSubtask.value}
+                    onSubtaskRenameStart={beginSubtaskRename}
+                    onSubtaskRenameChange={(value) => setEditingSubtask((prev) => ({ ...prev, value }))}
+                    onSubtaskRenameSubmit={commitSubtaskRename}
+                    onSubtaskRenameCancel={cancelSubtaskRename}
                     readOnly={readOnly}
                 />
 
@@ -651,19 +836,6 @@ const GanttChartArea = ({
                     );
                 })}
             </div>
-            <SubtaskNameModal
-                isOpen={renameModal.open}
-                value={renameModal.value}
-                onChange={(value) => setRenameModal((prev) => ({ ...prev, value }))}
-                onClose={() => setRenameModal({ open: false, id: null, value: "" })}
-                onSubmit={() => {
-                    if (renameModal.id && onUpdateSubtask) {
-                        const label = renameModal.value.trim() || "부세부공종";
-                        onUpdateSubtask(renameModal.id, { label });
-                    }
-                    setRenameModal({ open: false, id: null, value: "" });
-                }}
-            />
         </div>
     );
 };

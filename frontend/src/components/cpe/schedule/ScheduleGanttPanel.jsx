@@ -14,6 +14,10 @@ export default function ScheduleGanttPanel({
     readOnly = false,
     monthlyData = [],
     totalWorking = 0,
+    customMilestones = [],
+    onAddMilestone,
+    onUpdateMilestone,
+    onDeleteMilestone,
 }) {
     return (
         <div className="flex-1 min-h-0 overflow-hidden rounded-xl border border-gray-700 bg-[#2c2c3a] p-3 shadow-lg">
@@ -30,6 +34,10 @@ export default function ScheduleGanttPanel({
                 readOnly={readOnly}
                 monthlyData={monthlyData}
                 totalWorking={totalWorking}
+                customMilestones={customMilestones}
+                onAddMilestone={onAddMilestone}
+                onUpdateMilestone={onUpdateMilestone}
+                onDeleteMilestone={onDeleteMilestone}
             />
         </div>
     );
